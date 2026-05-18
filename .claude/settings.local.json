@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\sachi\\\\Desktop\\\\mpcc\\\\frontend\\\\src\\\\pages\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\sachi\\\\Desktop\\\\mpcc\\\\frontend\\\\src\\\\assets\")",
+      "Bash(npm run *)",
+      "Bash(npm start *)",
+      "Bash(timeout 5 curl -s http://localhost:5050)",
+      "Bash(timeout 5 curl -s http://localhost:5060/api/health)",
+      "Bash(timeout 5 curl -s http://localhost:5065)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\sachi\\\\Desktop\\\\mpcc\" -Recurse -Filter \"*.html\")",
+      "Bash(Select-Object FullName)",
+      "Bash(curl -s http://localhost:5060/api/health)",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "mcp__Claude_in_Chrome__find",
+      "mcp__Claude_in_Chrome__computer",
+      "mcp__Claude_in_Chrome__read_console_messages",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "Bash(curl -s http://localhost:5065)",
+      "mcp__Claude_in_Chrome__tabs_create_mcp",
+      "Bash(curl -I http://localhost:5065)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(find \"C:\\\\Users\\\\sachi\\\\Desktop\" -name \"admin.html\" -type f 2>/dev/null | head -5)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \"5072\\\\|5071\\\\|5070\")",
+      "Bash(findstr \"5065\")",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Initial commit: MPCC Biomedical Waste Management System with React Admin Panel *)"
+    ]
+  }
+}

@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MPCC – Biomedical Waste Management</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+*{font-family:'Inter',sans-serif;box-sizing:border-box;}
+html,body{height:100%;margin:0;padding:0;overflow:hidden;}
+
+/* ── GRADIENTS & BUTTONS ── */
+.hero-bg{background:linear-gradient(135deg,#f0f7ff 0%,#e8f4fd 40%,#f5f0ff 100%);}
+.wizard-banner{background:linear-gradient(90deg,#2563eb 0%,#7c3aed 100%);}
+.btn-primary{background:linear-gradient(135deg,#2563eb,#1d4ed8);transition:all .3s;}
+.btn-primary:hover{background:linear-gradient(135deg,#1d4ed8,#1e40af);transform:translateY(-1px);box-shadow:0 6px 20px rgba(37,99,235,.35);}
+.btn-green{background:linear-gradient(135deg,#16a34a,#15803d);transition:all .3s;}
+.btn-green:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(22,163,74,.35);}
+.btn-disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed;}
+
+/* ── WIZARD SHELL ── */
+/* Landing: scrollable on mobile, centered on desktop */
+#landing-section{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  overflow-y:auto;
+  background:linear-gradient(135deg,#f0f7ff 0%,#e8f4fd 40%,#f5f0ff 100%);
+  z-index:5;
+}
+/* Wizard: fixed full screen, 3-zone */
+#wizard-section{
+  position:fixed;inset:0;
+  display:none;flex-direction:column;
+  background:linear-gradient(135deg,#f0f7ff 0%,#e8f4fd 40%,#f5f0ff 100%);
+  z-index:10;
+  overflow:hidden;
+}
+#wizard-section.open{display:flex;}
+#wiz-top{flex-shrink:0;}
+#wiz-body{flex:1;overflow-y:auto;min-height:0;}
+#wiz-foot{flex-shrink:0;}
+
+/* Thank you page */
+#thankyou-section{
+  position:fixed;inset:0;display:none;flex-direction:column;
+  overflow-y:auto;background:linear-gradient(135deg,#f0f7ff 0%,#e8f4fd 40%,#f5f0ff 100%);
+  z-index:20;align-items:center;justify-content:flex-start;
+}
+#thankyou-section.open{display:flex;}
+
+/* ── STEP ANIMATIONS ── */
+.wiz-step{display:none;opacity:0;transform:translateX(24px);transition:opacity .32s ease,transform .32s ease;}
+.wiz-step.active{display:block;opacity:1;transform:translateX(0);}
+.wiz-step.exit{opacity:0;transform:translateX(-24px);}
+
+/* ── CATEGORY CARDS ── */
+.cat-card{border:2px solid #e2e8f0;border-radius:14px;cursor:pointer;transition:all .25s;background:white;}
+.cat-card:hover{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(37,99,235,.08),0 6px 20px rgba(37,99,235,.1);transform:translateY(-2px);}
+.cat-card.selected{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#f5f3ff);box-shadow:0 0 0 3px rgba(37,99,235,.15);}
+.cat-icon-wrap{border-radius:12px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;transition:all .25s;background:linear-gradient(135deg,#2563eb,#3b82f6);}
+.cat-card:hover .cat-icon-wrap,.cat-card.selected .cat-icon-wrap{box-shadow:0 4px 14px rgba(37,99,235,.3);transform:scale(1.06);}
+
+/* ── SUB-CATEGORY ── */
+.sub-item{border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;transition:all .22s;background:white;}
+.sub-item:hover{border-color:#3b82f6;background:#eff6ff;}
+.sub-item.selected{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#f5f3ff);}
+
+/* ── PLAN CARDS ── */
+.plan-card{border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;transition:all .22s;background:white;}
+.plan-card.selected{border-color:#2563eb;background:#eff6ff;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+
+/* ── KIT CARDS ── */
+.kit-card{border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;transition:all .25s;background:white;position:relative;}
+.kit-card:hover{border-color:#3b82f6;box-shadow:0 4px 14px rgba(37,99,235,.1);transform:translateY(-2px);}
+.kit-card.selected{border-color:#16a34a;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);box-shadow:0 0 0 3px rgba(22,163,74,.12);}
+
+/* ── STEPPER ── */
+.step-btn{width:36px;height:36px;border-radius:9px;border:2px solid #e2e8f0;background:white;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;font-size:18px;font-weight:700;color:#475569;line-height:1;}
+.step-btn:hover{border-color:#2563eb;background:#eff6ff;color:#2563eb;}
+.step-btn:active{transform:scale(.9);}
+
+/* ── PROGRESS STEP BAR ── */
+.prog-line{height:3px;background:#e2e8f0;flex:1;transition:background .4s;}
+.prog-line.done{background:linear-gradient(90deg,#2563eb,#7c3aed);}
+
+/* ── INNER TABS (Step 3) ── */
+.inner-tab{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;color:#64748b;border:2px solid transparent;}
+.inner-tab.active{background:#2563eb;color:white;border-color:#2563eb;}
+.inner-tab:not(.active):hover{background:#eff6ff;color:#2563eb;}
+
+/* ── PAYMENT MODAL ── */
+.modal-bg{background:rgba(0,0,0,.52);backdrop-filter:blur(4px);}
+.pay-tab{border-bottom:3px solid transparent;cursor:pointer;transition:all .2s;font-size:12px;font-weight:600;padding:10px 0;flex:1;text-align:center;color:#64748b;}
+.pay-tab.active{border-bottom-color:#2563eb;color:#2563eb;}
+
+/* ── ANIMATIONS ── */
+.success-ring{animation:ringPulse 2s infinite;}
+@keyframes ringPulse{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,.3);}50%{box-shadow:0 0 0 18px rgba(22,163,74,0);}}
+.cost-pop{animation:costPop .28s ease;}
+@keyframes costPop{0%{transform:scale(.95);}60%{transform:scale(1.05);}100%{transform:scale(1);}}
+.particle{position:absolute;border-radius:50%;background:rgba(37,99,235,.07);animation:floatUp 7s infinite ease-in-out;}
+@keyframes floatUp{0%,100%{transform:translateY(0);}50%{transform:translateY(-16px);}}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px;}
+
+/* ── BED INPUT ── */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
+input[type=number]{-moz-appearance:textfield;}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════
+     LANDING SECTION
+════════════════════════════════════════ -->
+<div id="landing-section">
+  <!-- Navbar -->
+  <nav class="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50 shadow-sm shrink-0">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6">
+      <div class="flex items-center justify-between h-14">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow">M</div>
+          <span class="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">MPCC</span>
+        </div>
+        <div class="hidden md:flex items-center gap-6">
+          <a href="#" class="text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors">Home</a>
+          <a href="#" class="text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors">About</a>
+          <a href="#" class="text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors">Contact</a>
+        </div>
+        <div class="flex items-center gap-2">
+          <a href="customer.html" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;font-size:12px;font-weight:700;padding:7px 14px;border-radius:10px;text-decoration:none;border:none;box-shadow:0 2px 8px rgba(91,33,182,.25);transition:box-shadow .2s;" onmouseover="this.style.boxShadow='0 4px 16px rgba(91,33,182,.4)'" onmouseout="this.style.boxShadow='0 2px 8px rgba(91,33,182,.25)'">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Customer Portal
+          </a>
+          <button onclick="window.open('admin.html','_blank')" class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-xl hover:shadow-lg transition-all cursor-pointer">Admin Login</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero content -->
+  <div class="flex-1 flex items-center py-8 px-4 sm:px-6">
+    <div class="max-w-7xl mx-auto w-full">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+
+        <!-- LEFT -->
+        <div class="order-2 lg:order-1">
+          <span class="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-4">
+            <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+            Government Registered Facility
+          </span>
+          <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 leading-tight mb-3">
+            Professional biomedical waste
+            <span class="bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent block">management services</span>
+          </h1>
+          <p class="text-slate-500 text-sm sm:text-base leading-relaxed mb-6 max-w-lg">
+            Trusted by <strong class="text-slate-700">500+ healthcare institutions</strong> across Uttarakhand for safe, compliant, and reliable biomedical waste disposal.
+          </p>
+          <div class="grid grid-cols-3 gap-3 mb-5">
+            <div class="bg-white rounded-xl shadow p-3 text-center">
+              <div class="text-xl font-black text-blue-600">500<span class="text-blue-400">+</span></div>
+              <div class="text-xs text-slate-400 font-medium mt-0.5">Clients</div>
+            </div>
+            <div class="bg-white rounded-xl shadow p-3 text-center">
+              <div class="text-xl font-black text-orange-500">4.8<span class="text-orange-400 text-sm">/5</span></div>
+              <div class="text-xs text-slate-400 font-medium mt-0.5">Rating</div>
+            </div>
+            <div class="bg-white rounded-xl shadow p-3 text-center">
+              <div class="text-xl font-black text-emerald-600">10<span class="text-emerald-400">+</span></div>
+              <div class="text-xs text-slate-400 font-medium mt-0.5">Years</div>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="flex items-center gap-1 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-full shadow-sm">✓ 100% Compliant</span>
+            <span class="flex items-center gap-1 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-full shadow-sm">⟳ 24/7 Support</span>
+            <span class="flex items-center gap-1 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-full shadow-sm">★ Govt. Registered</span>
+            <span class="flex items-center gap-1 bg-white border border-slate-200 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-full shadow-sm">♻ Eco Friendly</span>
+          </div>
+        </div>
+
+        <!-- RIGHT: Registration card -->
+        <div class="order-1 lg:order-2">
+          <div class="bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100" style="box-shadow:0 20px 50px rgba(37,99,235,.12)">
+            <div class="wizard-banner px-5 py-2.5 flex items-center justify-center gap-5 flex-wrap">
+              <span class="text-white text-xs font-semibold">✓ Safe Disposal</span>
+              <span class="text-white text-xs font-semibold">✓ Free Pickup</span>
+              <span class="text-white text-xs font-semibold">✓ Compliance</span>
+            </div>
+            <div class="p-5 sm:p-6">
+              <h2 class="text-lg sm:text-xl font-bold text-slate-800 text-center mb-0.5">Get Started with MPCC</h2>
+              <p class="text-slate-400 text-xs text-center mb-4">Quick & easy registration</p>
+              <form id="landing-form" onsubmit="startWizard(event)">
+                <div class="mb-3">
+                  <label class="text-xs font-semibold text-slate-500 mb-1 block">Institution Name *</label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    </span>
+                    <input id="inst-name" type="text" required placeholder="Enter institution name" class="w-full pl-9 pr-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 transition-colors"/>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label class="text-xs font-semibold text-slate-500 mb-1 block">Mobile *</label>
+                    <input id="mobile" type="tel" required placeholder="Mobile number" class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 transition-colors"/>
+                  </div>
+                  <div>
+                    <label class="text-xs font-semibold text-slate-500 mb-1 block">Email *</label>
+                    <input id="email" type="email" required placeholder="Email address" class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 transition-colors"/>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                  <div>
+                    <label class="text-xs font-semibold text-slate-500 mb-1 block">Zone *</label>
+                    <select id="zone" required class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 bg-white">
+                      <option value="">Select Zone</option>
+                      <option>Roorkee</option><option>Haridwar</option><option>Rishikesh</option><option>Dehradun</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-xs font-semibold text-slate-500 mb-1 block">Route *</label>
+                    <select id="route" required class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 bg-white">
+                      <option value="">Select Route</option>
+                      <option>Fatehpur Route</option><option>Jwalapur Route</option><option>Kankhal Route</option>
+                    </select>
+                  </div>
+                </div>
+                <button type="submit" class="btn-primary w-full text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg">
+                  Continue to Register
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     WIZARD SECTION
+════════════════════════════════════════ -->
+<div id="wizard-section">
+
+  <!-- TOP: Header & Progress Bar -->
+  <div id="wiz-top" class="bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm px-4 sm:px-6 pt-3 pb-3">
+    <div class="max-w-3xl mx-auto">
+      <!-- back + title row -->
+      <div class="flex items-center gap-3 mb-3">
+        <button onclick="wizBack()" id="top-back-btn" class="flex items-center gap-1.5 text-slate-400 hover:text-blue-600 text-xs font-semibold transition-colors group">
+          <svg class="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+          Back
+        </button>
+        <div class="flex-1 text-center">
+          <span class="text-sm font-bold text-slate-700" id="step-title-label">Select Category</span>
+        </div>
+        <div class="text-xs font-semibold text-slate-400"><span id="step-num">1</span>/4</div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="flex items-center gap-0">
+        <!-- Step 1 -->
+        <div class="flex flex-col items-center">
+          <div id="sc1" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-400 bg-blue-600 text-white shadow shadow-blue-200">1</div>
+          <span class="text-xs font-semibold mt-1 text-blue-600 hidden sm:block">Category</span>
+        </div>
+        <div id="ln12" class="prog-line mx-1 sm:mx-2 mt-0 sm:-mt-4"></div>
+        <!-- Step 2 -->
+        <div class="flex flex-col items-center">
+          <div id="sc2" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-400 bg-slate-200 text-slate-400">2</div>
+          <span class="text-xs font-semibold mt-1 text-slate-400 hidden sm:block">Sub-Category</span>
+        </div>
+        <div id="ln23" class="prog-line mx-1 sm:mx-2 mt-0 sm:-mt-4"></div>
+        <!-- Step 3 -->
+        <div class="flex flex-col items-center">
+          <div id="sc3" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-400 bg-slate-200 text-slate-400">3</div>
+          <span class="text-xs font-semibold mt-1 text-slate-400 hidden sm:block">Plan & Kit</span>
+        </div>
+        <div id="ln34" class="prog-line mx-1 sm:mx-2 mt-0 sm:-mt-4"></div>
+        <!-- Step 4 -->
+        <div class="flex flex-col items-center">
+          <div id="sc4" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-400 bg-slate-200 text-slate-400">4</div>
+          <span class="text-xs font-semibold mt-1 text-slate-400 hidden sm:block">Confirm & Pay</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BODY: scrollable content -->
+  <div id="wiz-body" class="px-3 sm:px-5 py-3">
+    <div class="max-w-3xl mx-auto">
+
+      <!-- ── STEP 1: Category ── -->
+      <div id="step-1" class="wiz-step active">
+        <div class="bg-white rounded-2xl shadow-md border border-slate-100 p-4 sm:p-5">
+          <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+            <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow shrink-0">
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            </div>
+            <div>
+              <h2 class="text-base font-bold text-slate-800">Select Facility Category</h2>
+              <p class="text-slate-400 text-xs">Choose the type of your healthcare institution</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+            <div class="cat-card p-3 text-center" onclick="selectCategory(this,'Hospital','hosp')">
+              <div class="cat-icon-wrap"><svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M19 2H5a2 2 0 00-2 2v18l4-2 4 2 4-2 4 2V4a2 2 0 00-2-2zM9 13H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8-4H7V7h2v2zm4 0h-2V7h2v2zm4 0h-2V7h2v2z"/></svg></div>
+              <div class="font-semibold text-slate-700 text-xs leading-tight">Hospital</div>
+              <div class="text-slate-400 text-xs mt-0.5">Nursing Home</div>
+            </div>
+            <div class="cat-card p-3 text-center" onclick="selectCategory(this,'Pathology','path')">
+              <div class="cat-icon-wrap" style="background:linear-gradient(135deg,#e11d48,#f43f5e)"><svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg></div>
+              <div class="font-semibold text-slate-700 text-xs leading-tight">Pathology</div>
+              <div class="text-slate-400 text-xs mt-0.5">Lab / Diagnostic</div>
+            </div>
+            <div class="cat-card p-3 text-center" onclick="selectCategory(this,'Clinic','clinic')">
+              <div class="cat-icon-wrap" style="background:linear-gradient(135deg,#7c3aed,#8b5cf6)"><svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 11h-3v3h-2v-3H8v-2h3V8h2v3h3v2z"/></svg></div>
+              <div class="font-semibold text-slate-700 text-xs leading-tight">Clinic</div>
+              <div class="text-slate-400 text-xs mt-0.5">General / Poly</div>
+            </div>
+            <div class="cat-card p-3 text-center" onclick="selectCategory(this,'Dental','dental')">
+              <div class="cat-icon-wrap" style="background:linear-gradient(135deg,#059669,#10b981)"><svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1C8.5 1 7 3.5 7 3.5S3 3 3 7c0 3.9 2 6.5 2 6.5l1 7.5c.3 1.1 1.5 2 2.5 2s2-.5 2.5-1.5L12 19l1 2.5c.5 1 1.5 1.5 2.5 1.5s2.2-.9 2.5-2l1-7.5S21 10.9 21 7c0-4-4-3.5-4-3.5S15.5 1 12 1z"/></svg></div>
+              <div class="font-semibold text-slate-700 text-xs leading-tight">Dental</div>
+              <div class="text-slate-400 text-xs mt-0.5">Per chair/month</div>
+            </div>
+            <div class="cat-card p-3 text-center" onclick="selectCategory(this,'Veterinary','vet')">
+              <div class="cat-icon-wrap" style="background:linear-gradient(135deg,#dc2626,#ef4444)"><svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M4.5 11c.83 0 1.5-.67 1.5-1.5v-4C6 4.67 5.33 4 4.5 4S3 4.67 3 5.5v4c0 .83.67 1.5 1.5 1.5zm4 1c.83 0 1.5-.67 1.5-1.5v-6C10 3.67 9.33 3 8.5 3S7 3.67 7 4.5v6c0 .83.67 1.5 1.5 1.5zm7 0c.83 0 1.5-.67 1.5-1.5v-6c0-.83-.67-1.5-1.5-1.5S14 3.67 14 4.5v6c0 .83.67 1.5 1.5 1.5zm4-1c.83 0 1.5-.67 1.5-1.5v-4c0-.83-.67-1.5-1.5-1.5S18 4.67 18 5.5v4c0 .83.67 1.5 1.5 1.5zM17 14H7c-1.1 0-2 .9-2 2 0 3.31 2.69 6 6 6s6-2.69 6-6c0-1.1-.9-2-2-2z"/></svg></div>
+              <div class="font-semibold text-slate-700 text-xs leading-tight">Veterinary</div>
+              <div class="text-slate-400 text-xs mt-0.5">Clinic / Hospital</div>
+            </div>
+            <div class="cat-card p-3 text-center" onclick="selectCategory(this,'Blood Bank','blood')">
+              <div class="cat-icon-wrap" style="background:linear-gradient(135deg,#d97706,#f59e0b)"><svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z"/></svg></div>
+              <div class="font-semibold text-slate-700 text-xs leading-tight">Blood Bank</div>
+              <div class="text-slate-400 text-xs mt-0.5">₹5,000/month</div>
+            </div>
+            <div class="cat-card p-3 text-center" onclick="selectCategory(this,'School/Inst.','inst')">
+              <div class="cat-icon-wrap" style="background:linear-gradient(135deg,#0891b2,#06b6d4)"><svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/></svg></div>
+              <div class="font-semibold text-slate-700 text-xs leading-tight">School / Inst.</div>
+              <div class="text-slate-400 text-xs mt-0.5">Medical clinic</div>
+            </div>
+            <div class="cat-card p-3 text-center" onclick="selectCategory(this,'Pharma','pharma')">
+              <div class="cat-icon-wrap" style="background:linear-gradient(135deg,#9333ea,#a855f7)"><svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6.5 10h-2v5h2v-5zm5 0h-2v5h2v-5zm8.5 7H2v2h18v-2zm-3.5-7h-2v5h2v-5zM11.5 1L2 6v2h18V6l-8.5-5z"/></svg></div>
+              <div class="font-semibold text-slate-700 text-xs leading-tight">Pharma</div>
+              <div class="text-slate-400 text-xs mt-0.5">Company / Store</div>
+            </div>
+            <div class="cat-card p-3 text-center" onclick="selectCategory(this,'Medical Store','medstore')">
+              <div class="cat-icon-wrap" style="background:linear-gradient(135deg,#16a34a,#22c55e)"><svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4v2l8 5 8-5V4zm0 4.236l-8 5-8-5V20h16V8.236z"/></svg></div>
+              <div class="font-semibold text-slate-700 text-xs leading-tight">Medical Store</div>
+              <div class="text-slate-400 text-xs mt-0.5">₹550/month</div>
+            </div>
+            <div class="cat-card p-3 text-center" onclick="selectCategory(this,'Health Camp','camp')">
+              <div class="cat-icon-wrap" style="background:linear-gradient(135deg,#0284c7,#38bdf8)"><svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg></div>
+              <div class="font-semibold text-slate-700 text-xs leading-tight">Health Camp</div>
+              <div class="text-slate-400 text-xs mt-0.5">₹2,000/camp</div>
+            </div>
+          </div>
+          <!-- Selected feedback -->
+          <div id="cat-feedback" class="hidden mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+            <svg class="w-4 h-4 text-blue-500 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            <span class="text-blue-700 text-xs font-semibold" id="cat-feedback-text">Category selected</span>
+            <span class="ml-auto text-xs text-blue-500">Click Continue →</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 2: Sub-Category ── -->
+      <div id="step-2" class="wiz-step">
+        <div class="bg-white rounded-2xl shadow-md border border-slate-100 p-4 sm:p-5">
+          <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+            <div class="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow shrink-0">
+              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>
+            </div>
+            <div>
+              <h2 class="text-base font-bold text-slate-800">Select Sub-Category</h2>
+              <p class="text-slate-400 text-xs" id="sub-subtitle">Choose specific type</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="sub-list"></div>
+        </div>
+      </div>
+
+      <!-- ── STEP 3: Plan & Kit (Tabbed) ── -->
+      <div id="step-3" class="wiz-step">
+        <!-- Inner tabs -->
+        <div class="flex items-center gap-1.5 mb-3 bg-white rounded-xl border border-slate-100 shadow-sm p-1.5">
+          <button class="inner-tab active flex-1" onclick="s3tab('plan',this)">📋 Plan</button>
+          <button class="inner-tab flex-1" onclick="s3tab('beds',this)">🛏️ Beds</button>
+          <button class="inner-tab flex-1" onclick="s3tab('kit',this)">📦 Kit</button>
+          <button class="inner-tab flex-1" onclick="s3tab('addons',this)">➕ Add-ons</button>
+        </div>
+
+        <!-- Plan tab -->
+        <div id="s3-plan" class="bg-white rounded-2xl shadow-md border border-slate-100 p-4 sm:p-5">
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Suggested Plan</p>
+          <!-- Auto-suggested plan card -->
+          <div id="suggested-plan-card" class="plan-card p-4 flex items-center gap-3 selected mb-3" style="background:#eff6ff;border-color:#2563eb;">
+            <div class="w-5 h-5 rounded-full border-2 border-blue-500 flex items-center justify-center shrink-0"><div class="w-2.5 h-2.5 rounded-full bg-blue-600"></div></div>
+            <div class="flex-1">
+              <div class="font-bold text-slate-700 text-sm" id="sug-plan-name">Select category first</div>
+              <div class="text-slate-400 text-xs" id="sug-plan-unit">—</div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-lg font-black text-blue-600" id="sug-plan-rate">—</div>
+              <div class="text-xs text-emerald-600 font-semibold">✓ Recommended</div>
+            </div>
+          </div>
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 mt-3">All Plans</p>
+          <div class="space-y-2" id="all-plans-list" style="max-height:200px;overflow-y:auto;padding-right:4px;">
+            <!-- Dynamically populated by buildPlanList() -->
+          </div>
+          <!-- Reg fee note -->
+          <div class="mt-3 flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-xl p-3">
+            <svg class="w-4 h-4 text-orange-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <div>
+              <div class="text-xs font-bold text-orange-700">One-Time Registration Fee: <span id="plan-reg-fee">₹2,500–₹5,000</span></div>
+              <div class="text-xs text-slate-500 mt-0.5">Non-refundable. CPCB onboarding & documentation included.</div>
+            </div>
+          </div>
+          <button class="mt-4 w-full inner-tab active py-2.5 text-sm" id="plan-next-btn" onclick="s3tab('beds',document.querySelectorAll('.inner-tab')[1])">Next: Set Bed Count →</button>
+        </div>
+
+        <!-- Beds tab -->
+        <div id="s3-beds" class="hidden bg-white rounded-2xl shadow-md border border-slate-100 p-4 sm:p-5">
+          <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+            <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4z"/></svg>
+            </div>
+            <div>
+              <div class="font-bold text-slate-700 text-sm">Bed Capacity</div>
+              <div class="text-xs text-slate-400" id="beds-subtitle">Enter number of beds for auto-calculation</div>
+            </div>
+          </div>
+
+          <!-- Slab info cards -->
+          <div class="grid grid-cols-3 gap-2 mb-4">
+            <div class="rounded-xl p-2.5 text-center border-2 transition-all" id="slab-1-10" style="border-color:#e2e8f0;background:#f8fafc;">
+              <div class="text-xs font-bold text-blue-600">1–10 Beds</div>
+              <div class="text-base font-black text-slate-700 mt-0.5">₹2,500</div>
+              <div class="text-xs text-slate-400">/month</div>
+            </div>
+            <div class="rounded-xl p-2.5 text-center border-2 transition-all" id="slab-11-20" style="border-color:#e2e8f0;background:#f8fafc;">
+              <div class="text-xs font-bold text-purple-600">11–20 Beds</div>
+              <div class="text-base font-black text-slate-700 mt-0.5">₹3,500</div>
+              <div class="text-xs text-slate-400">/month</div>
+            </div>
+            <div class="rounded-xl p-2.5 text-center border-2 transition-all" id="slab-21+" style="border-color:#e2e8f0;background:#f8fafc;">
+              <div class="text-xs font-bold text-orange-600">21+ Beds</div>
+              <div class="text-base font-black text-slate-700 mt-0.5">₹7/bed</div>
+              <div class="text-xs text-slate-400">/day × 30</div>
+            </div>
+          </div>
+
+          <!-- Stepper + manual input -->
+          <div class="flex items-center justify-between bg-slate-50 rounded-2xl p-4 mb-4 border border-slate-100 gap-3">
+            <button class="step-btn" onclick="changeBeds(-10)">
+              <span class="text-xs font-black leading-none">−10</span>
+            </button>
+            <button class="step-btn" onclick="changeBeds(-1)">−</button>
+            <div class="text-center flex-1">
+              <input
+                type="number"
+                id="bed-input"
+                min="1" max="500"
+                value="0"
+                oninput="bedInputChange(this.value)"
+                class="text-4xl font-black text-slate-800 text-center w-24 bg-transparent border-b-2 border-blue-300 focus:outline-none focus:border-blue-600 pb-1"
+              />
+              <div class="text-xs text-slate-400 font-medium mt-1">Total Beds</div>
+            </div>
+            <button class="step-btn" onclick="changeBeds(1)">+</button>
+            <button class="step-btn" onclick="changeBeds(10)">
+              <span class="text-xs font-black leading-none">+10</span>
+            </button>
+          </div>
+
+          <!-- Visual bar -->
+          <div class="mb-4">
+            <div class="flex justify-between text-xs text-slate-400 mb-1.5">
+              <span>1</span><span class="text-purple-500 font-semibold">Slab 2 (11-20)</span><span>21+</span>
+            </div>
+            <div class="relative h-3 bg-slate-100 rounded-full overflow-hidden">
+              <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-300" id="bed-bar" style="width:0%"></div>
+            </div>
+            <div class="text-xs font-semibold mt-1.5 text-blue-600" id="bed-label">Enter beds above to see your rate slab</div>
+          </div>
+
+          <!-- Monthly amount box -->
+          <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-3 border border-blue-100 flex items-center justify-between mb-4">
+            <div>
+              <div class="text-xs text-slate-500 font-semibold">Calculated Monthly Service Fee</div>
+              <div class="text-xs text-slate-400" id="bed-slab-label">Based on your bed count</div>
+            </div>
+            <div class="text-2xl font-black text-blue-700" id="bed-monthly-amount">₹0</div>
+          </div>
+          <button class="w-full inner-tab active py-2.5 text-sm" onclick="s3tab('kit',document.querySelectorAll('.inner-tab')[2])">Next: Choose Kit →</button>
+        </div>
+
+        <!-- Kit tab -->
+        <div id="s3-kit" class="hidden bg-white rounded-2xl shadow-md border border-slate-100 p-4 sm:p-5">
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Collection Kit</p>
+          <div class="grid grid-cols-2 gap-3">
+
+            <div class="kit-card p-4 selected" onclick="selectKit(this,'Small Kit',1397)">
+              <div class="kit-check-mark hidden absolute top-2 right-2 w-5 h-5 bg-emerald-500 rounded-full items-center justify-center">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div class="w-9 h-9 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center mb-3 shadow">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+              </div>
+              <div class="font-bold text-slate-700 text-sm">Small Kit</div>
+              <div class="text-xs text-slate-400 mt-0.5 mb-2">Clinics, pharmacies</div>
+              <div class="text-lg font-black text-emerald-600">₹1,397</div>
+            </div>
+
+            <div class="kit-card p-4 relative" onclick="selectKit(this,'Medium Kit',2500)">
+              <div class="kit-check-mark hidden absolute top-2 right-2 w-5 h-5 bg-emerald-500 rounded-full items-center justify-center">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div class="absolute top-2 left-2 text-xs bg-purple-100 text-purple-600 font-bold px-1.5 py-0.5 rounded-full">Popular</div>
+              <div class="w-9 h-9 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mb-3 shadow mt-5">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+              </div>
+              <div class="font-bold text-slate-700 text-sm">Medium Kit</div>
+              <div class="text-xs text-slate-400 mt-0.5 mb-2">Hospitals, nursing homes</div>
+              <div class="text-lg font-black text-purple-600">₹2,500</div>
+            </div>
+
+            <div class="kit-card p-4 relative" onclick="selectKit(this,'Large Kit',4200)">
+              <div class="kit-check-mark hidden absolute top-2 right-2 w-5 h-5 bg-emerald-500 rounded-full items-center justify-center">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div class="w-9 h-9 bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl flex items-center justify-center mb-3 shadow">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+              </div>
+              <div class="font-bold text-slate-700 text-sm">Large Kit</div>
+              <div class="text-xs text-slate-400 mt-0.5 mb-2">Large hospitals</div>
+              <div class="text-lg font-black text-orange-500">₹4,200</div>
+            </div>
+
+            <div class="kit-card p-4 relative" onclick="selectKit(this,'Enterprise Kit',7500)">
+              <div class="kit-check-mark hidden absolute top-2 right-2 w-5 h-5 bg-emerald-500 rounded-full items-center justify-center">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div class="absolute top-2 left-2 text-xs bg-yellow-100 text-yellow-700 font-bold px-1.5 py-0.5 rounded-full">Premium</div>
+              <div class="w-9 h-9 bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl flex items-center justify-center mb-3 shadow mt-5">
+                <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              </div>
+              <div class="font-bold text-slate-700 text-sm">Enterprise Kit</div>
+              <div class="text-xs text-slate-400 mt-0.5 mb-2">Research centers</div>
+              <div class="text-lg font-black text-slate-700">₹7,500</div>
+            </div>
+
+          </div>
+          <button class="mt-4 w-full inner-tab active py-2.5 text-sm" onclick="s3tab('addons',document.querySelectorAll('.inner-tab')[3])">Next: Add-ons →</button>
+        </div>
+
+        <!-- Add-ons tab -->
+        <div id="s3-addons" class="hidden bg-white rounded-2xl shadow-md border border-slate-100 p-4 sm:p-5">
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Optional Add-ons</p>
+          <label class="flex items-center justify-between p-3.5 border-2 border-slate-100 rounded-xl mb-2.5 cursor-pointer hover:border-blue-200 hover:bg-blue-50 transition-all group">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+              </div>
+              <div>
+                <div class="font-semibold text-slate-700 text-sm">Consulting Fees</div>
+                <div class="text-xs text-slate-400">Professional advisory services</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right"><div class="font-black text-slate-700 text-sm">₹2,000</div></div>
+              <input type="checkbox" id="consulting-check" onchange="calcTotal()" class="w-4 h-4 accent-blue-600"/>
+            </div>
+          </label>
+          <label class="flex items-center justify-between p-3.5 border-2 border-slate-100 rounded-xl cursor-pointer hover:border-purple-200 hover:bg-purple-50 transition-all group">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-purple-100 rounded-xl flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+              </div>
+              <div>
+                <div class="font-semibold text-slate-700 text-sm">Compliance Consultancy</div>
+                <div class="text-xs text-slate-400">CPCB documentation guidance</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right"><div class="font-black text-slate-700 text-sm">₹2,000</div></div>
+              <input type="checkbox" id="compliance-check" onchange="calcTotal()" class="w-4 h-4 accent-purple-600"/>
+            </div>
+          </label>
+
+          <!-- Mini order summary -->
+          <div class="mt-4 bg-slate-900 rounded-2xl p-4 text-white">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="font-bold text-sm">Order Summary</span>
+              <span class="ml-auto text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">Live</span>
+            </div>
+            <div class="space-y-1.5 text-xs text-slate-300 mb-3">
+              <div class="flex justify-between"><span>Registration (one-time)</span><span class="text-white font-semibold" id="os-reg-fee">₹2,500</span></div>
+              <div class="flex justify-between" id="os-svc-row" style="display:none"><span id="os-svc-label">Service</span><span class="text-white font-semibold" id="os-svc-price">₹0</span></div>
+              <div class="flex justify-between" id="os-kit-row"><span id="os-kit-label">Kit (Small Kit)</span><span class="text-white font-semibold" id="os-kit-price">₹1,397</span></div>
+              <div class="flex justify-between" id="os-con-row" style="display:none"><span>Consulting</span><span class="text-white font-semibold">₹2,000</span></div>
+              <div class="flex justify-between" id="os-com-row" style="display:none"><span>Compliance</span><span class="text-white font-semibold">₹2,000</span></div>
+            </div>
+            <div class="border-t border-slate-700 pt-2.5 space-y-1 text-xs">
+              <div class="flex justify-between text-slate-400"><span>Subtotal</span><span class="text-white font-semibold" id="os-sub">₹11,767</span></div>
+              <div class="flex justify-between text-slate-400"><span>CGST 9%</span><span class="text-white font-semibold" id="os-cgst">₹1,059</span></div>
+              <div class="flex justify-between text-slate-400"><span>SGST 9%</span><span class="text-white font-semibold" id="os-sgst">₹1,059</span></div>
+            </div>
+            <div class="border-t border-slate-600 pt-2.5 mt-1 flex justify-between items-center">
+              <span class="font-bold text-sm">Total Payable</span>
+              <span class="text-2xl font-black text-cyan-400" id="os-total">₹13,885</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 4: Review & Confirm ── -->
+      <div id="step-4" class="wiz-step">
+        <div class="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden">
+          <div class="px-4 sm:px-5 py-3.5 border-b border-slate-100 text-center">
+            <h2 class="text-base font-bold text-slate-800">Review & Confirm</h2>
+            <p class="text-xs text-slate-400">Verify details before payment</p>
+          </div>
+          <div class="p-4 sm:p-5 space-y-3">
+            <!-- Two cols on desktop -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="border-2 border-slate-100 rounded-xl p-3.5">
+                <div class="flex items-center gap-2 mb-2.5">
+                  <div class="w-6 h-6 bg-blue-50 rounded-lg flex items-center justify-center"><svg class="w-3.5 h-3.5 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19 2H5a2 2 0 00-2 2v18l4-2 4 2 4-2 4 2V4a2 2 0 00-2-2z"/></svg></div>
+                  <span class="font-bold text-slate-700 text-xs">Institution Details</span>
+                </div>
+                <div class="space-y-1.5 text-xs">
+                  <div class="flex gap-2"><span class="text-slate-400 w-16 shrink-0">Name</span><span class="font-semibold text-slate-700 truncate" id="rv-name">—</span></div>
+                  <div class="flex gap-2"><span class="text-slate-400 w-16 shrink-0">Mobile</span><span class="font-semibold text-slate-700" id="rv-mobile">—</span></div>
+                  <div class="flex gap-2"><span class="text-slate-400 w-16 shrink-0">Email</span><span class="font-semibold text-slate-700 truncate" id="rv-email">—</span></div>
+                  <div class="flex gap-2"><span class="text-slate-400 w-16 shrink-0">Category</span><span class="font-semibold text-slate-700" id="rv-cat">—</span></div>
+                  <div class="flex gap-2"><span class="text-slate-400 w-16 shrink-0">Sub-Cat</span><span class="font-semibold text-slate-700" id="rv-subcat">—</span></div>
+                  <div class="flex gap-2"><span class="text-slate-400 w-16 shrink-0">Zone</span><span class="font-semibold text-slate-700" id="rv-zone">—</span></div>
+                  <div class="flex gap-2"><span class="text-slate-400 w-16 shrink-0">Route</span><span class="font-semibold text-slate-700" id="rv-route">—</span></div>
+                </div>
+              </div>
+              <div class="border-2 border-slate-100 rounded-xl p-3.5">
+                <div class="flex items-center gap-2 mb-2.5">
+                  <div class="w-6 h-6 bg-emerald-50 rounded-lg flex items-center justify-center"><svg class="w-3.5 h-3.5 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19 2H5a2 2 0 00-2 2v18l4-2 4 2 4-2 4 2V4a2 2 0 00-2-2z"/></svg></div>
+                  <span class="font-bold text-slate-700 text-xs">Service Details</span>
+                </div>
+                <div class="space-y-1.5 text-xs">
+                  <div class="flex gap-2"><span class="text-slate-400 w-20 shrink-0">Plan</span><span class="font-semibold text-slate-700" id="rv-plan">—</span></div>
+                  <div class="flex gap-2"><span class="text-slate-400 w-20 shrink-0">Kit</span><span class="font-semibold text-slate-700" id="rv-kit">Small Kit</span></div>
+                  <div class="flex gap-2" id="rv-beds-row"><span class="text-slate-400 w-20 shrink-0">Beds</span><span class="font-semibold text-slate-700" id="rv-beds">0</span></div>
+                  <div class="flex gap-2"><span class="text-slate-400 w-20 shrink-0">Consulting</span><span class="font-semibold text-slate-700" id="rv-con">Not added</span></div>
+                  <div class="flex gap-2"><span class="text-slate-400 w-20 shrink-0">Compliance</span><span class="font-semibold text-slate-700" id="rv-com">Not added</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Payment summary dark -->
+            <div class="bg-slate-900 rounded-2xl p-4 text-white">
+              <div class="flex items-center gap-2 mb-3">
+                <svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+                <span class="font-bold text-sm">Payment Summary</span>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs mb-3">
+                <div class="flex justify-between"><span class="text-slate-400">Reg. Fee</span><span class="text-white font-semibold" id="rv-reg-fee">₹2,500</span></div>
+                <div class="flex justify-between" id="rv-svc-row" style="display:none"><span class="text-slate-400" id="rv-svc-label">Service</span><span class="text-white font-semibold" id="rv-svc-price">₹0</span></div>
+                <div class="flex justify-between"><span class="text-slate-400" id="rv-kit-label">Kit</span><span class="text-white font-semibold" id="rv-kit-price">₹1,397</span></div>
+                <div class="flex justify-between" id="rv-con-row" style="display:none"><span class="text-slate-400">Consulting</span><span class="text-white font-semibold">₹2,000</span></div>
+                <div class="flex justify-between" id="rv-com-row" style="display:none"><span class="text-slate-400">Compliance</span><span class="text-white font-semibold">₹2,000</span></div>
+              </div>
+              <div class="border-t border-slate-700 pt-2.5 grid grid-cols-3 gap-2 text-xs mb-2.5">
+                <div><div class="text-slate-400">Subtotal</div><div class="text-white font-bold" id="rv-sub">₹11,767</div></div>
+                <div><div class="text-slate-400">CGST 9%</div><div class="text-white font-bold" id="rv-cgst">₹1,059</div></div>
+                <div><div class="text-slate-400">SGST 9%</div><div class="text-white font-bold" id="rv-sgst">₹1,059</div></div>
+              </div>
+              <div class="border-t border-slate-600 pt-2.5 flex justify-between items-center">
+                <span class="font-bold text-sm">Total Payable <span class="text-xs text-slate-400 font-normal">(GST incl.)</span></span>
+                <span class="font-black text-2xl text-cyan-400" id="rv-total">₹13,885</span>
+              </div>
+            </div>
+
+            <!-- T&C -->
+            <div class="border-2 border-slate-100 rounded-xl overflow-hidden">
+              <button onclick="toggleTC()" class="w-full flex items-center justify-between px-3.5 py-3 hover:bg-slate-50 transition-colors">
+                <span class="text-blue-600 font-semibold text-xs flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 2H5a2 2 0 00-2 2v18l4-2 4 2 4-2 4 2V4a2 2 0 00-2-2z"/></svg>
+                  Terms & Conditions
+                </span>
+                <svg id="tc-chev" class="w-4 h-4 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+              </button>
+              <div id="tc-body" class="hidden px-3.5 pb-3 text-xs text-slate-500 leading-relaxed">
+                By registering with MPCC, you agree to comply with all applicable biomedical waste management regulations under the Bio-Medical Waste Management Rules, 2016. MPCC reserves the right to modify service terms with prior notice. All fees are non-refundable post service initiation.
+              </div>
+            </div>
+
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" id="tc-check" onchange="togglePayBtn()" class="w-4 h-4 accent-blue-600"/>
+              <span class="text-xs text-slate-600">I have read and agree to the <a href="#" class="text-blue-600 font-semibold hover:underline">Terms & Conditions</a></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- max-w -->
+  </div><!-- wiz-body -->
+
+  <!-- FOOTER: fixed bottom -->
+  <div id="wiz-foot" class="bg-white/95 backdrop-blur-md border-t border-slate-100 px-4 sm:px-6 py-3 shadow-[0_-4px_20px_rgba(0,0,0,.06)]">
+    <div class="max-w-3xl mx-auto flex gap-3">
+      <button id="foot-back" onclick="wizBack()" class="flex items-center gap-2 bg-white border-2 border-slate-200 text-slate-600 font-semibold px-5 py-3 rounded-2xl hover:border-blue-300 hover:text-blue-600 transition-all text-sm shrink-0 shadow-sm" style="display:none">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Back
+      </button>
+      <button id="foot-next" onclick="wizNext()" disabled class="flex-1 flex items-center justify-center gap-2 btn-disabled font-bold py-3 rounded-2xl text-sm transition-all shadow-sm cursor-not-allowed">
+        <span id="foot-label">Continue</span>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+      </button>
+    </div>
+  </div>
+
+</div><!-- wizard-section -->
+
+
+<!-- ════════════════════════════════════════
+     PAYMENT MODAL
+════════════════════════════════════════ -->
+<div id="pay-modal" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="modal-bg absolute inset-0" onclick="closePayment()"></div>
+  <div class="relative bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden z-10 max-h-[92vh] overflow-y-auto">
+    <div class="bg-slate-800 text-white px-4 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-xs font-bold">M</div>
+        <span class="font-semibold text-sm">MPCC Registration</span>
+      </div>
+      <button onclick="closePayment()" class="text-slate-400 hover:text-white"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div class="bg-slate-700 text-white px-4 py-3 text-center">
+      <div class="text-xs text-slate-400">Total Amount</div>
+      <div class="text-2xl font-black text-cyan-400" id="modal-amount">₹13,885</div>
+      <div class="text-xs text-slate-400 mt-0.5" id="modal-email">—</div>
+    </div>
+    <div class="flex border-b border-slate-200">
+      <button class="pay-tab active" onclick="switchTab('upi',this)">UPI</button>
+      <button class="pay-tab" onclick="switchTab('qr',this)">UPI QR</button>
+      <button class="pay-tab" onclick="switchTab('card',this)">Cards</button>
+      <button class="pay-tab" onclick="switchTab('emi',this)">EMI</button>
+      <button class="pay-tab" onclick="switchTab('cheque',this)" style="white-space:nowrap;">🏦 Cheque</button>
+    </div>
+    <!-- UPI -->
+    <div id="tab-upi" class="p-5">
+      <label class="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-2">Enter UPI ID</label>
+      <div class="flex gap-2 mb-4">
+        <input type="text" placeholder="yourname@upi" class="flex-1 px-3 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"/>
+        <button onclick="simulatePay()" class="btn-primary text-white px-4 py-3 rounded-xl text-sm font-semibold">Verify</button>
+      </div>
+      <div class="text-xs text-slate-400 text-center mb-3">Or pay using</div>
+      <div class="grid grid-cols-4 gap-2">
+        <button onclick="simulatePay()" class="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 border border-slate-100"><div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center text-white text-xs font-black">G</div><span class="text-xs text-slate-500">GPay</span></button>
+        <button onclick="simulatePay()" class="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 border border-slate-100"><div class="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-lg flex items-center justify-center text-white text-xs font-black">P</div><span class="text-xs text-slate-500">PhonePe</span></button>
+        <button onclick="simulatePay()" class="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 border border-slate-100"><div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-black">P</div><span class="text-xs text-slate-500">Paytm</span></button>
+        <button onclick="simulatePay()" class="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 border border-slate-100"><div class="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-400 rounded-lg flex items-center justify-center text-white text-xs font-black">A</div><span class="text-xs text-slate-500">Amazon</span></button>
+      </div>
+    </div>
+    <!-- QR -->
+    <div id="tab-qr" class="p-5 hidden text-center">
+      <p class="text-sm text-slate-500 mb-3">Scan using any UPI App</p>
+      <div class="w-36 h-36 bg-slate-100 border-2 border-slate-200 rounded-2xl mx-auto flex items-center justify-center mb-4">
+        <div class="w-28 h-28 bg-white grid grid-cols-7 gap-px p-1" id="qr-grid"></div>
+      </div>
+      <button onclick="simulatePay()" class="btn-primary text-white w-full py-3 rounded-2xl font-bold text-sm">Simulate Payment</button>
+    </div>
+    <!-- Card -->
+    <div id="tab-card" class="p-5 hidden">
+      <div class="space-y-3">
+        <div><label class="text-xs font-bold text-slate-400 mb-1.5 block">Card Number</label><input type="text" placeholder="4111 1111 1111 1111" class="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"/></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-bold text-slate-400 mb-1.5 block">Expiry</label><input type="text" placeholder="MM / YY" class="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"/></div>
+          <div><label class="text-xs font-bold text-slate-400 mb-1.5 block">CVV</label><input type="text" placeholder="• • •" class="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"/></div>
+        </div>
+        <div><label class="text-xs font-bold text-slate-400 mb-1.5 block">Name on Card</label><input type="text" placeholder="Full name" class="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500"/></div>
+        <button onclick="simulatePay()" class="btn-primary w-full text-white font-bold py-3.5 rounded-2xl text-sm">Pay Now</button>
+      </div>
+    </div>
+    <!-- EMI -->
+    <div id="tab-emi" class="p-5 hidden">
+      <div class="space-y-3 mb-4">
+        <div class="p-4 border-2 border-blue-200 bg-blue-50 rounded-xl cursor-pointer"><div class="font-semibold text-slate-700 text-sm">3 Months EMI</div><div class="text-xs text-slate-400 mt-0.5">₹4,628/month · 0% interest</div></div>
+        <div class="p-4 border-2 border-slate-200 rounded-xl cursor-pointer hover:border-blue-300 transition-colors"><div class="font-semibold text-slate-700 text-sm">6 Months EMI</div><div class="text-xs text-slate-400 mt-0.5">₹2,314/month · 1.5% interest</div></div>
+        <div class="p-4 border-2 border-slate-200 rounded-xl cursor-pointer hover:border-blue-300 transition-colors"><div class="font-semibold text-slate-700 text-sm">12 Months EMI</div><div class="text-xs text-slate-400 mt-0.5">₹1,157/month · 2% interest</div></div>
+      </div>
+      <button onclick="simulatePay()" class="btn-primary w-full text-white font-bold py-3.5 rounded-2xl text-sm">Proceed with EMI</button>
+    </div>
+    <!-- Cheque Payment Tab -->
+    <div id="tab-cheque" class="p-5 hidden">
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex gap-3 items-start">
+        <span style="font-size:18px;">🏦</span>
+        <div class="text-xs text-amber-800">
+          <strong>Pay by Cheque:</strong> Your account will be activated within 2-3 working days after cheque clearance. You will receive login credentials via email and WhatsApp.
+        </div>
+      </div>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-bold text-slate-400 mb-1.5 block">Cheque Number *</label>
+          <input type="text" id="idx-chq-no" placeholder="6-digit cheque number" maxlength="6" class="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500"/>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold text-slate-400 mb-1.5 block">Bank Name *</label>
+            <input type="text" id="idx-chq-bank" placeholder="e.g. HDFC Bank" class="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500"/>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-400 mb-1.5 block">Cheque Date *</label>
+            <input type="date" id="idx-chq-date" class="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500"/>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-400 mb-1.5 block">Branch Name</label>
+          <input type="text" id="idx-chq-branch" placeholder="e.g. Haridwar Main Branch" class="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500"/>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-400 mb-1.5 block">IFSC Code</label>
+          <input type="text" id="idx-chq-ifsc" placeholder="e.g. HDFC0001234" maxlength="11" style="text-transform:uppercase;" class="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500"/>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-4">
+          <div class="text-xs font-bold text-slate-300 mb-2">Payable to:</div>
+          <div class="text-sm font-bold text-white">Medical Pollution Control Committee</div>
+          <div class="text-xs text-slate-400 mt-1">Account No: 12345678901234 &nbsp;|&nbsp; IFSC: SBIN0001234</div>
+          <div class="text-xs text-slate-400">Bank: State Bank of India, Haridwar</div>
+        </div>
+        <button onclick="submitChequePayment()" class="w-full py-3.5 rounded-2xl font-bold text-sm text-white" style="background:linear-gradient(135deg,#d97706,#b45309);">
+          🏦 Submit Cheque Details
+        </button>
+      </div>
+    </div>
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-center gap-1.5">
+      <svg class="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+      <span class="text-xs text-slate-400">Secured by <strong class="text-slate-600">Razorpay</strong></span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     THANK YOU PAGE
+════════════════════════════════════════ -->
+<div id="thankyou-section">
+  <div class="w-full max-w-lg px-4 py-6">
+    <div class="bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
+      <div class="bg-gradient-to-br from-emerald-500 to-green-600 p-6 text-center relative overflow-hidden">
+        <div class="absolute top-2 left-4 w-14 h-14 bg-white/10 rounded-full"></div>
+        <div class="absolute bottom-2 right-6 w-9 h-9 bg-white/10 rounded-full"></div>
+        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 success-ring shadow-lg">
+          <svg class="w-9 h-9 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h2 class="text-2xl font-black text-white mb-1">Payment Successful!</h2>
+        <p class="text-emerald-100 text-sm">Registration confirmed. Welcome to MPCC!</p>
+      </div>
+      <div class="p-5 space-y-3.5">
+        <div class="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-100 rounded-2xl p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="font-bold text-blue-700 text-sm">Your Login Credentials</span>
+            <span class="ml-auto text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-semibold">Sent to Email</span>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between bg-white rounded-xl p-3 border border-blue-100">
+              <div><div class="text-xs text-slate-400 font-semibold">Customer ID</div><div class="font-black text-slate-800 text-base" id="ty-cid">MPCC-2026-00142</div></div>
+              <div class="w-7 h-7 bg-blue-100 rounded-xl flex items-center justify-center"><svg class="w-3.5 h-3.5 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div>
+            </div>
+            <div class="flex items-center justify-between bg-white rounded-xl p-3 border border-blue-100">
+              <div><div class="text-xs text-slate-400 font-semibold">Username</div><div class="font-bold text-slate-700 text-sm" id="ty-uname">mpcc_user_00142</div></div>
+              <div class="w-7 h-7 bg-purple-100 rounded-xl flex items-center justify-center"><svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></div>
+            </div>
+            <div class="flex items-center justify-between bg-white rounded-xl p-3 border border-blue-100">
+              <div><div class="text-xs text-slate-400 font-semibold">Password</div><div class="font-bold text-slate-700 tracking-widest text-sm" id="ty-pass">Mpcc@2026!</div></div>
+              <div class="w-7 h-7 bg-emerald-100 rounded-xl flex items-center justify-center"><svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg></div>
+            </div>
+          </div>
+        </div>
+        <div class="border-2 border-slate-100 rounded-xl p-3.5">
+          <h3 class="font-bold text-slate-700 text-xs mb-2.5 flex items-center gap-2">
+            <svg class="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            What Happens Next?
+          </h3>
+          <div class="space-y-2">
+            <div class="flex items-start gap-2"><div class="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs shrink-0">1</div><p class="text-slate-600 text-xs">Our team contacts you within <strong>24 hours</strong> to schedule facility inspection.</p></div>
+            <div class="flex items-start gap-2"><div class="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs shrink-0">2</div><p class="text-slate-600 text-xs">Waste collection kits delivered within <strong>3–5 business days</strong>.</p></div>
+            <div class="flex items-start gap-2"><div class="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs shrink-0">3</div><p class="text-slate-600 text-xs">CPCB compliance certificate issued after successful inspection.</p></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          <p class="text-amber-700 text-xs">Details sent to <strong id="ty-email">your email</strong>.</p>
+        </div>
+        <button onclick="goHome()" class="btn-primary w-full text-white font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Back to Home
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════ -->
+<script>
+// ── State ──
+const S = {
+  name:'', mobile:'', email:'', zone:'', route:'',
+  category:'', subCat:'',
+  plan:'', planRate:0, planUnit:'', regFee:2500, planId:'',
+  kit:'Small Kit', kitPrice:1397,
+  beds:0, bedMonthly:0, consulting:false, compliance:false
+};
+
+// ── MPCC Rate Chart ──
+const MPCC_RATE_CHART = [
+  { id:'R01', particular:'Hospital (1-10 Beds)',                      rate:2500,  unit:'Per month',        category:'Hospital',      subCat:'1-10 Beds',                          regFee:5000, hospitalSlab:'1-10' },
+  { id:'R02', particular:'Hospital (11-20 Beds)',                     rate:3500,  unit:'Per month',        category:'Hospital',      subCat:'11-20 Beds',                         regFee:5000, hospitalSlab:'11-20' },
+  { id:'R03', particular:'Hospital (Above 21 Beds)',                  rate:7,     unit:'Per bed/day × 30', category:'Hospital',      subCat:'Above 21 Beds',                      regFee:5000, hospitalSlab:'21+', perBedDay:true },
+  { id:'R04', particular:'Pathology Collection Centre',               rate:1500,  unit:'Per month',        category:'Pathology',     subCat:'Collection Centre',                  regFee:2500 },
+  { id:'R05', particular:'Pathology (up to 1000 collections/month)',  rate:2000,  unit:'Per month',        category:'Pathology',     subCat:'Up to 1000 collections/month',       regFee:2500 },
+  { id:'R06', particular:'Pathology (up to 1500 collections/month)',  rate:2500,  unit:'Per month',        category:'Pathology',     subCat:'Up to 1500 collections/month',       regFee:2500 },
+  { id:'R07', particular:'Pathology (up to 3000 collections/month)',  rate:3000,  unit:'Per month',        category:'Pathology',     subCat:'Up to 3000 collections/month',       regFee:2500 },
+  { id:'R08', particular:'Surgical / Poly Clinic',                    rate:1500,  unit:'Per month',        category:'Clinic',        subCat:'Surgical / Poly Clinic',             regFee:2500 },
+  { id:'R09', particular:'General Clinic',                            rate:1200,  unit:'Per month',        category:'Clinic',        subCat:'General Clinic',                     regFee:2500 },
+  { id:'R10', particular:'Dental Clinic',                             rate:1500,  unit:'Per chair/month',  category:'Dental',        subCat:'Dental Clinic',                      regFee:2500, perChair:true },
+  { id:'R11', particular:'Veterinary Clinic',                         rate:2500,  unit:'Per month',        category:'Veterinary',    subCat:'Veterinary Clinic',                  regFee:2500 },
+  { id:'R12', particular:'Veterinary Hospital',                       rate:5500,  unit:'Per month',        category:'Veterinary',    subCat:'Veterinary Hospital',                regFee:5000 },
+  { id:'R13', particular:'School Medical Clinic',                     rate:2500,  unit:'Per month',        category:'School/Inst.',  subCat:'School Medical Clinic',              regFee:5000 },
+  { id:'R14', particular:'Blood Bank',                                rate:5000,  unit:'Per month',        category:'Blood Bank',    subCat:'Blood Bank',                         regFee:5000 },
+  { id:'R15', particular:'Institution / College',                     rate:6100,  unit:'Per month',        category:'School/Inst.',  subCat:'Institution / College',              regFee:5000 },
+  { id:'R16', particular:'Discarded Medicines',                       rate:30,    unit:'Per kg',           category:'Pharma',        subCat:'Discarded Medicines',                regFee:2500, perKg:true },
+  { id:'R17', particular:'Pharmaceuticals Company',                   rate:8500,  unit:'Per month',        category:'Pharma',        subCat:'Pharmaceuticals Company',            regFee:5000 },
+  { id:'R18', particular:'Medical Store',                             rate:550,   unit:'Per month',        category:'Medical Store', subCat:'Medical Store',                      regFee:2500 },
+  { id:'R19', particular:'Health / Vaccination Camp',                 rate:2000,  unit:'Per camp',         category:'Health Camp',   subCat:'Health / Vaccination Camp',          regFee:2500 },
+];
+let currentStep = 1;
+
+// Sub-category data (from MPCC Rate Chart)
+const subData = {
+  'Hospital':       ['1-10 Beds','11-20 Beds','Above 21 Beds'],
+  'Pathology':      ['Collection Centre','Up to 1000 collections/month','Up to 1500 collections/month','Up to 3000 collections/month'],
+  'Clinic':         ['General Clinic','Surgical / Poly Clinic'],
+  'Dental':         ['Dental Clinic'],
+  'Veterinary':     ['Veterinary Clinic','Veterinary Hospital'],
+  'Blood Bank':     ['Blood Bank'],
+  'School/Inst.':   ['School Medical Clinic','Institution / College'],
+  'Pharma':         ['Discarded Medicines','Pharmaceuticals Company'],
+  'Medical Store':  ['Medical Store'],
+  'Health Camp':    ['Health / Vaccination Camp'],
+};
+
+// Step 3 inner tab state
+let s3Active = 'plan';
+
+// ── Init ──
+window.onload = function(){
+  // QR dots
+  const g = document.getElementById('qr-grid');
+  if(g) for(let i=0;i<49;i++){const d=document.createElement('div');d.className='w-3 h-3 '+(Math.random()>.45?'bg-slate-800':'bg-white');g.appendChild(d);}
+  // default kit check
+  showKitCheck(document.querySelectorAll('.kit-card')[0]);
+  calcTotal();
+};
+
+// ── Landing → Wizard ──
+function startWizard(e){
+  e.preventDefault();
+  S.name    = document.getElementById('inst-name').value.trim();
+  S.mobile  = document.getElementById('mobile').value.trim();
+  S.email   = document.getElementById('email').value.trim();
+  S.zone    = document.getElementById('zone').value;
+  S.route   = document.getElementById('route').value;
+
+  // ── Auto-save to localStorage as soon as Step 1 is filled ──
+  // Saves as "Incomplete" so admin can see partial registrations too
+  try {
+    const existing = JSON.parse(localStorage.getItem('mpcc_registrations') || '[]');
+    const dateStr  = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+    const tempId   = 'TMP-' + Date.now();
+    // Check if already has an entry with same mobile (avoid duplicates)
+    const dupIdx   = existing.findIndex(r => r.mobile === S.mobile && r.status === 'Incomplete');
+    const entry = {
+      id: dupIdx >= 0 ? existing[dupIdx].id : tempId,
+      name: S.name, mobile: S.mobile, email: S.email,
+      zone: S.zone, route: S.route,
+      type:'', city: S.zone || '—', contact: S.name,
+      beds:'0', plan:'—', gst:'', license:'',
+      category:'', subCat:'',
+      date: dateStr, status:'Incomplete', _tempSave: true
+    };
+    if (dupIdx >= 0) { existing[dupIdx] = entry; }
+    else             { existing.push(entry); }
+    localStorage.setItem('mpcc_registrations', JSON.stringify(existing));
+  } catch(e) { console.warn('Auto-save error:', e); }
+
+  document.getElementById('landing-section').style.display='none';
+  document.getElementById('wizard-section').classList.add('open');
+  currentStep=1;
+  showStep(1);
+}
+
+// ── Update registration in localStorage as steps progress ──
+function updateSaveProgress(){
+  try {
+    const existing = JSON.parse(localStorage.getItem('mpcc_registrations') || '[]');
+    const idx = existing.findIndex(r => r.mobile === S.mobile && (r.status === 'Incomplete' || r._tempSave));
+    if (idx < 0) return;
+    existing[idx] = Object.assign(existing[idx], {
+      type:     S.category || existing[idx].type,
+      subCat:   S.subCat   || existing[idx].subCat,
+      plan:     S.plan     || existing[idx].plan,
+      beds:     S.beds     != null ? String(S.beds) : existing[idx].beds,
+      kit:      S.kit      || existing[idx].kit,
+      consulting: S.consulting || false,
+      compliance: S.compliance || false,
+    });
+    localStorage.setItem('mpcc_registrations', JSON.stringify(existing));
+  } catch(e) {}
+}
+
+// ── Home ──
+function goHome(){
+  document.getElementById('wizard-section').classList.remove('open');
+  document.getElementById('thankyou-section').classList.remove('open');
+  document.getElementById('landing-section').style.display='';
+  // reset state
+  S.category=''; S.subCat=''; S.beds=0; S.consulting=false; S.compliance=false;
+  S.kit='Small Kit'; S.kitPrice=1397;
+  document.querySelectorAll('.cat-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('cat-feedback').classList.add('hidden');
+  document.getElementById('tc-check').checked=false;
+  const bi=document.getElementById('bed-input'); if(bi) bi.value=0;
+  currentStep=1;
+}
+
+// ── Show step ──
+function showStep(n){
+  document.querySelectorAll('.wiz-step').forEach(s=>{
+    s.classList.remove('active','exit'); s.style.display='none';
+  });
+  const el=document.getElementById('step-'+n);
+  if(el){ el.style.display='block'; requestAnimationFrame(()=>el.classList.add('active')); }
+  updateBar(n);
+  updateFooter(n);
+  document.getElementById('wiz-body').scrollTop=0;
+  // update top-back
+  document.getElementById('top-back-btn').style.display=(n===1)?'none':'flex';
+  document.getElementById('step-num').textContent=n;
+
+  // Step titles
+  const titles=['','Select Category','Select Sub-Category','Plan, Beds & Kit','Review & Pay'];
+  document.getElementById('step-title-label').textContent=titles[n]||'';
+}
+
+// ── Progress bar ──
+function updateBar(n){
+  const cls={
+    active:'bg-blue-600 text-white shadow shadow-blue-300',
+    done:'bg-emerald-500 text-white',
+    idle:'bg-slate-200 text-slate-400'
+  };
+  const lcls={active:'text-blue-600 font-bold',done:'text-emerald-600 font-bold',idle:'text-slate-400'};
+  for(let i=1;i<=4;i++){
+    const st=i<n?'done':i===n?'active':'idle';
+    const sc=document.getElementById('sc'+i);
+    sc.className='w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-400 '+cls[st];
+    sc.innerHTML=i<n?'✓':String(i);
+    const sl=document.getElementById('sl'+i);
+    if(sl) sl.className='text-xs mt-1 hidden sm:block '+lcls[st];
+  }
+  for(let i=1;i<=3;i++){
+    const ln=document.getElementById('ln'+i+(i+1));
+    if(ln) ln.classList.toggle('done',i<n);
+  }
+}
+
+// ── Footer buttons ──
+function updateFooter(n){
+  const back=document.getElementById('foot-back');
+  back.style.display=n===1?'none':'flex';
+
+  let lbl='Continue';
+  if(n===3) lbl='Review & Confirm';
+  if(n===4) lbl='Pay ₹'+calcTotalVal().toLocaleString('en-IN');
+  document.getElementById('foot-label').textContent=lbl;
+
+  if(n===3){
+    enableNext(true,lbl);
+  } else if(n===4){
+    const chk=document.getElementById('tc-check')?.checked;
+    enableNext(!!chk,lbl);
+  } else {
+    enableNext(false,lbl);
+  }
+}
+
+function enableNext(yes, label){
+  const btn=document.getElementById('foot-next');
+  btn.disabled=!yes;
+  if(label) document.getElementById('foot-label').textContent=label;
+  if(yes){
+    btn.className='flex-1 flex items-center justify-center gap-2 btn-green text-white font-bold py-3 rounded-2xl text-sm transition-all shadow-sm';
+  } else {
+    btn.className='flex-1 flex items-center justify-center gap-2 btn-disabled font-bold py-3 rounded-2xl text-sm transition-all shadow-sm cursor-not-allowed';
+  }
+}
+
+// ── Navigation ──
+function wizNext(){
+  if(currentStep===4){ openPayment(); return; }
+  const next=currentStep+1;
+  animateStep(currentStep, next);
+}
+function wizBack(){
+  if(currentStep<=1){ goHome(); return; }
+  animateStep(currentStep, currentStep-1);
+}
+function animateStep(from, to){
+  const cur=document.getElementById('step-'+from);
+  if(cur){ cur.classList.add('exit'); setTimeout(()=>{ cur.classList.remove('active','exit'); cur.style.display='none'; },300); }
+  setTimeout(()=>{ currentStep=to; showStep(to); if(to===4) populateReview(); },310);
+}
+
+// ── Step 3 inner tabs ──
+function s3tab(name, el){
+  s3Active = name;
+  // hide all
+  ['plan','beds','kit','addons'].forEach(t=>{
+    const el2=document.getElementById('s3-'+t);
+    if(el2) el2.classList.add('hidden');
+  });
+  const target=document.getElementById('s3-'+name);
+  if(target) target.classList.remove('hidden');
+  // update tab buttons
+  document.querySelectorAll('.inner-tab').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+}
+
+// ── Category ──
+function selectCategory(el, name){
+  document.querySelectorAll('.cat-card').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  S.category=name;
+  S.subCat=''; S.plan=''; S.planRate=0; S.planId=''; S.regFee=2500; S.bedMonthly=0;
+  // Show feedback
+  const fb=document.getElementById('cat-feedback');
+  fb.classList.remove('hidden');
+  document.getElementById('cat-feedback-text').textContent=name+' selected ✓';
+  // populate sub-cats
+  document.getElementById('sub-subtitle').textContent='Select type under: '+name;
+  const list=document.getElementById('sub-list');
+  list.innerHTML='';
+  (subData[name]||['General']).forEach(s=>{
+    const d=document.createElement('div');
+    d.className='sub-item p-3.5 flex items-center gap-3';
+    d.onclick=function(){ selectSubCat(this,s); };
+    // Find rate info for this sub-cat
+    const rc=MPCC_RATE_CHART.find(r=>r.category===name&&r.subCat===s);
+    const rateStr=rc ? (rc.perBedDay ? '₹7/bed/day' : rc.perKg ? '₹'+rc.rate+'/kg' : '₹'+rc.rate.toLocaleString('en-IN')+(rc.unit.includes('camp')?'/camp':'/mo')) : '';
+    d.innerHTML=`
+      <div class="w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center shrink-0">
+        <div class="w-2.5 h-2.5 rounded-full bg-blue-600 hidden sub-dot"></div>
+      </div>
+      <div class="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shrink-0">
+        <svg class="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M19 2H5a2 2 0 00-2 2v18l4-2 4 2 4-2 4 2V4a2 2 0 00-2-2z"/></svg>
+      </div>
+      <span class="font-semibold text-slate-700 text-sm flex-1">${s}</span>
+      ${rateStr?`<span class="text-xs font-bold text-blue-600 shrink-0">${rateStr}</span>`:''}`;
+    list.appendChild(d);
+  });
+  // Build plan list for step 3
+  buildPlanList(name);
+  // Enable next WITHOUT auto-advancing
+  enableNext(true,'Continue');
+  // Progressive save
+  updateSaveProgress();
+}
+
+function buildPlanList(cat){
+  const list=document.getElementById('all-plans-list');
+  if(!list) return;
+  list.innerHTML='';
+  const filtered=MPCC_RATE_CHART.filter(r=>!cat||r.category===cat);
+  const plans=cat?filtered:MPCC_RATE_CHART;
+  plans.forEach(p=>{
+    const isHosp=p.hospitalSlab==='21+'&&p.perBedDay;
+    const rateDisp=isHosp?'₹7/bed/day × 30':(p.perKg?'₹'+p.rate+'/kg':(p.unit.includes('camp')?'₹'+p.rate+'/camp':'₹'+p.rate.toLocaleString('en-IN')+'/mo'));
+    const d=document.createElement('div');
+    d.className='plan-card p-3 flex items-center gap-2';
+    d.dataset.planId=p.id;
+    d.onclick=function(){ overridePlan(p.id); };
+    d.innerHTML=`
+      <div class="w-4 h-4 rounded-full border-2 border-slate-300 flex items-center justify-center shrink-0 plan-radio">
+        <div class="w-2 h-2 rounded-full bg-blue-600 hidden plan-dot"></div>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="font-semibold text-slate-700 text-xs truncate">${p.particular}</div>
+        <div class="text-slate-400 text-xs">${p.category} · Reg: ₹${p.regFee.toLocaleString('en-IN')}</div>
+      </div>
+      <div class="text-sm font-black text-blue-600 shrink-0">${rateDisp}</div>`;
+    list.appendChild(d);
+  });
+}
+
+function overridePlan(planId){
+  const p=MPCC_RATE_CHART.find(r=>r.id===planId);
+  if(!p) return;
+  applyPlan(p);
+  // Highlight selected
+  document.querySelectorAll('#all-plans-list .plan-card').forEach(c=>{
+    const active=c.dataset.planId===planId;
+    c.style.background=active?'#eff6ff':'white';
+    c.style.borderColor=active?'#2563eb':'#e2e8f0';
+    c.querySelector('.plan-dot')?.classList.toggle('hidden',!active);
+    c.querySelector('.plan-radio')?.style.setProperty('border-color',active?'#2563eb':'#cbd5e1');
+  });
+}
+
+function applyPlan(p){
+  S.planId=p.id; S.plan=p.particular; S.regFee=p.regFee;
+  // For 21+ beds (perBedDay) we compute monthly on bed entry; else set planRate directly
+  if(p.perBedDay){
+    S.planRate=0; // will be computed in updateBedUI
+    S.planUnit='₹7/bed/day × 30';
+  } else {
+    S.planRate=p.rate; S.planUnit=p.unit;
+  }
+  // Show suggested plan card
+  const sugName=document.getElementById('sug-plan-name');
+  const sugUnit=document.getElementById('sug-plan-unit');
+  const sugRate=document.getElementById('sug-plan-rate');
+  const regFeeEl=document.getElementById('plan-reg-fee');
+  if(sugName) sugName.textContent=p.particular;
+  if(sugUnit) sugUnit.textContent=p.unit+(p.perBedDay?' (beds × ₹7 × 30)':'');
+  const rateStr=p.perBedDay?'₹7/bed/day':p.perKg?'₹'+p.rate+'/kg':'₹'+p.rate.toLocaleString('en-IN');
+  if(sugRate) sugRate.textContent=rateStr;
+  if(regFeeEl) regFeeEl.textContent='₹'+p.regFee.toLocaleString('en-IN');
+  // Show/hide beds tab based on category
+  const bedsTabBtn=document.querySelectorAll('.inner-tab')[1];
+  const planNextBtn=document.getElementById('plan-next-btn');
+  if(S.category==='Hospital'){
+    if(bedsTabBtn) bedsTabBtn.style.display='';
+    if(planNextBtn) planNextBtn.textContent='Next: Set Bed Count →';
+  } else {
+    if(bedsTabBtn) bedsTabBtn.style.display='none';
+    if(planNextBtn) planNextBtn.textContent='Next: Choose Kit →';
+    if(planNextBtn) planNextBtn.setAttribute('onclick','s3tab(\'kit\',document.querySelectorAll(\'.inner-tab\')[2])');
+  }
+  calcTotal();
+}
+
+function selectSubCat(el, name){
+  document.querySelectorAll('.sub-item').forEach(r=>{
+    r.classList.remove('selected');
+    r.querySelector('.sub-dot')?.classList.add('hidden');
+  });
+  el.classList.add('selected');
+  el.querySelector('.sub-dot')?.classList.remove('hidden');
+  S.subCat=name;
+  // Auto-suggest matching plan
+  const match=MPCC_RATE_CHART.find(r=>r.category===S.category&&r.subCat===name);
+  if(match){
+    applyPlan(match);
+    // Highlight matching plan in all-plans-list
+    overridePlan(match.id);
+  }
+  enableNext(true,'Continue to Plan →');
+  updateSaveProgress();
+}
+
+// ── Plan ──
+function selectPlanCard(el, name){
+  document.querySelectorAll('.plan-card').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  const dots=el.querySelectorAll('.rounded-full div');
+  document.querySelectorAll('.plan-card').forEach(c=>{
+    const d=c.querySelector('.rounded-full div');
+    if(d) d.className='w-2.5 h-2.5 rounded-full bg-slate-300';
+  });
+  const activeDot=el.querySelector('.rounded-full div');
+  if(activeDot) activeDot.className='w-2.5 h-2.5 rounded-full bg-blue-600';
+  S.plan=name;
+  calcTotal();
+}
+
+// ── Beds ──
+function changeBeds(delta){
+  S.beds=Math.max(1,Math.min(500,S.beds+delta));
+  document.getElementById('bed-input').value=S.beds;
+  updateBedUI();
+  calcTotal();
+}
+function bedInputChange(val){
+  const v=parseInt(val)||0;
+  S.beds=Math.max(1,Math.min(500,v));
+  updateBedUI();
+  calcTotal();
+}
+function updateBedUI(){
+  const b=S.beds;
+  // Slab calculation per MPCC rate chart
+  let monthly=0, slabLabel='', slabKey='';
+  if(b>=1 && b<=10){
+    monthly=2500; slabLabel='1–10 beds slab: ₹2,500/month'; slabKey='1-10';
+  } else if(b>=11 && b<=20){
+    monthly=3500; slabLabel='11–20 beds slab: ₹3,500/month'; slabKey='11-20';
+  } else if(b>=21){
+    monthly=b*7*30; slabLabel=b+' beds × ₹7 × 30 days = ₹'+monthly.toLocaleString('en-IN')+'/month'; slabKey='21+';
+  }
+  S.bedMonthly=monthly;
+  // Update auto-selected plan based on slab
+  const matchId=b<=10?'R01':b<=20?'R02':'R03';
+  const matchPlan=MPCC_RATE_CHART.find(r=>r.id===matchId);
+  if(matchPlan){
+    S.planId=matchPlan.id; S.plan=matchPlan.particular; S.regFee=matchPlan.regFee;
+    const sugName=document.getElementById('sug-plan-name');
+    const sugRate=document.getElementById('sug-plan-rate');
+    const regFeeEl=document.getElementById('plan-reg-fee');
+    if(sugName) sugName.textContent=matchPlan.particular;
+    if(sugRate) sugRate.textContent=b>=21?'₹'+monthly.toLocaleString('en-IN')+'/mo':'₹'+monthly.toLocaleString('en-IN')+'/mo';
+    if(regFeeEl) regFeeEl.textContent='₹'+matchPlan.regFee.toLocaleString('en-IN');
+    // Highlight in plan list
+    overridePlan(matchId);
+  }
+  // Visual bar (scale: 0-50 beds = 0-100%)
+  const pct=Math.min(100,(b/50)*100);
+  document.getElementById('bed-bar').style.width=pct+'%';
+  // Slab card highlights
+  ['1-10','11-20','21+'].forEach(k=>{
+    const el=document.getElementById('slab-'+k);
+    if(!el) return;
+    if(k===slabKey){
+      el.style.borderColor='#2563eb'; el.style.background='#eff6ff';
+    } else {
+      el.style.borderColor='#e2e8f0'; el.style.background='#f8fafc';
+    }
+  });
+  const lbl=document.getElementById('bed-label');
+  if(lbl){ lbl.textContent=slabLabel||'Enter beds above to see your rate slab'; }
+  const maEl=document.getElementById('bed-monthly-amount');
+  if(maEl) maEl.textContent='₹'+monthly.toLocaleString('en-IN');
+  const slabLblEl=document.getElementById('bed-slab-label');
+  if(slabLblEl) slabLblEl.textContent=slabLabel||'—';
+}
+
+// ── Kit ──
+function selectKit(el, name, price){
+  document.querySelectorAll('.kit-card').forEach(c=>{
+    c.classList.remove('selected');
+    c.querySelector('.kit-check-mark')?.classList.add('hidden');
+    c.querySelector('.kit-check-mark')?.classList.remove('flex');
+  });
+  el.classList.add('selected');
+  showKitCheck(el);
+  S.kit=name; S.kitPrice=price;
+  calcTotal();
+}
+function showKitCheck(el){
+  if(!el) return;
+  const chk=el.querySelector('.kit-check-mark');
+  if(chk){ chk.classList.remove('hidden'); chk.classList.add('flex'); }
+}
+
+// ── Total calc ──
+function calcTotalVal(){
+  const reg=S.regFee||2500;
+  const svc=S.bedMonthly||S.planRate||0;
+  const kit=S.kitPrice||1397;
+  const con=document.getElementById('consulting-check')?.checked?2000:0;
+  const com=document.getElementById('compliance-check')?.checked?2000:0;
+  const sub=reg+svc+kit+con+com;
+  return sub+Math.round(sub*0.09)+Math.round(sub*0.09);
+}
+
+function calcTotal(){
+  const reg=S.regFee||2500;
+  const svc=S.bedMonthly||S.planRate||0;
+  const kit=S.kitPrice||1397;
+  const con=document.getElementById('consulting-check')?.checked?2000:0;
+  const com=document.getElementById('compliance-check')?.checked?2000:0;
+  S.consulting=con>0; S.compliance=com>0;
+  const sub=reg+svc+kit+con+com;
+  const cgst=Math.round(sub*0.09);
+  const sgst=Math.round(sub*0.09);
+  const total=sub+cgst+sgst;
+  const fmt=n=>'₹'+n.toLocaleString('en-IN');
+
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  const vis=(id,show)=>{ const el=document.getElementById(id); if(el) el.style.display=show?'flex':'none'; };
+
+  // Order summary (addons tab)
+  set('os-reg-fee', fmt(reg));
+  const kitRow=document.getElementById('os-kit-label');
+  if(kitRow) kitRow.textContent=`Kit (${S.kit})`;
+  set('os-kit-price', fmt(kit));
+  // Show service row if plan selected
+  const svcRow=document.getElementById('os-svc-row');
+  if(svcRow) svcRow.style.display=svc>0?'flex':'none';
+  if(svc>0){
+    set('os-svc-label', S.planUnit||'Service');
+    set('os-svc-price', fmt(svc));
+  }
+  vis('os-con-row', con>0);
+  vis('os-com-row', com>0);
+  set('os-sub', fmt(sub)); set('os-cgst', fmt(cgst)); set('os-sgst', fmt(sgst));
+  const ost=document.getElementById('os-total');
+  if(ost){ ost.textContent=fmt(total); ost.classList.remove('cost-pop'); void ost.offsetWidth; ost.classList.add('cost-pop'); }
+
+  // Review page
+  set('rv-reg-fee', fmt(reg));
+  set('rv-kit-label', `Kit (${S.kit})`); set('rv-kit-price', fmt(kit));
+  const rvSvcRow=document.getElementById('rv-svc-row');
+  if(rvSvcRow) rvSvcRow.style.display=svc>0?'flex':'none';
+  if(svc>0){ set('rv-svc-label',S.planUnit||'Service'); set('rv-svc-price',fmt(svc)); }
+  vis('rv-con-row', con>0); vis('rv-com-row', com>0);
+  set('rv-sub', fmt(sub)); set('rv-cgst', fmt(cgst)); set('rv-sgst', fmt(sgst)); set('rv-total', fmt(total));
+
+  // Footer pay button
+  if(currentStep===4){
+    const lbl=document.getElementById('foot-label');
+    if(lbl) lbl.textContent='Pay '+fmt(total);
+  }
+  set('modal-amount', fmt(total));
+}
+
+// ── Review ──
+function populateReview(){
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v||'—'; };
+  set('rv-name',S.name); set('rv-mobile',S.mobile); set('rv-email',S.email);
+  set('rv-cat',S.category); set('rv-subcat',S.subCat);
+  set('rv-zone',S.zone); set('rv-route',S.route);
+  set('rv-plan',S.plan||'—');
+  set('rv-kit',S.kit+' (₹'+(S.kitPrice||0).toLocaleString('en-IN')+')');
+  if(S.category==='Hospital' && S.beds>0){
+    set('rv-beds',S.beds+' bed'+(S.beds!==1?'s':'')+' → ₹'+(S.bedMonthly||0).toLocaleString('en-IN')+'/mo');
+  } else {
+    const rvBedsRow=document.getElementById('rv-beds-row');
+    if(rvBedsRow) rvBedsRow.style.display='none';
+  }
+  set('rv-con',S.consulting?'₹2,000 added':'Not added');
+  set('rv-com',S.compliance?'₹2,000 added':'Not added');
+  calcTotal();
+}
+
+// ── T&C ──
+function toggleTC(){
+  document.getElementById('tc-body').classList.toggle('hidden');
+  document.getElementById('tc-chev').classList.toggle('rotate-180');
+}
+function togglePayBtn(){
+  const yes=document.getElementById('tc-check')?.checked;
+  const total=calcTotalVal();
+  enableNext(!!yes,'Pay ₹'+total.toLocaleString('en-IN'));
+}
+
+// ── Payment ──
+function openPayment(){
+  document.getElementById('modal-email').textContent=S.email||'';
+  const m=document.getElementById('pay-modal');
+  m.classList.remove('hidden'); m.style.display='flex';
+}
+function closePayment(){
+  const m=document.getElementById('pay-modal');
+  m.classList.add('hidden'); m.style.display='';
+}
+function switchTab(tab, el){
+  ['upi','qr','card','emi'].forEach(t=>document.getElementById('tab-'+t).classList.add('hidden'));
+  document.getElementById('tab-'+tab).classList.remove('hidden');
+  document.querySelectorAll('.pay-tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Simulate pay ──
+function simulatePay(){
+  closePayment();
+  const num=String(Math.floor(1000+Math.random()*9000));
+  // MPCC-style member ID
+  const nameCode=(S.facilityName||S.name||'UNK').replace(/[^a-zA-Z]/g,'').substring(0,3).toUpperCase();
+  const custId='MPCCPR0'+nameCode+String(Math.floor(10000+Math.random()*90000));
+  const uname='mpcc_'+(S.name||'user').replace(/\s+/g,'').toLowerCase().slice(0,8)+num.slice(-4);
+  const pass='Mpcc@'+num+'!';
+  document.getElementById('ty-cid').textContent=custId;
+  document.getElementById('ty-uname').textContent=uname;
+  document.getElementById('ty-pass').textContent=pass;
+  document.getElementById('ty-email').textContent=S.email||'your email';
+  // ── Save to localStorage for Admin Panel ──
+  try{
+    const existing=JSON.parse(localStorage.getItem('mpcc_registrations')||'[]');
+    const dateStr=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+    existing.push({
+      id:custId,name:S.facilityName||S.name||'Unknown',type:S.facilityType||S.category||'Hospital',
+      city:S.city||S.district||'—',contact:S.contactPerson||S.name||'—',mobile:S.mobile||S.phone||'—',
+      email:S.email||'—',beds:S.beds||S.bedCount||'0',plan:S.planName||S.selectedPlan||'—',
+      gst:S.gst||S.gstNumber||'',license:S.license||'',address:S.address||'',
+      state:S.state||'Uttarakhand',pincode:S.pincode||'',date:dateStr,
+      status:'Pending Verification',username:uname
+    });
+    localStorage.setItem('mpcc_registrations',JSON.stringify(existing));
+  }catch(e){console.warn('localStorage error:',e);}
+  document.getElementById('wizard-section').classList.remove('open');
+  document.getElementById('thankyou-section').classList.add('open');
+}
+</script>
+</body>
+</html>
