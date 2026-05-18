@@ -30,7 +30,8 @@
       "Bash(git remote *)",
       "Bash(git branch *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'Initial commit: MPCC Biomedical Waste Management System with React Admin Panel *)"
+      "Bash(git commit -m 'Initial commit: MPCC Biomedical Waste Management System with React Admin Panel *)",
+      "Bash(git commit -m 'Add React frontend source code *)"
     ]
   }
 }
