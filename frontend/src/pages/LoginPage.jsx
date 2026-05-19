@@ -15,7 +15,7 @@ export default function LoginPage({ onLogin }) {
 
     try {
       if (!email || !password) {
-        setError('Please enter email and password')
+        setError('Please enter email/username and password')
         setLoading(false)
         return
       }
@@ -23,7 +23,7 @@ export default function LoginPage({ onLogin }) {
       // Make actual API call to backend
       const apiUrl = process.env.NODE_ENV === 'production'
         ? '/api/auth/login'
-        : 'http://localhost:5001/api/auth/login'
+        : 'http://localhost:8080/api/auth/login'
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -76,16 +76,16 @@ export default function LoginPage({ onLogin }) {
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
-          {/* Email */}
+          {/* Email or Username */}
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>
-              Email Address
+              Email or Username
             </label>
             <input
-              type="email"
+              type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@mpccharidwar.in"
+              placeholder="admin@mpccharidwar.in or your username"
               style={{
                 width: '100%',
                 padding: '10px 14px',

@@ -1,5 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import '../styles/AdminPanel.css'
+import UserManagement from '../components/UserManagement'
+import RoleManagement from '../components/RoleManagement'
+import ServicePlanForm from '../components/ServicePlanForm'
 
 // Separate Form Components to prevent focus loss
 const RouteFormComponent = ({ formData, handleInputChange, getAutoCode }) => (
@@ -104,30 +107,68 @@ export default function AdminPanel({ user, onLogout }) {
   const [kitItems, setKitItems] = useState([{ id: 1, item: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0 }])
 
   // Data state
-  const [routes, setRoutes] = useState([
-    { id: 1, code: 'RTE-001', name: 'Daily Route A', type: 'Daily', primaryDriver: 'John', secondaryDriver: 'Mike', status: 'Active' }
-  ])
-  const [servicePlans, setServicePlans] = useState([
-    { id: 1, code: 'PLAN-001', name: 'Standard Plan', category: 'Yellow Bag', zone: 'Haridwar North', status: 'Active' }
-  ])
-  const [paymentFreqs, setPaymentFreqs] = useState([
-    { id: 1, name: 'Annual Plan', months: 12, discountAmt: 0, discountPct: 15, status: 'Active' }
-  ])
-  const [kits, setKits] = useState([
-    { id: 1, code: 'KIT-001', name: 'Hospital Kit A', type: 'Hospital', sellingPrice: 5000, costPrice: 3000, status: 'Active' }
-  ])
-  const [wasteCategories, setWasteCategories] = useState([
-    { id: 1, code: 'WC-001', name: 'Yellow Bag', bagColor: 'Yellow', colorCode: '#FFD700', hazardLevel: 'Medium', status: 'Active' }
-  ])
-  const [vehicles, setVehicles] = useState([
-    { id: 1, code: 'VEH-001', name: 'Tata Ace', category: 'Mini Truck', registrationNo: 'UK07AB1234', status: 'Active' }
-  ])
-  const [vendors, setVendors] = useState([
-    { id: 1, code: 'VND-001', name: 'MedSupply India', type: 'Material Supplier', contactPerson: 'Rajesh', mobile: '+91 98765 43210', status: 'Active' }
-  ])
-  const [rawMaterials, setRawMaterials] = useState([
-    { id: 1, code: 'ITM-001', name: 'Yellow Polybag 30L', type: 'Polybag', hsn: '391920', status: 'Active' }
-  ])
+  const [routes, setRoutes] = useState([])
+  const [servicePlans, setServicePlans] = useState([])
+  const [paymentFreqs, setPaymentFreqs] = useState([])
+  const [kits, setKits] = useState([])
+  const [wasteCategories, setWasteCategories] = useState([])
+  const [vehicles, setVehicles] = useState([])
+  const [vendors, setVendors] = useState([])
+  const [rawMaterials, setRawMaterials] = useState([])
+
+  // UI State for messages
+  const [message, setMessage] = useState({ type: '', text: '' })
+  const [loading, setLoading] = useState(false)
+
+  // Fetch data from API based on active section
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      const endpoint = `/api/${activeSection}`
+      const response = await fetch(`http://localhost:8080${endpoint}`)
+      if (!response.ok) throw new Error(`Failed to fetch ${activeSection}`)
+      const data = await response.json()
+
+      switch (activeSection) {
+        case 'routes':
+          setRoutes(data)
+          break
+        case 'serviceplans':
+          setServicePlans(data)
+          break
+        case 'paymentfreqs':
+          setPaymentFreqs(data)
+          break
+        case 'kits':
+          setKits(data)
+          break
+        case 'wastecategories':
+          setWasteCategories(data)
+          break
+        case 'vehicles':
+          setVehicles(data)
+          break
+        case 'vendors':
+          setVendors(data)
+          break
+        case 'rawmaterials':
+          setRawMaterials(data)
+          break
+        default:
+          break
+      }
+    } catch (err) {
+      console.error('Fetch error:', err)
+      setMessage({ type: 'error', text: `Error loading data: ${err.message}` })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Load data when section changes
+  useEffect(() => {
+    fetchData()
+  }, [activeSection])
 
   const getAutoCode = () => {
     const codes = {
@@ -147,139 +188,259 @@ export default function AdminPanel({ user, onLogout }) {
     setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  const handleSave = () => {
-    if (editingId) {
-      // Update logic
-    } else {
-      // Add logic
+  const handleSave = async () => {
+    try {
+      setLoading(true)
+      let body = {}
+      let endpoint = `/api/${activeSection}`
+      let method = 'POST'
+
+      // Build request body based on section
+      if (activeSection === 'routes') {
+        body = {
+          routeCode: formData.code || getAutoCode(),
+          routeName: formData.name,
+          routeType: formData.type,
+          primaryDriver: formData.primaryDriver,
+          secondaryDriver: formData.secondaryDriver
+        }
+        if (editingId) {
+          endpoint = `/api/routes/${editingId}`
+          method = 'PUT'
+        }
+      } else if (activeSection === 'serviceplans') {
+        body = {
+          planCode: formData.code || getAutoCode(),
+          name: formData.name,
+          category: formData.category,
+          subCategory: formData.subCategory,
+          zone: formData.zone,
+          route: formData.route,
+          description: formData.description,
+          pricingType: formData.pricingType,
+          monthlyCharges: parseFloat(formData.monthlyCharges) || 0,
+          registrationCharges: parseFloat(formData.registrationCharges) || 0,
+          consultingFees: parseFloat(formData.consultingFees) || 0
+        }
+        if (editingId) {
+          endpoint = `/api/serviceplans/${editingId}`
+          method = 'PUT'
+        }
+      } else if (activeSection === 'paymentfreqs') {
+        body = {
+          frequencyCode: formData.code || getAutoCode(),
+          frequencyName: formData.frequencyName,
+          months: parseInt(formData.months),
+          discountAmt: parseFloat(formData.discountAmt) || 0,
+          discountPct: parseFloat(formData.discountPct) || 0,
+          description: formData.description
+        }
+        if (editingId) {
+          endpoint = `/api/paymentfreqs/${editingId}`
+          method = 'PUT'
+        }
+      } else if (activeSection === 'kits') {
+        body = {
+          kitCode: formData.code || getAutoCode(),
+          name: formData.name,
+          type: formData.type,
+          sellingPrice: parseFloat(formData.sellingPrice) || 0,
+          costPrice: parseFloat(formData.costPrice) || 0,
+          description: formData.description,
+          items: kitItems
+        }
+        if (editingId) {
+          endpoint = `/api/kits/${editingId}`
+          method = 'PUT'
+        }
+      } else if (activeSection === 'wastecategories') {
+        body = {
+          categoryCode: formData.code || getAutoCode(),
+          name: formData.name,
+          bagColor: formData.bagColor,
+          colorCode: formData.colorCode,
+          bmwSchedule: formData.bmwSchedule,
+          hazardLevel: formData.hazardLevel,
+          maxStorageDays: parseInt(formData.maxStorageDays) || 0,
+          unitOfMeasurement: formData.unitOfMeasurement,
+          description: formData.description,
+          handlingInstructions: formData.handlingInstructions,
+          storageRequirements: formData.storageRequirements,
+          treatmentMethod: formData.treatmentMethod,
+          disposalMethod: formData.disposalMethod,
+          requiresAutoclave: formData.requiresAutoclave || false,
+          requiresIncineration: formData.requiresIncineration || false,
+          trackingRequired: formData.trackingRequired || false
+        }
+        if (editingId) {
+          endpoint = `/api/wastecategories/${editingId}`
+          method = 'PUT'
+        }
+      } else if (activeSection === 'vehicles') {
+        body = {
+          vehicleCode: formData.code || getAutoCode(),
+          vehicleName: formData.name,
+          category: formData.category,
+          registrationNo: formData.registrationNo,
+          manufacturer: formData.manufacturer,
+          yearOfMfg: parseInt(formData.yearOfMfg) || new Date().getFullYear(),
+          fuelType: formData.fuelType
+        }
+        if (editingId) {
+          endpoint = `/api/vehicles/${editingId}`
+          method = 'PUT'
+        }
+      } else if (activeSection === 'vendors') {
+        body = {
+          vendorCode: formData.code || getAutoCode(),
+          name: formData.name,
+          type: formData.type,
+          contactPerson: formData.contactPerson,
+          mobile: formData.mobile,
+          email: formData.email,
+          website: formData.website,
+          addressLine1: formData.addressLine1,
+          addressLine2: formData.addressLine2,
+          city: formData.city,
+          state: formData.state,
+          pincode: formData.pincode
+        }
+        if (editingId) {
+          endpoint = `/api/vendors/${editingId}`
+          method = 'PUT'
+        }
+      } else if (activeSection === 'rawmaterials') {
+        body = {
+          materialCode: formData.code || getAutoCode(),
+          materialName: formData.name,
+          type: formData.type,
+          hsn: formData.hsn,
+          description: formData.description,
+          unitOfMeasurement: formData.unitOfMeasurement
+        }
+        if (editingId) {
+          endpoint = `/api/rawmaterials/${editingId}`
+          method = 'PUT'
+        }
+      }
+
+      // Make API call
+      const response = await fetch(`http://localhost:8080${endpoint}`, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to save')
+      }
+
+      // Success message
+      setMessage({
+        type: 'success',
+        text: editingId ? 'Record updated successfully!' : 'Record created successfully!'
+      })
+
+      // Reset form and reload data
+      setShowModal(false)
+      setFormData({})
+      setEditingId(null)
+      setKitItems([{ id: 1, item: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0 }])
+      fetchData()
+
+      // Clear message after 3 seconds
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000)
+    } catch (err) {
+      console.error('Save error:', err)
+      setMessage({ type: 'error', text: `Error: ${err.message}` })
+    } finally {
+      setLoading(false)
     }
-    setShowModal(false)
-    setFormData({})
-    setKitItems([{ id: 1, item: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0 }])
   }
 
   const handleOpenForm = () => {
     setEditingId(null)
     setFormData({})
     setShowModal(true)
+    setMessage({ type: '', text: '' })
+  }
+
+  const handleEdit = (item) => {
+    setEditingId(item.id || item.RouteID || item.PlanID || item.FrequencyID || item.KitID || item.CategoryID || item.VehicleID || item.VendorID || item.MaterialID)
+    setFormData(item)
+    setShowModal(true)
+    setMessage({ type: '', text: '' })
+  }
+
+  const handleDelete = async (item) => {
+    if (!window.confirm(`Are you sure you want to delete this ${activeSection.slice(0, -1)}?`)) {
+      return
+    }
+
+    try {
+      setLoading(true)
+      const itemId = item.id || item.RouteID || item.PlanID || item.FrequencyID || item.KitID || item.CategoryID || item.VehicleID || item.VendorID || item.MaterialID
+      let endpoint = ''
+
+      switch (activeSection) {
+        case 'routes':
+          endpoint = `/api/routes/${itemId}`
+          break
+        case 'serviceplans':
+          endpoint = `/api/serviceplans/${itemId}`
+          break
+        case 'paymentfreqs':
+          endpoint = `/api/paymentfreqs/${itemId}`
+          break
+        case 'kits':
+          endpoint = `/api/kits/${itemId}`
+          break
+        case 'wastecategories':
+          endpoint = `/api/wastecategories/${itemId}`
+          break
+        case 'vehicles':
+          endpoint = `/api/vehicles/${itemId}`
+          break
+        case 'vendors':
+          endpoint = `/api/vendors/${itemId}`
+          break
+        case 'rawmaterials':
+          endpoint = `/api/rawmaterials/${itemId}`
+          break
+        default:
+          return
+      }
+
+      const response = await fetch(`http://localhost:8080${endpoint}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete')
+      }
+
+      setMessage({ type: 'success', text: 'Record deleted successfully!' })
+      fetchData()
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000)
+    } catch (err) {
+      console.error('Delete error:', err)
+      setMessage({ type: 'error', text: `Error: ${err.message}` })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const closeModal = () => {
     setShowModal(false)
     setFormData({})
+    setEditingId(null)
     setKitItems([{ id: 1, item: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0 }])
   }
 
-  // SERVICE PLAN FORM
-  const ServicePlanForm = () => (
-    <div style={{ padding: '20px' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '16px' }}>Basic Information</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '6px' }}>Plan Code</label>
-            <input type="text" value={getAutoCode()} readOnly style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', background: '#f1f5f9' }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '6px' }}>Plan Name <span style={{ color: '#dc2626' }}>*</span></label>
-            <input type="text" name="name" value={formData.name || ''} onChange={handleInputChange} placeholder="e.g. Standard Hospital Plan" style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }} />
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '6px' }}>Category <span style={{ color: '#dc2626' }}>*</span></label>
-            <select name="category" value={formData.category || ''} onChange={handleInputChange} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}>
-              <option value="">Select Category</option>
-              <option value="Yellow Bag">Yellow Bag</option>
-              <option value="Red Bag">Red Bag</option>
-              <option value="Multi-Category">Multi-Category</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '6px' }}>Sub-Category</label>
-            <select name="subCategory" value={formData.subCategory || ''} onChange={handleInputChange} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}>
-              <option value="">Select Sub-Category</option>
-              <option value="Anatomical Waste">Anatomical Waste</option>
-              <option value="Cytotoxic Waste">Cytotoxic Waste</option>
-              <option value="Sharps">Sharps</option>
-            </select>
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '6px' }}>Zone <span style={{ color: '#dc2626' }}>*</span></label>
-            <select name="zone" value={formData.zone || ''} onChange={handleInputChange} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}>
-              <option value="">Select Zone</option>
-              <option value="Haridwar North">Haridwar North</option>
-              <option value="Haridwar South">Haridwar South</option>
-              <option value="Rishikesh Zone">Rishikesh Zone</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '6px' }}>Route</label>
-            <select name="route" value={formData.route || ''} onChange={handleInputChange} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }}>
-              <option value="">Select Route</option>
-              <option value="Daily Route A">Daily Route A</option>
-              <option value="City Route B">City Route B</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '6px' }}>Description</label>
-          <textarea name="description" value={formData.description || ''} onChange={handleInputChange} placeholder="Plan description..." style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', minHeight: '80px', fontFamily: 'inherit' }} />
-        </div>
-      </div>
-
-      <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
-        <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '16px' }}>Pricing Configuration</div>
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>Pricing Type</label>
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '400', cursor: 'pointer' }}>
-              <input type="radio" name="pricingType" value="fixed" checked={formData.pricingType === 'fixed'} onChange={handleInputChange} />
-              Fixed Monthly
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '400', cursor: 'pointer' }}>
-              <input type="radio" name="pricingType" value="perbed" checked={formData.pricingType === 'perbed'} onChange={handleInputChange} />
-              Per Bed
-            </label>
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '6px' }}>Monthly Charges (₹) <span style={{ color: '#dc2626' }}>*</span></label>
-            <input type="number" name="monthlyCharges" value={formData.monthlyCharges || ''} onChange={handleInputChange} placeholder="0.00" min="0" style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '6px' }}>Registration Charges (₹)</label>
-            <input type="number" name="registrationCharges" value={formData.registrationCharges || ''} onChange={handleInputChange} placeholder="0.00" min="0" style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }} />
-          </div>
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '6px' }}>Consulting Fees (₹)</label>
-          <input type="number" name="consultingFees" value={formData.consultingFees || ''} onChange={handleInputChange} placeholder="0.00" min="0" style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' }} />
-        </div>
-      </div>
-
-      <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
-        <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' }}>Status</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '400', cursor: 'pointer' }}>
-            <input type="checkbox" name="isActive" checked={formData.isActive || false} onChange={handleInputChange} />
-            Active
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '400', cursor: 'pointer' }}>
-            <input type="checkbox" name="isDefault" checked={formData.isDefault || false} onChange={handleInputChange} />
-            Set as Default Plan
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '400', cursor: 'pointer' }}>
-            <input type="checkbox" name="isPopular" checked={formData.isPopular || false} onChange={handleInputChange} />
-            Mark as Popular
-          </label>
-        </div>
-      </div>
-    </div>
-  )
 
 
   // KIT MASTER FORM
@@ -882,17 +1043,38 @@ export default function AdminPanel({ user, onLogout }) {
     </div>
   )
 
+  // Transform API response to display format
+  const transformDataForDisplay = (data) => {
+    if (!Array.isArray(data)) return []
+
+    return data.map(item => {
+      const transformed = {
+        id: item.id || item.RouteID || item.PlanID || item.FrequencyID || item.KitID || item.CategoryID || item.VehicleID || item.VendorID || item.MaterialID,
+        code: item.code || item.RouteCode || item.PlanCode || item.FrequencyCode || item.KitCode || item.CategoryCode || item.VehicleCode || item.VendorCode || item.MaterialCode,
+        name: item.name || item.RouteName || item.PlanName || item.FrequencyName || item.KitName || item.VehicleName || item.MaterialName,
+        type: item.type || item.RouteType || item.VehicleCategory,
+        category: item.category || item.VehicleCategory,
+        hazardLevel: item.hazardLevel || item.HazardLevel,
+        status: item.status || (item.IsActive || item.isActive ? 'Active' : 'Inactive'),
+        isActive: item.IsActive !== undefined ? item.IsActive : (item.isActive !== undefined ? item.isActive : true),
+        // Preserve original data
+        ...item
+      }
+      return transformed
+    })
+  }
+
   // Get the current data for the active section
   const getCurrentData = () => {
     const dataMap = {
-      routes,
-      serviceplans: servicePlans,
-      paymentfreqs: paymentFreqs,
-      kits,
-      wastecategories: wasteCategories,
-      vehicles,
-      vendors,
-      rawmaterials: rawMaterials
+      routes: transformDataForDisplay(routes),
+      serviceplans: transformDataForDisplay(servicePlans),
+      paymentfreqs: transformDataForDisplay(paymentFreqs),
+      kits: transformDataForDisplay(kits),
+      wastecategories: transformDataForDisplay(wasteCategories),
+      vehicles: transformDataForDisplay(vehicles),
+      vendors: transformDataForDisplay(vendors),
+      rawmaterials: transformDataForDisplay(rawMaterials)
     }
     return dataMap[activeSection] || []
   }
@@ -919,7 +1101,8 @@ export default function AdminPanel({ user, onLogout }) {
     { id: 'compliance', label: 'Compliance', icon: '✅' },
     { id: 'alerts', label: 'Alerts', icon: '🔔' },
     { id: 'hrhrm', label: 'HR/HRM', icon: '👔' },
-    { id: 'usermgmt', label: 'User Mgmt', icon: '🔐' }
+    { id: 'usermgmt', label: 'User Mgmt', icon: '🔐' },
+    { id: 'rolemgmt', label: 'Role Mgmt', icon: '🛡️' }
   ]
 
   // Master Data submenu items
@@ -939,8 +1122,8 @@ export default function AdminPanel({ user, onLogout }) {
       {/* Sidebar */}
       <div style={{ width: '260px', background: '#fff', borderRight: '1px solid #e2e8f0', paddingTop: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflowY: 'auto', maxHeight: '100vh' }}>
         <div style={{ paddingLeft: '20px', marginBottom: '30px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b', margin: '0' }}>MPCC</h2>
-          <p style={{ fontSize: '11px', color: '#64748b', margin: '4px 0 0 0' }}>Waste Management</p>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#000', margin: '0' }}>MPCC</h2>
+          <p style={{ fontSize: '12px', color: '#333', margin: '4px 0 0 0' }}>Waste Management</p>
         </div>
 
         {/* Main Navigation */}
@@ -957,13 +1140,13 @@ export default function AdminPanel({ user, onLogout }) {
                 }}
                 style={{
                   width: '100%',
-                  padding: '10px 16px',
+                  padding: '12px 16px',
                   background: activeMainNav === item.id ? '#ede9fe' : 'transparent',
                   border: 'none',
                   borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: activeMainNav === item.id ? '600' : '400',
-                  color: activeMainNav === item.id ? '#7c3aed' : '#64748b',
+                  fontSize: '15px',
+                  fontWeight: activeMainNav === item.id ? '700' : '500',
+                  color: activeMainNav === item.id ? '#000' : '#000',
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'all 0.2s',
@@ -992,14 +1175,14 @@ export default function AdminPanel({ user, onLogout }) {
                       onClick={() => { setActiveSection(subitem.id); setShowModal(false) }}
                       style={{
                         width: '100%',
-                        padding: '8px 12px',
+                        padding: '10px 12px',
                         paddingLeft: '16px',
                         background: activeSection === subitem.id ? '#ede9fe' : 'transparent',
                         border: 'none',
                         borderRadius: '0',
-                        fontSize: '12px',
-                        fontWeight: activeSection === subitem.id ? '600' : '400',
-                        color: activeSection === subitem.id ? '#7c3aed' : '#64748b',
+                        fontSize: '14px',
+                        fontWeight: activeSection === subitem.id ? '700' : '500',
+                        color: '#000',
                         cursor: 'pointer',
                         textAlign: 'left',
                         transition: 'all 0.2s',
@@ -1039,8 +1222,12 @@ export default function AdminPanel({ user, onLogout }) {
 
       {/* Main Content */}
       <div style={{ flex: 1, padding: '30px', overflowY: 'auto' }}>
-        {/* Master Data Section */}
-        {activeMainNav === 'masterdata' ? (
+        {/* User Management Section */}
+        {activeMainNav === 'usermgmt' ? (
+          <UserManagement />
+        ) : activeMainNav === 'rolemgmt' ? (
+          <RoleManagement />
+        ) : activeMainNav === 'masterdata' ? (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
               <div>
@@ -1049,59 +1236,75 @@ export default function AdminPanel({ user, onLogout }) {
               </div>
               <button
                 onClick={handleOpenForm}
+                disabled={loading}
                 style={{
                   padding: '10px 20px',
-                  background: '#7c3aed',
+                  background: loading ? '#cbd5e1' : '#7c3aed',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '6px',
                   fontSize: '13px',
                   fontWeight: '600',
-                  cursor: 'pointer',
+                  cursor: loading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s'
                 }}
               >
-                + Add New
+                {loading ? '⏳ Loading...' : '+ Add New'}
               </button>
             </div>
 
-        {/* Data Table */}
-        <div style={{ background: '#fff', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Code</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Name / Details</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Type</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Status</th>
-                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentData.length === 0 ? (
-                <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>No data available. Click "Add New" to create an entry.</td></tr>
-              ) : currentData.map(item => (
-                <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '12px 16px', fontSize: '13px', color: '#1e293b', fontWeight: '600' }}>{item.code}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '13px', color: '#1e293b' }}>{item.name}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '13px', color: '#64748b' }}>{item.type || item.category || item.hazardLevel || '-'}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '13px' }}>
-                    <span style={{ background: item.status === 'Active' || item.isActive ? '#d1fae5' : '#fee2e2', color: item.status === 'Active' || item.isActive ? '#065f46' : '#991b1b', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>
-                      {item.status || (item.isActive ? 'Active' : 'Inactive')}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                    <button onClick={() => setEditingId(item.id)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginRight: '15px', fontSize: '13px', fontWeight: '600' }}>Edit</button>
-                    <button onClick={() => alert('Delete item: ' + item.code)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            {/* Message Display */}
+            {message.text && (
+              <div style={{
+                padding: '12px 16px',
+                marginBottom: '20px',
+                borderRadius: '6px',
+                background: message.type === 'success' ? '#d1fae5' : '#fee2e2',
+                border: `1px solid ${message.type === 'success' ? '#6ee7b7' : '#fecaca'}`,
+                color: message.type === 'success' ? '#065f46' : '#991b1b',
+                fontSize: '13px'
+              }}>
+                {message.type === 'success' ? '✓ ' : '✗ '}{message.text}
+              </div>
+            )}
+
+            {/* Data Table */}
+            <div style={{ background: '#fff', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Code</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Name / Details</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Type</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Status</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentData.length === 0 ? (
+                    <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>No data available. Click "Add New" to create an entry.</td></tr>
+                  ) : currentData.map(item => (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#1e293b', fontWeight: '600' }}>{item.code}</td>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#1e293b' }}>{item.name}</td>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#64748b' }}>{item.type || item.category || item.hazardLevel || '-'}</td>
+                      <td style={{ padding: '12px 16px', fontSize: '13px' }}>
+                        <span style={{ background: item.status === 'Active' || item.isActive ? '#d1fae5' : '#fee2e2', color: item.status === 'Active' || item.isActive ? '#065f46' : '#991b1b', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>
+                          {item.status || (item.isActive ? 'Active' : 'Inactive')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginRight: '15px', fontSize: '13px', fontWeight: '600' }}>Edit</button>
+                        <button onClick={() => handleDelete(item)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         ) : (
-          /* Other Main Navigation Sections */
+          /* Other Main Navigation Sections - Coming Soon */
           <div style={{ background: '#fff', borderRadius: '8px', padding: '40px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <div style={{ fontSize: '48px', marginBottom: '20px' }}>
               {mainNavItems.find(item => item.id === activeMainNav)?.icon}
@@ -1136,7 +1339,7 @@ export default function AdminPanel({ user, onLogout }) {
 
             {/* Form Content */}
             {activeSection === 'routes' && <RouteFormComponent formData={formData} handleInputChange={handleInputChange} getAutoCode={getAutoCode} />}
-            {activeSection === 'serviceplans' && <ServicePlanForm />}
+            {activeSection === 'serviceplans' && <ServicePlanForm formData={formData} handleInputChange={handleInputChange} getAutoCode={getAutoCode} />}
             {activeSection === 'paymentfreqs' && <PaymentFreqFormComponent formData={formData} handleInputChange={handleInputChange} />}
             {activeSection === 'kits' && <KitForm />}
             {activeSection === 'wastecategories' && <WasteCategoryForm />}
@@ -1164,19 +1367,20 @@ export default function AdminPanel({ user, onLogout }) {
               </button>
               <button
                 onClick={handleSave}
+                disabled={loading}
                 style={{
                   padding: '10px 20px',
-                  background: '#10b981',
+                  background: loading ? '#cbd5e1' : '#10b981',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '6px',
                   fontSize: '13px',
                   fontWeight: '600',
-                  cursor: 'pointer',
+                  cursor: loading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s'
                 }}
               >
-                Save
+                {loading ? '⏳ Saving...' : 'Save'}
               </button>
             </div>
           </div>
