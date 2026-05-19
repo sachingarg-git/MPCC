@@ -98,8 +98,14 @@ app.post('/api/auth/login', async (req, res) => {
     } else {
       // Password is plain text, do direct comparison
       console.log('Using plain text comparison...');
-      console.log('Input password:', password);
-      console.log('Stored password:', storedPassword);
+      console.log('Input password length:', password.length, 'value:', JSON.stringify(password));
+      console.log('Stored password length:', storedPassword.length, 'value:', JSON.stringify(storedPassword));
+      console.log('Character by character comparison:');
+      for (let i = 0; i < Math.max(password.length, storedPassword.length); i++) {
+        const inputChar = password[i];
+        const storedChar = storedPassword[i];
+        console.log(`  [${i}] input: '${inputChar}' (${inputChar ? inputChar.charCodeAt(0) : 'undefined'}) vs stored: '${storedChar}' (${storedChar ? storedChar.charCodeAt(0) : 'undefined'})`);
+      }
       passwordMatch = password === storedPassword;
       console.log('Plain text match result:', passwordMatch);
     }
