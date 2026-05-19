@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 export default function LoginPage({ onLogin }) {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -44,6 +46,9 @@ export default function LoginPage({ onLogin }) {
 
       // Call onLogin callback with user data
       onLogin(data.user)
+
+      // Redirect to admin panel
+      navigate('/admin')
     } catch (err) {
       setError('Network error: ' + err.message)
     } finally {
