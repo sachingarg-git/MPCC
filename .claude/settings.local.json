@@ -35,7 +35,9 @@
       "Bash(git commit -m 'Add React Admin Panel Source Code *)",
       "Bash(git push *)",
       "Bash(git rm *)",
-      "Bash(git commit -m 'Security fix: Remove .env files from version control and update .gitignore *)"
+      "Bash(git commit -m 'Security fix: Remove .env files from version control and update .gitignore *)",
+      "Bash(node server.js)",
+      "Bash(cd /mnt/c/Users/sachi/Desktop/mpcc/backend && node server.js)"
     ]
   }
 }

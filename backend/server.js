@@ -18,8 +18,10 @@ const sqlConfig = {
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  encrypt: process.env.DB_ENCRYPT === 'true',
+  encrypt: false,
   trustServerCertificate: true,
+  connectionTimeout: 15000,
+  requestTimeout: 15000,
   pool: {
     max: 10,
     min: 0,
@@ -54,6 +56,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const { email, password } = req.body;
+    console.log('Login attempt:', { email, passwordLength: password?.length });
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -65,28 +68,48 @@ app.post('/api/auth/login', async (req, res) => {
       .input('email', sql.VarChar, email)
       .query('SELECT UserID, Email, Password, UserName, Role FROM Users WHERE Email = @email');
 
+    console.log('Query result rows:', result.recordset.length);
+
     if (result.recordset.length === 0) {
+      console.log('User not found with email:', email);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const user = result.recordset[0];
+    console.log('User found:', { userId: user.UserID, email: user.Email, storedPassword: user.Password });
 
     // Compare password - check if password is hashed or plain text
     let passwordMatch = false;
+    const storedPassword = user.Password.trim();
 
-    try {
-      // Try bcrypt comparison first (for hashed passwords)
-      passwordMatch = await bcrypt.compare(password, user.Password);
-    } catch (e) {
-      // If bcrypt fails, try plain text comparison (for backwards compatibility)
-      // NOTE: In production, all passwords should be hashed
-      passwordMatch = password === user.Password;
+    // Check if password is bcrypt hashed (starts with $2a$, $2b$, or $2y$)
+    const isBcryptHash = storedPassword.startsWith('$2a$') || storedPassword.startsWith('$2b$') || storedPassword.startsWith('$2y$');
+
+    if (isBcryptHash) {
+      // Password is hashed, use bcrypt comparison
+      try {
+        console.log('Using bcrypt comparison for hashed password...');
+        passwordMatch = await bcrypt.compare(password, storedPassword);
+        console.log('Bcrypt match result:', passwordMatch);
+      } catch (e) {
+        console.error('Bcrypt comparison error:', e.message);
+        passwordMatch = false;
+      }
+    } else {
+      // Password is plain text, do direct comparison
+      console.log('Using plain text comparison...');
+      console.log('Input password:', password);
+      console.log('Stored password:', storedPassword);
+      passwordMatch = password === storedPassword;
+      console.log('Plain text match result:', passwordMatch);
     }
 
     if (!passwordMatch) {
+      console.log('Password mismatch for user:', email);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    console.log('Login successful for user:', email);
     // Return user info without password
     res.json({
       message: 'Login successful',

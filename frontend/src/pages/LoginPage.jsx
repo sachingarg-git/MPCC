@@ -19,7 +19,11 @@ export default function LoginPage({ onLogin }) {
       }
 
       // Make actual API call to backend
-      const response = await fetch('/api/auth/login', {
+      const apiUrl = process.env.NODE_ENV === 'production'
+        ? '/api/auth/login'
+        : 'http://localhost:5001/api/auth/login'
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
