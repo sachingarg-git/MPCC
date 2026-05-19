@@ -1115,6 +1115,130 @@ app.delete('/api/rawmaterials/:materialId', async (req, res) => {
   }
 });
 
+// ===== CUSTOMER PORTAL ENDPOINTS =====
+
+// Get all customer registrations
+app.get('/api/customers', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .query(`SELECT * FROM Customers WHERE IsActive=1 ORDER BY CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get customer by ID
+app.get('/api/customers/:customerId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('customerId', sql.Int, req.params.customerId)
+      .query('SELECT * FROM Customers WHERE CustomerID=@customerId');
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    res.json(result.recordset[0]);
+  } catch (err) {
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Register new customer
+app.post('/api/customers', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { InstitutionName, ContactPerson, Email, MobileNo, Address, Zone, Route, ServicePlan } = req.body;
+
+    const result = await pool.request()
+      .input('institutionName', sql.VarChar, InstitutionName)
+      .input('contactPerson', sql.VarChar, ContactPerson)
+      .input('email', sql.VarChar, Email)
+      .input('mobileNo', sql.VarChar, MobileNo)
+      .input('address', sql.VarChar, Address)
+      .input('zone', sql.VarChar, Zone)
+      .input('route', sql.VarChar, Route)
+      .input('servicePlan', sql.VarChar, ServicePlan)
+      .query(`INSERT INTO Customers (InstitutionName, ContactPerson, Email, MobileNo, Address, Zone, Route, ServicePlan, IsActive, CreatedAt, UpdatedAt)
+              VALUES (@institutionName, @contactPerson, @email, @mobileNo, @address, @zone, @route, @servicePlan, 1, GETDATE(), GETDATE())
+              SELECT SCOPE_IDENTITY() as CustomerID`);
+
+    res.json({ message: 'Customer registered successfully', CustomerID: result.recordset[0].CustomerID });
+  } catch (err) {
+    console.error('Insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get customer service subscriptions
+app.get('/api/customers/:customerId/subscriptions', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('customerId', sql.Int, req.params.customerId)
+      .query(`SELECT * FROM CustomerSubscriptions WHERE CustomerID=@customerId AND IsActive=1 ORDER BY StartDate DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create customer subscription
+app.post('/api/customers/:customerId/subscriptions', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { PlanID, StartDate, EndDate, MonthlyCharges, PaymentFrequency } = req.body;
+
+    const result = await pool.request()
+      .input('customerId', sql.Int, req.params.customerId)
+      .input('planId', sql.Int, PlanID)
+      .input('startDate', sql.DateTime, StartDate)
+      .input('endDate', sql.DateTime, EndDate)
+      .input('monthlyCharges', sql.Decimal(10, 2), MonthlyCharges)
+      .input('paymentFrequency', sql.VarChar, PaymentFrequency)
+      .query(`INSERT INTO CustomerSubscriptions (CustomerID, PlanID, StartDate, EndDate, MonthlyCharges, PaymentFrequency, IsActive, CreatedAt)
+              VALUES (@customerId, @planId, @startDate, @endDate, @monthlyCharges, @paymentFrequency, 1, GETDATE())
+              SELECT SCOPE_IDENTITY() as SubscriptionID`);
+
+    res.json({ message: 'Subscription created successfully', SubscriptionID: result.recordset[0].SubscriptionID });
+  } catch (err) {
+    console.error('Insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get customer pickups/collections
+app.get('/api/customers/:customerId/pickups', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('customerId', sql.Int, req.params.customerId)
+      .query(`SELECT * FROM Pickups WHERE CustomerID=@customerId ORDER BY PickupDate DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get customer invoices
+app.get('/api/customers/:customerId/invoices', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('customerId', sql.Int, req.params.customerId)
+      .query(`SELECT * FROM Invoices WHERE CustomerID=@customerId ORDER BY InvoiceDate DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Explicit OPTIONS handler for CORS preflight requests
 app.options('*', cors({
   origin: '*',
