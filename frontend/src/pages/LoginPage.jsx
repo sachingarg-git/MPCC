@@ -11,17 +11,40 @@ export default function LoginPage({ onLogin }) {
     setError('')
     setLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      if (email && password) {
-        // Store credentials in localStorage
-        localStorage.setItem('adminUser', JSON.stringify({ email, username: email.split('@')[0] }))
-        onLogin({ email, username: email.split('@')[0] })
-      } else {
+    try {
+      if (!email || !password) {
         setError('Please enter email and password')
+        setLoading(false)
+        return
       }
+
+      // Make actual API call to backend
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Login failed')
+        setLoading(false)
+        return
+      }
+
+      // Store user info in localStorage
+      localStorage.setItem('adminUser', JSON.stringify(data.user))
+
+      // Call onLogin callback with user data
+      onLogin(data.user)
+    } catch (err) {
+      setError('Network error: ' + err.message)
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   return (
@@ -127,14 +150,14 @@ export default function LoginPage({ onLogin }) {
           </button>
         </form>
 
-        {/* Demo Credentials */}
+        {/* Database Authentication Notice */}
         <div style={{ marginTop: '30px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
           <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 10px 0' }}>
-            <strong>Demo Credentials:</strong>
+            <strong>Authentication Required:</strong>
           </p>
-          <div style={{ background: '#f1f5f9', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#1e293b' }}>
-            <div>📧 admin@mpccharidwar.in</div>
-            <div>🔐 any password</div>
+          <div style={{ background: '#f1f5f9', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#1e293b' }}>
+            <p style={{ margin: '0 0 8px 0' }}>Please enter your registered email and password to access the admin panel.</p>
+            <p style={{ margin: '0', fontSize: '11px', color: '#64748b' }}>Credentials are validated against the database.</p>
           </div>
         </div>
 

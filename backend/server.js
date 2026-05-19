@@ -1,6 +1,7 @@
 const express = require('express');
 const sql = require('mssql');
 const cors = require('cors');
+const bcrypt = require('bcrypt');
 require('dotenv').config();
 
 const app = express();
@@ -43,6 +44,63 @@ async function initializePool() {
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
+});
+
+// Login endpoint
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // Query Users table
+    const result = await pool
+      .request()
+      .input('email', sql.VarChar, email)
+      .query('SELECT UserID, Email, Password, UserName, Role FROM Users WHERE Email = @email');
+
+    if (result.recordset.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const user = result.recordset[0];
+
+    // Compare password - check if password is hashed or plain text
+    let passwordMatch = false;
+
+    try {
+      // Try bcrypt comparison first (for hashed passwords)
+      passwordMatch = await bcrypt.compare(password, user.Password);
+    } catch (e) {
+      // If bcrypt fails, try plain text comparison (for backwards compatibility)
+      // NOTE: In production, all passwords should be hashed
+      passwordMatch = password === user.Password;
+    }
+
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Return user info without password
+    res.json({
+      message: 'Login successful',
+      user: {
+        userId: user.UserID,
+        email: user.Email,
+        username: user.UserName,
+        role: user.Role
+      }
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get customers (landing page registrations)

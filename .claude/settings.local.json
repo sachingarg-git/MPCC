@@ -31,7 +31,11 @@
       "Bash(git branch *)",
       "Bash(git add *)",
       "Bash(git commit -m 'Initial commit: MPCC Biomedical Waste Management System with React Admin Panel *)",
-      "Bash(git commit -m 'Add React frontend source code *)"
+      "Bash(git commit -m 'Add React frontend source code *)",
+      "Bash(git commit -m 'Add React Admin Panel Source Code *)",
+      "Bash(git push *)",
+      "Bash(git rm *)",
+      "Bash(git commit -m 'Security fix: Remove .env files from version control and update .gitignore *)"
     ]
   }
 }
