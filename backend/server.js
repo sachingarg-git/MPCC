@@ -1115,6 +1115,14 @@ app.delete('/api/rawmaterials/:materialId', async (req, res) => {
   }
 });
 
+// Explicit OPTIONS handler for CORS preflight requests
+app.options('*', cors({
+  origin: '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
