@@ -34,7 +34,7 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:8080/api/users')
+      const response = await fetch('/api/users')
       if (!response.ok) throw new Error('Failed to fetch users')
       const data = await response.json()
       setUsers(data)
@@ -47,7 +47,7 @@ const UserManagement = () => {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/roles')
+      const response = await fetch('/api/roles')
       if (!response.ok) throw new Error('Failed to fetch roles')
       const data = await response.json()
       setRoles(data)
@@ -81,8 +81,8 @@ const UserManagement = () => {
 
       const method = editingUser ? 'PUT' : 'POST'
       const url = editingUser
-        ? `http://localhost:8080/api/users/${editingUser.UserID}`
-        : 'http://localhost:8080/api/users'
+        ? `/api/users/${editingUser.UserID}`
+        : '/api/users'
 
       const response = await fetch(url, {
         method: method,
@@ -140,7 +140,7 @@ const UserManagement = () => {
   const handleDelete = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        const response = await fetch(`http://localhost:8080/api/users/${userId}`, {
+        const response = await fetch(`/api/users/${userId}`, {
           method: 'DELETE'
         })
         if (!response.ok) throw new Error('Failed to delete user')

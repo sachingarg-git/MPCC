@@ -42,9 +42,379 @@ async function initializePool() {
     pool = new sql.ConnectionPool(sqlConfig);
     await pool.connect();
     console.log('✓ Database connected successfully');
+    await ensureTablesExist();
   } catch (err) {
     console.error('✗ Database connection failed:', err.message);
     setTimeout(initializePool, 5000);
+  }
+}
+
+// Auto-create required tables if they don't exist
+async function ensureTablesExist() {
+  try {
+    // CustomerRegistrations first (no FK dependencies)
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='CustomerRegistrations' AND xtype='U')
+      CREATE TABLE CustomerRegistrations (
+        RegistrationID INT PRIMARY KEY IDENTITY(1,1),
+        RegistrationCode NVARCHAR(50) UNIQUE NOT NULL,
+        InstitutionName NVARCHAR(255) NOT NULL,
+        InstitutionType NVARCHAR(100),
+        NumberOfBeds INT,
+        BMWRegNo NVARCHAR(50),
+        FullAddress NVARCHAR(MAX),
+        Zone NVARCHAR(100),
+        Pincode NVARCHAR(10),
+        ContactPerson NVARCHAR(100),
+        Designation NVARCHAR(100),
+        Mobile NVARCHAR(20),
+        Email NVARCHAR(100),
+        AlternateMobile NVARCHAR(20),
+        Website NVARCHAR(255),
+        PANNumber NVARCHAR(50),
+        GSTNumber NVARCHAR(50),
+        GPSLatitude DECIMAL(10,8),
+        GPSLongitude DECIMAL(11,8),
+        GPSAddress NVARCHAR(MAX),
+        SelectedPlan NVARCHAR(100),
+        BillingCycle NVARCHAR(50),
+        ContractStartDate DATETIME,
+        ContractDuration INT,
+        PaymentModePref NVARCHAR(100),
+        PaymentMethod NVARCHAR(50),
+        Status NVARCHAR(50) DEFAULT 'Pending',
+        RegistrationDate DATETIME DEFAULT GETDATE(),
+        CreatedAt DATETIME DEFAULT GETDATE(),
+        UpdatedAt DATETIME DEFAULT GETDATE()
+      );
+    `);
+    console.log('✓ CustomerRegistrations table ready');
+
+    // ── Migrate: add columns that may not exist in older CustomerRegistrations tables ──
+    const crMigrations = [
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='Category')
+         ALTER TABLE CustomerRegistrations ADD Category NVARCHAR(100) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='SubCategory')
+         ALTER TABLE CustomerRegistrations ADD SubCategory NVARCHAR(100) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='Route')
+         ALTER TABLE CustomerRegistrations ADD Route NVARCHAR(100) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='Kit')
+         ALTER TABLE CustomerRegistrations ADD Kit NVARCHAR(100) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='Consulting')
+         ALTER TABLE CustomerRegistrations ADD Consulting NVARCHAR(50) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='Compliance')
+         ALTER TABLE CustomerRegistrations ADD Compliance NVARCHAR(50) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='CustomerID')
+         ALTER TABLE CustomerRegistrations ADD CustomerID NVARCHAR(30) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='TxnID')
+         ALTER TABLE CustomerRegistrations ADD TxnID NVARCHAR(50) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='RegFee')
+         ALTER TABLE CustomerRegistrations ADD RegFee DECIMAL(12,2) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='SvcFee')
+         ALTER TABLE CustomerRegistrations ADD SvcFee DECIMAL(12,2) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='TotalAmount')
+         ALTER TABLE CustomerRegistrations ADD TotalAmount DECIMAL(12,2) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='PayMode')
+         ALTER TABLE CustomerRegistrations ADD PayMode NVARCHAR(50) NULL`,
+    ];
+    for (const q of crMigrations) {
+      try { await pool.request().query(q); } catch(e) { console.warn('CR migration warn:', e.message); }
+    }
+    console.log('✓ CustomerRegistrations columns migrated');
+
+    // Certificates — no FK to Customers, linked to CustomerRegistrations
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Certificates' AND xtype='U')
+      CREATE TABLE Certificates (
+        CertificateID INT PRIMARY KEY IDENTITY(1,1),
+        CertificateCode NVARCHAR(50) UNIQUE NOT NULL,
+        CertificateType NVARCHAR(50) NOT NULL,
+        RegistrationID INT NULL,
+        FacilityName NVARCHAR(255) NULL,
+        IssueDate DATETIME NOT NULL,
+        ValidTill DATETIME NOT NULL,
+        Notes NVARCHAR(MAX),
+        Status NVARCHAR(50) DEFAULT 'Active',
+        CreatedAt DATETIME DEFAULT GETDATE(),
+        UpdatedAt DATETIME DEFAULT GETDATE()
+      );
+    `);
+    // Migration: add RegistrationID/FacilityName columns if table already existed with old schema
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('Certificates') AND name='RegistrationID')
+        ALTER TABLE Certificates ADD RegistrationID INT NULL;
+    `);
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('Certificates') AND name='FacilityName')
+        ALTER TABLE Certificates ADD FacilityName NVARCHAR(255) NULL;
+    `);
+    // Drop old CustomerID FK constraint if present and make column nullable
+    try {
+      const fkRes = await pool.request().query(`
+        SELECT TOP 1 fk.name AS FKName FROM sys.foreign_keys fk
+        JOIN sys.foreign_key_columns fkc ON fk.object_id=fkc.constraint_object_id
+        JOIN sys.columns c ON fkc.parent_object_id=c.object_id AND fkc.parent_column_id=c.column_id
+        WHERE fk.parent_object_id=OBJECT_ID('Certificates') AND c.name='CustomerID'
+      `);
+      if (fkRes.recordset.length > 0) {
+        await pool.request().query(`ALTER TABLE Certificates DROP CONSTRAINT ${fkRes.recordset[0].FKName}`);
+      }
+      const colRes = await pool.request().query(`
+        SELECT is_nullable FROM sys.columns WHERE object_id=OBJECT_ID('Certificates') AND name='CustomerID'
+      `);
+      if (colRes.recordset.length > 0 && colRes.recordset[0].is_nullable === false) {
+        await pool.request().query(`ALTER TABLE Certificates ALTER COLUMN CustomerID INT NULL`);
+      }
+    } catch(e) { /* already nullable or no FK */ }
+    console.log('✓ Certificates table ready');
+
+    // ServiceRequests — linked to CustomerRegistrations
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ServiceRequests' AND xtype='U')
+      CREATE TABLE ServiceRequests (
+        RequestID INT PRIMARY KEY IDENTITY(1,1),
+        RequestCode NVARCHAR(50) UNIQUE NOT NULL,
+        RequestType NVARCHAR(100) NOT NULL,
+        RegistrationID INT NULL,
+        FacilityName NVARCHAR(255) NULL,
+        AssignedToUserID INT,
+        ScheduledDate DATETIME,
+        Description NVARCHAR(MAX),
+        Status NVARCHAR(50) DEFAULT 'Open',
+        CreatedAt DATETIME DEFAULT GETDATE(),
+        UpdatedAt DATETIME DEFAULT GETDATE()
+      );
+    `);
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('ServiceRequests') AND name='RegistrationID')
+        ALTER TABLE ServiceRequests ADD RegistrationID INT NULL;
+    `);
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('ServiceRequests') AND name='FacilityName')
+        ALTER TABLE ServiceRequests ADD FacilityName NVARCHAR(255) NULL;
+    `);
+    try {
+      const fkRes2 = await pool.request().query(`
+        SELECT TOP 1 fk.name AS FKName FROM sys.foreign_keys fk
+        JOIN sys.foreign_key_columns fkc ON fk.object_id=fkc.constraint_object_id
+        JOIN sys.columns c ON fkc.parent_object_id=c.object_id AND fkc.parent_column_id=c.column_id
+        WHERE fk.parent_object_id=OBJECT_ID('ServiceRequests') AND c.name='CustomerID'
+      `);
+      if (fkRes2.recordset.length > 0) {
+        await pool.request().query(`ALTER TABLE ServiceRequests DROP CONSTRAINT ${fkRes2.recordset[0].FKName}`);
+      }
+    } catch(e) {}
+    // Make CustomerID nullable so old rows still work without FK
+    try {
+      const srColRes = await pool.request().query(`
+        SELECT is_nullable FROM sys.columns
+        WHERE object_id=OBJECT_ID('ServiceRequests') AND name='CustomerID'
+      `);
+      if (srColRes.recordset.length > 0 && srColRes.recordset[0].is_nullable === false) {
+        await pool.request().query(`ALTER TABLE ServiceRequests ALTER COLUMN CustomerID INT NULL`);
+      }
+    } catch(e) {}
+    console.log('✓ ServiceRequests table ready');
+
+    // CustomerMOU — linked to CustomerRegistrations
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='CustomerMOU' AND xtype='U')
+      CREATE TABLE CustomerMOU (
+        MOUID INT PRIMARY KEY IDENTITY(1,1),
+        MOUCode NVARCHAR(50) UNIQUE NOT NULL,
+        RegistrationID INT NULL,
+        FacilityName NVARCHAR(255) NULL,
+        StartDate DATETIME NOT NULL,
+        EndDate DATETIME NOT NULL,
+        ContractValue DECIMAL(12,2) DEFAULT 0,
+        TermsConditions NVARCHAR(MAX),
+        Status NVARCHAR(50) DEFAULT 'Active',
+        CreatedAt DATETIME DEFAULT GETDATE(),
+        UpdatedAt DATETIME DEFAULT GETDATE()
+      );
+    `);
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('CustomerMOU') AND name='RegistrationID')
+        ALTER TABLE CustomerMOU ADD RegistrationID INT NULL;
+    `);
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('CustomerMOU') AND name='FacilityName')
+        ALTER TABLE CustomerMOU ADD FacilityName NVARCHAR(255) NULL;
+    `);
+    try {
+      const fkRes3 = await pool.request().query(`
+        SELECT TOP 1 fk.name AS FKName FROM sys.foreign_keys fk
+        JOIN sys.foreign_key_columns fkc ON fk.object_id=fkc.constraint_object_id
+        JOIN sys.columns c ON fkc.parent_object_id=c.object_id AND fkc.parent_column_id=c.column_id
+        WHERE fk.parent_object_id=OBJECT_ID('CustomerMOU') AND c.name='CustomerID'
+      `);
+      if (fkRes3.recordset.length > 0) {
+        await pool.request().query(`ALTER TABLE CustomerMOU DROP CONSTRAINT ${fkRes3.recordset[0].FKName}`);
+      }
+    } catch(e) {}
+    // Make CustomerID nullable so old rows still work without FK
+    try {
+      const mouColRes = await pool.request().query(`
+        SELECT is_nullable FROM sys.columns
+        WHERE object_id=OBJECT_ID('CustomerMOU') AND name='CustomerID'
+      `);
+      if (mouColRes.recordset.length > 0 && mouColRes.recordset[0].is_nullable === false) {
+        await pool.request().query(`ALTER TABLE CustomerMOU ALTER COLUMN CustomerID INT NULL`);
+      }
+    } catch(e) {}
+    console.log('✓ CustomerMOU table ready');
+
+    // FailedRegistrations
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='FailedRegistrations' AND xtype='U')
+      CREATE TABLE FailedRegistrations (
+        FailureID INT PRIMARY KEY IDENTITY(1,1),
+        FailureCode NVARCHAR(50) UNIQUE NOT NULL,
+        FacilityName NVARCHAR(255) NOT NULL,
+        ContactPerson NVARCHAR(100),
+        Mobile NVARCHAR(20) NOT NULL,
+        PlanName NVARCHAR(100),
+        Amount DECIMAL(12,2) DEFAULT 0,
+        ErrorCode NVARCHAR(50),
+        FailureReason NVARCHAR(MAX),
+        AttemptedDate DATETIME DEFAULT GETDATE(),
+        Status NVARCHAR(50) DEFAULT 'Failed',
+        ChequeNo NVARCHAR(50),
+        ChequeAmount DECIMAL(12,2) DEFAULT 0,
+        BankName NVARCHAR(100),
+        ChequeDate DATETIME,
+        CreatedAt DATETIME DEFAULT GETDATE(),
+        UpdatedAt DATETIME DEFAULT GETDATE()
+      );
+    `);
+    console.log('✓ FailedRegistrations table ready');
+
+    // ServiceRequestFollowUps — audit trail for every SR status change / note
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ServiceRequestFollowUps' AND xtype='U')
+      CREATE TABLE ServiceRequestFollowUps (
+        FollowUpID     INT PRIMARY KEY IDENTITY(1,1),
+        RequestID      INT NOT NULL,
+        StatusChanged  NVARCHAR(50),
+        Note           NVARCHAR(MAX),
+        UpdatedByUserID INT NULL,
+        UpdatedByName  NVARCHAR(150),
+        CreatedAt      DATETIME DEFAULT GETDATE()
+      );
+    `);
+    console.log('✓ ServiceRequestFollowUps table ready');
+
+    // CategoryMaster — service plan categories
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='CategoryMaster' AND xtype='U')
+      CREATE TABLE CategoryMaster (
+        CategoryID   INT PRIMARY KEY IDENTITY(1,1),
+        CategoryName NVARCHAR(200) NOT NULL,
+        IsActive     BIT DEFAULT 1,
+        CreatedAt    DATETIME DEFAULT GETDATE(),
+        UpdatedAt    DATETIME DEFAULT GETDATE()
+      );
+    `);
+    console.log('✓ CategoryMaster table ready');
+
+    // SubCategoryMaster — children of CategoryMaster
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='SubCategoryMaster' AND xtype='U')
+      CREATE TABLE SubCategoryMaster (
+        SubCategoryID   INT PRIMARY KEY IDENTITY(1,1),
+        CategoryID      INT NOT NULL,
+        SubCategoryName NVARCHAR(200) NOT NULL,
+        IsActive        BIT DEFAULT 1,
+        CreatedAt       DATETIME DEFAULT GETDATE(),
+        UpdatedAt       DATETIME DEFAULT GETDATE()
+      );
+    `);
+    console.log('✓ SubCategoryMaster table ready');
+
+    // ZoneMaster — service zones / operational areas
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ZoneMaster' AND xtype='U')
+      CREATE TABLE ZoneMaster (
+        ZoneID      INT PRIMARY KEY IDENTITY(1,1),
+        ZoneCode    NVARCHAR(50),
+        ZoneName    NVARCHAR(200) NOT NULL,
+        ZoneType    NVARCHAR(100),
+        Description NVARCHAR(MAX),
+        IsActive    BIT DEFAULT 1,
+        CreatedAt   DATETIME DEFAULT GETDATE(),
+        UpdatedAt   DATETIME DEFAULT GETDATE()
+      );
+    `);
+    console.log('✓ ZoneMaster table ready');
+
+    // Add FacilityTypes column to ServicePlans if missing
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ServicePlans') AND name = 'FacilityTypes')
+        ALTER TABLE ServicePlans ADD FacilityTypes NVARCHAR(200) NULL
+      `);
+    } catch(e) { /* column may already exist */ }
+
+    // ServicePlanItems — materials included in a plan
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ServicePlanItems' AND xtype='U')
+      CREATE TABLE ServicePlanItems (
+        ItemID       INT PRIMARY KEY IDENTITY(1,1),
+        PlanID       INT NOT NULL,
+        MaterialID   INT,
+        MaterialName NVARCHAR(200),
+        UOM          NVARCHAR(50),
+        QtyPerVisit  DECIMAL(10,2) DEFAULT 1,
+        Notes        NVARCHAR(500),
+        CreatedAt    DATETIME DEFAULT GETDATE()
+      );
+    `);
+
+    // KitMaster table
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='KitMaster' AND xtype='U')
+      CREATE TABLE KitMaster (
+        KitID        INT PRIMARY KEY IDENTITY(1,1),
+        KitCode      NVARCHAR(50),
+        KitName      NVARCHAR(200) NOT NULL,
+        KitType      NVARCHAR(100),
+        SellingPrice DECIMAL(10,2) DEFAULT 0,
+        CostPrice    DECIMAL(10,2) DEFAULT 0,
+        Description  NVARCHAR(MAX),
+        IsPopular    BIT DEFAULT 0,
+        IsActive     BIT DEFAULT 1,
+        CreatedAt    DATETIME DEFAULT GETDATE(),
+        UpdatedAt    DATETIME DEFAULT GETDATE()
+      );
+    `);
+    // Add columns if missing (for existing DB)
+    try {
+      await pool.request().query(`IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('KitMaster') AND name='SellingPrice') ALTER TABLE KitMaster ADD SellingPrice DECIMAL(10,2) NULL`);
+      await pool.request().query(`IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('KitMaster') AND name='CostPrice') ALTER TABLE KitMaster ADD CostPrice DECIMAL(10,2) NULL`);
+      await pool.request().query(`IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('KitMaster') AND name='IsPopular') ALTER TABLE KitMaster ADD IsPopular BIT DEFAULT 0`);
+      // Patch NULL prices to 0 for pre-existing rows
+      await pool.request().query(`UPDATE KitMaster SET SellingPrice=0 WHERE SellingPrice IS NULL`);
+      await pool.request().query(`UPDATE KitMaster SET CostPrice=0 WHERE CostPrice IS NULL`);
+      await pool.request().query(`UPDATE KitMaster SET IsPopular=0 WHERE IsPopular IS NULL`);
+    } catch(e) { console.log('KitMaster migration note:', e.message); }
+
+    // KitItems table
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='KitItems' AND xtype='U')
+      CREATE TABLE KitItems (
+        ItemID    INT PRIMARY KEY IDENTITY(1,1),
+        KitID     INT NOT NULL,
+        ItemName  NVARCHAR(200),
+        HSNCode   NVARCHAR(50),
+        Qty       DECIMAL(10,2) DEFAULT 1,
+        Unit      NVARCHAR(20) DEFAULT 'Pcs',
+        Rate      DECIMAL(10,2) DEFAULT 0,
+        CreatedAt DATETIME DEFAULT GETDATE()
+      );
+    `);
+
+  } catch (err) {
+    console.error('Table init error:', err.message);
   }
 }
 
@@ -234,38 +604,7 @@ app.get('/api/rate-chart', async (req, res) => {
   }
 });
 
-// Get categories
-app.get('/api/categories', async (req, res) => {
-  try {
-    if (!pool) {
-      return res.status(503).json({ error: 'Database not ready' });
-    }
-    const result = await pool
-      .request()
-      .query('SELECT * FROM Categories ORDER BY SortOrder');
-    res.json(result.recordset);
-  } catch (err) {
-    console.error('Query error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get sub-categories by category
-app.get('/api/subcategories/:categoryId', async (req, res) => {
-  try {
-    if (!pool) {
-      return res.status(503).json({ error: 'Database not ready' });
-    }
-    const result = await pool
-      .request()
-      .input('categoryId', sql.VarChar, req.params.categoryId)
-      .query('SELECT * FROM SubCategories WHERE CategoryID = @categoryId ORDER BY Name');
-    res.json(result.recordset);
-  } catch (err) {
-    console.error('Query error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+// NOTE: /api/categories and /api/subcategories are defined in the CATEGORY MASTER ENDPOINTS section below
 
 // ===== USER MANAGEMENT ENDPOINTS =====
 console.log('Registering user management endpoints...');
@@ -544,10 +883,14 @@ app.get('/api/routes', async (req, res) => {
 app.post('/api/routes', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { routeCode, routeName, routeType, primaryDriver, secondaryDriver } = req.body;
-    if (!routeCode || !routeName || !routeType) {
-      return res.status(400).json({ error: 'Route Code, Name, and Type are required' });
+    const { routeName, routeType, primaryDriver, secondaryDriver } = req.body;
+    if (!routeName || !routeType) {
+      return res.status(400).json({ error: 'Route Name and Type are required' });
     }
+    // Generate code server-side using MAX(RouteID) to avoid duplicate key on soft-deleted rows
+    const maxRes = await pool.request().query(`SELECT ISNULL(MAX(RouteID),0)+1 AS NextID FROM Routes`);
+    const nextId = maxRes.recordset[0].NextID;
+    const routeCode = `RTE-${String(nextId).padStart(3,'0')}`;
     const result = await pool.request()
       .input('routeCode', sql.VarChar, routeCode)
       .input('routeName', sql.VarChar, routeName)
@@ -557,7 +900,7 @@ app.post('/api/routes', async (req, res) => {
       .query(`INSERT INTO Routes (RouteCode, RouteName, RouteType, PrimaryDriver, SecondaryDriver, IsActive)
               VALUES (@routeCode, @routeName, @routeType, @primaryDriver, @secondaryDriver, 1);
               SELECT SCOPE_IDENTITY() as RouteID`);
-    res.status(201).json({ message: 'Route created', routeId: result.recordset[0].RouteID });
+    res.status(201).json({ message: 'Route created', routeId: result.recordset[0].RouteID, routeCode });
   } catch (err) {
     console.error('Insert error:', err);
     res.status(500).json({ error: err.message });
@@ -598,13 +941,74 @@ app.delete('/api/routes/:routeId', async (req, res) => {
   }
 });
 
+// ===== ZONE MASTER ENDPOINTS =====
+app.get('/api/zones', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request().query('SELECT * FROM ZoneMaster ORDER BY ZoneName');
+    res.json(result.recordset);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/zones', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { zoneName, zoneType, description, isActive } = req.body;
+    if (!zoneName) return res.status(400).json({ error: 'Zone Name is required' });
+    const maxRes = await pool.request().query(`SELECT ISNULL(MAX(ZoneID),0)+1 AS NextID FROM ZoneMaster`);
+    const zoneCode = `ZNE-${String(maxRes.recordset[0].NextID).padStart(3,'0')}`;
+    const result = await pool.request()
+      .input('zoneCode', sql.VarChar, zoneCode)
+      .input('zoneName', sql.NVarChar, zoneName)
+      .input('zoneType', sql.VarChar, zoneType || null)
+      .input('description', sql.NVarChar, description || null)
+      .input('isActive', sql.Bit, isActive !== false ? 1 : 0)
+      .query(`INSERT INTO ZoneMaster (ZoneCode, ZoneName, ZoneType, Description, IsActive)
+              VALUES (@zoneCode, @zoneName, @zoneType, @description, @isActive);
+              SELECT SCOPE_IDENTITY() as ZoneID`);
+    res.status(201).json({ message: 'Zone created', zoneId: result.recordset[0].ZoneID, zoneCode });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/zones/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { zoneName, zoneType, description, isActive } = req.body;
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('zoneName', sql.NVarChar, zoneName)
+      .input('zoneType', sql.VarChar, zoneType || null)
+      .input('description', sql.NVarChar, description || null)
+      .input('isActive', sql.Bit, isActive ? 1 : 0)
+      .query(`UPDATE ZoneMaster SET ZoneName=@zoneName, ZoneType=@zoneType, Description=@description, IsActive=@isActive, UpdatedAt=GETDATE() WHERE ZoneID=@id`);
+    res.json({ message: 'Zone updated' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/zones/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query('UPDATE ZoneMaster SET IsActive=0, UpdatedAt=GETDATE() WHERE ZoneID=@id');
+    res.json({ message: 'Zone deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ===== SERVICE PLANS ENDPOINTS =====
 app.get('/api/serviceplans', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const result = await pool.request()
-      .query('SELECT * FROM ServicePlans WHERE IsActive = 1 ORDER BY PlanName');
-    res.json(result.recordset);
+    const result = await pool.request().query('SELECT * FROM ServicePlans WHERE IsActive = 1 ORDER BY PlanName');
+    const plans = result.recordset;
+    // Attach items to each plan
+    const itemsResult = await pool.request().query('SELECT * FROM ServicePlanItems ORDER BY ItemID');
+    const allItems = itemsResult.recordset;
+    const plansWithItems = plans.map(p => ({
+      ...p,
+      PlanItems: allItems.filter(i => i.PlanID === p.PlanID)
+    }));
+    res.json(plansWithItems);
   } catch (err) {
     console.error('Query error:', err);
     res.status(500).json({ error: err.message });
@@ -614,10 +1018,12 @@ app.get('/api/serviceplans', async (req, res) => {
 app.post('/api/serviceplans', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { planCode, name, category, subCategory, zone, route, description, pricingType, monthlyCharges, registrationCharges, consultingFees, isActive } = req.body;
-    if (!planCode || !name || !category) {
-      return res.status(400).json({ error: 'Plan Code, Name, and Category are required' });
+    const { name, category, subCategory, zone, route, description, pricingType, monthlyCharges, registrationCharges, consultingFees, isActive, facilityTypes, planItems } = req.body;
+    if (!name || !category) {
+      return res.status(400).json({ error: 'Plan Name and Category are required' });
     }
+    const maxRes = await pool.request().query(`SELECT ISNULL(MAX(PlanID),0)+1 AS NextID FROM ServicePlans`);
+    const planCode = `PLAN-${String(maxRes.recordset[0].NextID).padStart(3,'0')}`;
     const result = await pool.request()
       .input('planCode', sql.VarChar, planCode)
       .input('planName', sql.VarChar, name)
@@ -631,10 +1037,26 @@ app.post('/api/serviceplans', async (req, res) => {
       .input('registrationCharges', sql.Decimal(10,2), registrationCharges || 0)
       .input('consultingFees', sql.Decimal(10,2), consultingFees || 0)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
-      .query(`INSERT INTO ServicePlans (PlanCode, PlanName, Category, SubCategory, Zone, Route, Description, PricingType, MonthlyCharges, RegistrationCharges, ConsultingFees, IsActive)
-              VALUES (@planCode, @planName, @category, @subCategory, @zone, @route, @description, @pricingType, @monthlyCharges, @registrationCharges, @consultingFees, @isActive);
+      .input('facilityTypes', sql.VarChar, facilityTypes || null)
+      .query(`INSERT INTO ServicePlans (PlanCode, PlanName, Category, SubCategory, Zone, Route, Description, PricingType, MonthlyCharges, RegistrationCharges, ConsultingFees, IsActive, FacilityTypes)
+              VALUES (@planCode, @planName, @category, @subCategory, @zone, @route, @description, @pricingType, @monthlyCharges, @registrationCharges, @consultingFees, @isActive, @facilityTypes);
               SELECT SCOPE_IDENTITY() as PlanID`);
-    res.status(201).json({ message: 'Service Plan created', planId: result.recordset[0].PlanID });
+    res.status(201).json({ message: 'Service Plan created', planId: result.recordset[0].PlanID, planCode });
+    // Insert plan items
+    if (Array.isArray(planItems) && planItems.length > 0) {
+      const newPlanId = result.recordset[0].PlanID;
+      for (const item of planItems) {
+        if (!item.materialName && !item.materialId) continue;
+        await pool.request()
+          .input('planId', sql.Int, newPlanId)
+          .input('materialId', sql.Int, item.materialId || null)
+          .input('materialName', sql.NVarChar, item.materialName || '')
+          .input('uom', sql.VarChar, item.uom || 'Pcs')
+          .input('qty', sql.Decimal(10,2), parseFloat(item.qty) || 1)
+          .input('notes', sql.NVarChar, item.notes || null)
+          .query(`INSERT INTO ServicePlanItems (PlanID, MaterialID, MaterialName, UOM, QtyPerVisit, Notes) VALUES (@planId, @materialId, @materialName, @uom, @qty, @notes)`);
+      }
+    }
   } catch (err) {
     console.error('Insert error:', err);
     res.status(500).json({ error: err.message });
@@ -644,7 +1066,7 @@ app.post('/api/serviceplans', async (req, res) => {
 app.put('/api/serviceplans/:planId', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { planCode, name, category, subCategory, zone, route, description, pricingType, monthlyCharges, registrationCharges, consultingFees, isActive } = req.body;
+    const { planCode, name, category, subCategory, zone, route, description, pricingType, monthlyCharges, registrationCharges, consultingFees, isActive, facilityTypes, planItems } = req.body;
     await pool.request()
       .input('planId', sql.Int, req.params.planId)
       .input('planCode', sql.VarChar, planCode)
@@ -659,10 +1081,26 @@ app.put('/api/serviceplans/:planId', async (req, res) => {
       .input('registrationCharges', sql.Decimal(10,2), registrationCharges || 0)
       .input('consultingFees', sql.Decimal(10,2), consultingFees || 0)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
+      .input('facilityTypes', sql.VarChar, facilityTypes || null)
       .query(`UPDATE ServicePlans SET PlanCode=@planCode, PlanName=@planName, Category=@category, SubCategory=@subCategory,
               Zone=@zone, Route=@route, Description=@description, PricingType=@pricingType, MonthlyCharges=@monthlyCharges,
-              RegistrationCharges=@registrationCharges, ConsultingFees=@consultingFees, IsActive=@isActive, UpdatedAt=GETDATE()
+              RegistrationCharges=@registrationCharges, ConsultingFees=@consultingFees, IsActive=@isActive, FacilityTypes=@facilityTypes, UpdatedAt=GETDATE()
               WHERE PlanID=@planId`);
+    // Sync plan items — delete old and re-insert
+    await pool.request().input('planId', sql.Int, req.params.planId).query('DELETE FROM ServicePlanItems WHERE PlanID=@planId');
+    if (Array.isArray(planItems) && planItems.length > 0) {
+      for (const item of planItems) {
+        if (!item.materialName && !item.materialId) continue;
+        await pool.request()
+          .input('planId', sql.Int, req.params.planId)
+          .input('materialId', sql.Int, item.materialId || null)
+          .input('materialName', sql.NVarChar, item.materialName || '')
+          .input('uom', sql.VarChar, item.uom || 'Pcs')
+          .input('qty', sql.Decimal(10,2), parseFloat(item.qty) || 1)
+          .input('notes', sql.NVarChar, item.notes || null)
+          .query(`INSERT INTO ServicePlanItems (PlanID, MaterialID, MaterialName, UOM, QtyPerVisit, Notes) VALUES (@planId, @materialId, @materialName, @uom, @qty, @notes)`);
+      }
+    }
     res.json({ message: 'Service Plan updated' });
   } catch (err) {
     console.error('Update error:', err);
@@ -699,10 +1137,12 @@ app.get('/api/paymentfreqs', async (req, res) => {
 app.post('/api/paymentfreqs', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { frequencyCode, frequencyName, months, discountAmt, discountPct, description } = req.body;
-    if (!frequencyCode || !frequencyName || !months) {
-      return res.status(400).json({ error: 'Frequency Code, Name, and Months are required' });
+    const { frequencyName, months, discountAmt, discountPct, description } = req.body;
+    if (!frequencyName || !months) {
+      return res.status(400).json({ error: 'Frequency Name and Months are required' });
     }
+    const maxRes = await pool.request().query(`SELECT ISNULL(MAX(FrequencyID),0)+1 AS NextID FROM PaymentFrequency`);
+    const frequencyCode = `FREQ-${String(maxRes.recordset[0].NextID).padStart(3,'0')}`;
     const result = await pool.request()
       .input('frequencyCode', sql.VarChar, frequencyCode)
       .input('frequencyName', sql.VarChar, frequencyName)
@@ -713,7 +1153,7 @@ app.post('/api/paymentfreqs', async (req, res) => {
       .query(`INSERT INTO PaymentFrequency (FrequencyCode, FrequencyName, Months, DiscountAmount, DiscountPercentage, Description, IsActive)
               VALUES (@frequencyCode, @frequencyName, @months, @discountAmt, @discountPct, @description, 1);
               SELECT SCOPE_IDENTITY() as FrequencyID`);
-    res.status(201).json({ message: 'Payment Frequency created', frequencyId: result.recordset[0].FrequencyID });
+    res.status(201).json({ message: 'Payment Frequency created', frequencyId: result.recordset[0].FrequencyID, frequencyCode });
   } catch (err) {
     console.error('Insert error:', err);
     res.status(500).json({ error: err.message });
@@ -759,9 +1199,24 @@ app.delete('/api/paymentfreqs/:freqId', async (req, res) => {
 app.get('/api/kits', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const result = await pool.request()
-      .query('SELECT * FROM KitMaster WHERE IsActive = 1 ORDER BY KitName');
-    res.json(result.recordset);
+    const kitsResult = await pool.request().query(`
+      SELECT KitID, KitCode, KitName, KitType,
+        ISNULL(SellingPrice, 0) AS SellingPrice,
+        ISNULL(CostPrice, 0)    AS CostPrice,
+        ISNULL(IsPopular, 0)    AS IsPopular,
+        IsActive, Description, CreatedAt, UpdatedAt
+      FROM KitMaster WHERE IsActive = 1 ORDER BY KitName`);
+    const kits = kitsResult.recordset;
+    let allItems = [];
+    try {
+      const itemsResult = await pool.request().query('SELECT * FROM KitItems ORDER BY ItemID');
+      allItems = itemsResult.recordset;
+    } catch(e) {}
+    const kitsWithItems = kits.map(k => ({
+      ...k,
+      KitItems: allItems.filter(i => i.KitID === k.KitID)
+    }));
+    res.json(kitsWithItems);
   } catch (err) {
     console.error('Query error:', err);
     res.status(500).json({ error: err.message });
@@ -771,19 +1226,37 @@ app.get('/api/kits', async (req, res) => {
 app.post('/api/kits', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { kitCode, name, type, description, items } = req.body;
-    if (!kitCode || !name) {
-      return res.status(400).json({ error: 'Kit Code and Name are required' });
-    }
+    const { name, type, sellingPrice, costPrice, description, isPopular, items, isActive } = req.body;
+    if (!name) return res.status(400).json({ error: 'Kit Name is required' });
+    const maxRes = await pool.request().query(`SELECT ISNULL(MAX(KitID),0)+1 AS NextID FROM KitMaster`);
+    const kitCode = `KIT-${String(maxRes.recordset[0].NextID).padStart(3,'0')}`;
     const result = await pool.request()
       .input('kitCode', sql.VarChar, kitCode)
       .input('kitName', sql.VarChar, name)
       .input('kitType', sql.VarChar, type || null)
+      .input('sellingPrice', sql.Decimal(10,2), parseFloat(sellingPrice) || 0)
+      .input('costPrice', sql.Decimal(10,2), parseFloat(costPrice) || 0)
       .input('description', sql.Text, description || null)
-      .query(`INSERT INTO KitMaster (KitCode, KitName, KitType, Description, IsActive)
-              VALUES (@kitCode, @kitName, @kitType, @description, 1);
+      .input('isPopular', sql.Bit, isPopular ? 1 : 0)
+      .input('isActive', sql.Bit, isActive !== false ? 1 : 0)
+      .query(`INSERT INTO KitMaster (KitCode, KitName, KitType, SellingPrice, CostPrice, Description, IsPopular, IsActive)
+              VALUES (@kitCode, @kitName, @kitType, @sellingPrice, @costPrice, @description, @isPopular, @isActive);
               SELECT SCOPE_IDENTITY() as KitID`);
-    res.status(201).json({ message: 'Kit created', kitId: result.recordset[0].KitID });
+    const newKitId = result.recordset[0].KitID;
+    if (Array.isArray(items) && items.length > 0) {
+      for (const item of items) {
+        if (!item.item && !item.ItemName) continue;
+        await pool.request()
+          .input('kitId', sql.Int, newKitId)
+          .input('itemName', sql.NVarChar, item.item || item.ItemName || '')
+          .input('hsnCode', sql.VarChar, item.hsn || item.HSNCode || null)
+          .input('qty', sql.Decimal(10,2), parseFloat(item.qty || item.Qty) || 1)
+          .input('unit', sql.VarChar, item.unit || item.Unit || 'Pcs')
+          .input('rate', sql.Decimal(10,2), parseFloat(item.rate || item.Rate) || 0)
+          .query(`INSERT INTO KitItems (KitID, ItemName, HSNCode, Qty, Unit, Rate) VALUES (@kitId, @itemName, @hsnCode, @qty, @unit, @rate)`);
+      }
+    }
+    res.status(201).json({ message: 'Kit created', kitId: newKitId, kitCode });
   } catch (err) {
     console.error('Insert error:', err);
     res.status(500).json({ error: err.message });
@@ -793,15 +1266,35 @@ app.post('/api/kits', async (req, res) => {
 app.put('/api/kits/:kitId', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { kitCode, name, type, description } = req.body;
+    const { kitCode, name, type, sellingPrice, costPrice, description, isPopular, items, isActive } = req.body;
     await pool.request()
       .input('kitId', sql.Int, req.params.kitId)
       .input('kitCode', sql.VarChar, kitCode)
       .input('kitName', sql.VarChar, name)
       .input('kitType', sql.VarChar, type || null)
+      .input('sellingPrice', sql.Decimal(10,2), parseFloat(sellingPrice) || 0)
+      .input('costPrice', sql.Decimal(10,2), parseFloat(costPrice) || 0)
       .input('description', sql.Text, description || null)
+      .input('isPopular', sql.Bit, isPopular ? 1 : 0)
+      .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query(`UPDATE KitMaster SET KitCode=@kitCode, KitName=@kitName, KitType=@kitType,
-              Description=@description, UpdatedAt=GETDATE() WHERE KitID=@kitId`);
+              SellingPrice=@sellingPrice, CostPrice=@costPrice, Description=@description,
+              IsPopular=@isPopular, IsActive=@isActive, UpdatedAt=GETDATE() WHERE KitID=@kitId`);
+    // Sync items
+    await pool.request().input('kitId', sql.Int, req.params.kitId).query('DELETE FROM KitItems WHERE KitID=@kitId');
+    if (Array.isArray(items) && items.length > 0) {
+      for (const item of items) {
+        if (!item.item && !item.ItemName) continue;
+        await pool.request()
+          .input('kitId', sql.Int, req.params.kitId)
+          .input('itemName', sql.NVarChar, item.item || item.ItemName || '')
+          .input('hsnCode', sql.VarChar, item.hsn || item.HSNCode || null)
+          .input('qty', sql.Decimal(10,2), parseFloat(item.qty || item.Qty) || 1)
+          .input('unit', sql.VarChar, item.unit || item.Unit || 'Pcs')
+          .input('rate', sql.Decimal(10,2), parseFloat(item.rate || item.Rate) || 0)
+          .query(`INSERT INTO KitItems (KitID, ItemName, HSNCode, Qty, Unit, Rate) VALUES (@kitId, @itemName, @hsnCode, @qty, @unit, @rate)`);
+      }
+    }
     res.json({ message: 'Kit updated' });
   } catch (err) {
     console.error('Update error:', err);
@@ -838,10 +1331,12 @@ app.get('/api/wastecategories', async (req, res) => {
 app.post('/api/wastecategories', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { categoryCode, name, bagColor, description } = req.body;
-    if (!categoryCode || !name) {
-      return res.status(400).json({ error: 'Category Code and Name are required' });
+    const { name, bagColor, description } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Category Name is required' });
     }
+    const maxRes = await pool.request().query(`SELECT ISNULL(MAX(CategoryID),0)+1 AS NextID FROM WasteCategory`);
+    const categoryCode = `WC-${String(maxRes.recordset[0].NextID).padStart(3,'0')}`;
     const result = await pool.request()
       .input('categoryCode', sql.VarChar, categoryCode)
       .input('categoryName', sql.VarChar, name)
@@ -850,7 +1345,7 @@ app.post('/api/wastecategories', async (req, res) => {
       .query(`INSERT INTO WasteCategory (CategoryCode, CategoryName, BagColor, Description, IsActive)
               VALUES (@categoryCode, @categoryName, @bagColor, @description, 1);
               SELECT SCOPE_IDENTITY() as CategoryID`);
-    res.status(201).json({ message: 'Waste Category created', categoryId: result.recordset[0].CategoryID });
+    res.status(201).json({ message: 'Waste Category created', categoryId: result.recordset[0].CategoryID, categoryCode });
   } catch (err) {
     console.error('Insert error:', err);
     res.status(500).json({ error: err.message });
@@ -905,10 +1400,12 @@ app.get('/api/vehicles', async (req, res) => {
 app.post('/api/vehicles', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { vehicleCode, vehicleType, registrationNo, manufacturer, model, purchaseDate, gpsEnabled } = req.body;
-    if (!vehicleCode || !registrationNo) {
-      return res.status(400).json({ error: 'Vehicle Code and Registration No are required' });
+    const { vehicleType, registrationNo, manufacturer, model, purchaseDate, gpsEnabled } = req.body;
+    if (!registrationNo) {
+      return res.status(400).json({ error: 'Registration No is required' });
     }
+    const maxRes = await pool.request().query(`SELECT ISNULL(MAX(VehicleID),0)+1 AS NextID FROM VehicleMaster`);
+    const vehicleCode = `VEH-${String(maxRes.recordset[0].NextID).padStart(3,'0')}`;
     const result = await pool.request()
       .input('vehicleCode', sql.VarChar, vehicleCode)
       .input('vehicleType', sql.VarChar, vehicleType || null)
@@ -920,7 +1417,7 @@ app.post('/api/vehicles', async (req, res) => {
       .query(`INSERT INTO VehicleMaster (VehicleCode, VehicleType, RegistrationNo, Manufacturer, Model, PurchaseDate, GPSEnabled, IsActive)
               VALUES (@vehicleCode, @vehicleType, @registrationNo, @manufacturer, @model, @purchaseDate, @gpsEnabled, 1);
               SELECT SCOPE_IDENTITY() as VehicleID`);
-    res.status(201).json({ message: 'Vehicle created', vehicleId: result.recordset[0].VehicleID });
+    res.status(201).json({ message: 'Vehicle created', vehicleId: result.recordset[0].VehicleID, vehicleCode });
   } catch (err) {
     console.error('Insert error:', err);
     res.status(500).json({ error: err.message });
@@ -979,10 +1476,12 @@ app.get('/api/vendors', async (req, res) => {
 app.post('/api/vendors', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { vendorCode, type, name, contactPerson, mobile, email, city, state } = req.body;
-    if (!vendorCode || !name) {
-      return res.status(400).json({ error: 'Vendor Code and Name are required' });
+    const { type, name, contactPerson, mobile, email, city, state } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Vendor Name is required' });
     }
+    const maxRes = await pool.request().query(`SELECT ISNULL(MAX(VendorID),0)+1 AS NextID FROM VendorMaster`);
+    const vendorCode = `VND-${String(maxRes.recordset[0].NextID).padStart(3,'0')}`;
     const result = await pool.request()
       .input('vendorCode', sql.VarChar, vendorCode)
       .input('vendorType', sql.VarChar, type || null)
@@ -995,7 +1494,7 @@ app.post('/api/vendors', async (req, res) => {
       .query(`INSERT INTO VendorMaster (VendorCode, VendorType, VendorName, ContactPerson, Mobile, Email, City, State, IsActive)
               VALUES (@vendorCode, @vendorType, @vendorName, @contactPerson, @mobile, @email, @city, @state, 1);
               SELECT SCOPE_IDENTITY() as VendorID`);
-    res.status(201).json({ message: 'Vendor created', vendorId: result.recordset[0].VendorID });
+    res.status(201).json({ message: 'Vendor created', vendorId: result.recordset[0].VendorID, vendorCode });
   } catch (err) {
     console.error('Insert error:', err);
     res.status(500).json({ error: err.message });
@@ -1055,10 +1554,12 @@ app.get('/api/rawmaterials', async (req, res) => {
 app.post('/api/rawmaterials', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { materialCode, type, name, description, brand, hsnCode, uom, unitPrice } = req.body;
-    if (!materialCode || !name) {
-      return res.status(400).json({ error: 'Material Code and Name are required' });
+    const { type, name, description, brand, hsnCode, uom, unitPrice } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Material Name is required' });
     }
+    const maxRes = await pool.request().query(`SELECT ISNULL(MAX(MaterialID),0)+1 AS NextID FROM RawMaterials`);
+    const materialCode = `ITM-${String(maxRes.recordset[0].NextID).padStart(3,'0')}`;
     const result = await pool.request()
       .input('materialCode', sql.VarChar, materialCode)
       .input('materialType', sql.VarChar, type || null)
@@ -1071,7 +1572,7 @@ app.post('/api/rawmaterials', async (req, res) => {
       .query(`INSERT INTO RawMaterials (MaterialCode, MaterialType, MaterialName, Description, Brand, HSNCode, UOM, UnitPrice, IsActive)
               VALUES (@materialCode, @materialType, @materialName, @description, @brand, @hsnCode, @uom, @unitPrice, 1);
               SELECT SCOPE_IDENTITY() as MaterialID`);
-    res.status(201).json({ message: 'Raw Material created', materialId: result.recordset[0].MaterialID });
+    res.status(201).json({ message: 'Raw Material created', materialId: result.recordset[0].MaterialID, materialCode });
   } catch (err) {
     console.error('Insert error:', err);
     res.status(500).json({ error: err.message });
@@ -1235,6 +1736,716 @@ app.get('/api/customers/:customerId/invoices', async (req, res) => {
     res.json(result.recordset);
   } catch (err) {
     console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// SERVICE REQUESTS ENDPOINTS
+// ============================================
+app.get('/api/service-requests', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .query(`SELECT sr.*,
+                ISNULL(sr.FacilityName, cr.InstitutionName) AS CustomerName,
+                u.Username as AssignedUserName
+              FROM ServiceRequests sr
+              LEFT JOIN CustomerRegistrations cr ON sr.RegistrationID = cr.RegistrationID
+              LEFT JOIN Users u ON sr.AssignedToUserID = u.UserID
+              ORDER BY sr.CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/service-requests', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { requestType, registrationId, facilityName, assignedToUserID, scheduledDate, description, status } = req.body;
+
+    let resolvedFacilityName = facilityName;
+    if (registrationId) {
+      const regResult = await pool.request()
+        .input('regID', sql.Int, registrationId)
+        .query(`SELECT InstitutionName FROM CustomerRegistrations WHERE RegistrationID = @regID`);
+      if (regResult.recordset.length > 0) resolvedFacilityName = regResult.recordset[0].InstitutionName;
+    }
+
+    const requestCode = 'SR-' + Date.now();
+    const result = await pool.request()
+      .input('requestCode', sql.NVarChar, requestCode)
+      .input('requestType', sql.NVarChar, requestType)
+      .input('registrationID', sql.Int, registrationId || null)
+      .input('facilityName', sql.NVarChar, resolvedFacilityName || null)
+      .input('assignedToUserID', sql.Int, assignedToUserID || null)
+      .input('scheduledDate', sql.DateTime, scheduledDate || null)
+      .input('description', sql.NVarChar, description)
+      .input('status', sql.NVarChar, status || 'Open')
+      .query(`INSERT INTO ServiceRequests (RequestCode, RequestType, RegistrationID, FacilityName, AssignedToUserID, ScheduledDate, Description, Status, CreatedAt)
+              VALUES (@requestCode, @requestType, @registrationID, @facilityName, @assignedToUserID, @scheduledDate, @description, @status, GETDATE())
+              SELECT SCOPE_IDENTITY() as RequestID`);
+
+    res.json({ message: 'Service request created', RequestID: result.recordset[0].RequestID, RequestCode: requestCode });
+  } catch (err) {
+    console.error('Insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/service-requests/:requestId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { requestType, registrationId, facilityName, assignedToUserID, scheduledDate, description, status } = req.body;
+
+    await pool.request()
+      .input('requestID', sql.Int, req.params.requestId)
+      .input('requestType', sql.NVarChar, requestType)
+      .input('registrationID', sql.Int, registrationId || null)
+      .input('facilityName', sql.NVarChar, facilityName || null)
+      .input('assignedToUserID', sql.Int, assignedToUserID || null)
+      .input('scheduledDate', sql.DateTime, scheduledDate || null)
+      .input('description', sql.NVarChar, description)
+      .input('status', sql.NVarChar, status)
+      .query(`UPDATE ServiceRequests SET RequestType=@requestType, RegistrationID=@registrationID,
+              FacilityName=@facilityName, AssignedToUserID=@assignedToUserID, ScheduledDate=@scheduledDate,
+              Description=@description, Status=@status, UpdatedAt=GETDATE() WHERE RequestID=@requestID`);
+
+    res.json({ message: 'Service request updated' });
+  } catch (err) {
+    console.error('Update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/service-requests/:requestId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+
+    await pool.request()
+      .input('requestID', sql.Int, req.params.requestId)
+      .query(`DELETE FROM ServiceRequests WHERE RequestID=@requestID`);
+
+    res.json({ message: 'Service request deleted' });
+  } catch (err) {
+    console.error('Delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// SERVICE REQUEST FOLLOW-UP ENDPOINTS
+// ============================================
+
+// GET all follow-ups for a service request
+app.get('/api/service-requests/:requestId/followups', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('requestID', sql.Int, req.params.requestId)
+      .query(`SELECT * FROM ServiceRequestFollowUps
+              WHERE RequestID = @requestID
+              ORDER BY CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Followup fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST a new follow-up (also updates parent SR status)
+app.post('/api/service-requests/:requestId/followups', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { statusChanged, note, updatedByUserID, updatedByName } = req.body;
+    const requestId = req.params.requestId;
+
+    // Insert follow-up record
+    const result = await pool.request()
+      .input('requestID',      sql.Int,      requestId)
+      .input('statusChanged',  sql.NVarChar,  statusChanged || null)
+      .input('note',           sql.NVarChar,  note || null)
+      .input('updatedByUserID',sql.Int,       updatedByUserID || null)
+      .input('updatedByName',  sql.NVarChar,  updatedByName || null)
+      .query(`INSERT INTO ServiceRequestFollowUps
+                (RequestID, StatusChanged, Note, UpdatedByUserID, UpdatedByName, CreatedAt)
+              VALUES
+                (@requestID, @statusChanged, @note, @updatedByUserID, @updatedByName, GETDATE());
+              SELECT SCOPE_IDENTITY() AS FollowUpID`);
+
+    // Update parent SR status + UpdatedAt
+    if (statusChanged) {
+      await pool.request()
+        .input('requestID', sql.Int,     requestId)
+        .input('status',    sql.NVarChar, statusChanged)
+        .query(`UPDATE ServiceRequests SET Status=@status, UpdatedAt=GETDATE() WHERE RequestID=@requestID`);
+    } else {
+      await pool.request()
+        .input('requestID', sql.Int, requestId)
+        .query(`UPDATE ServiceRequests SET UpdatedAt=GETDATE() WHERE RequestID=@requestID`);
+    }
+
+    res.json({ message: 'Follow-up saved', FollowUpID: result.recordset[0].FollowUpID });
+  } catch (err) {
+    console.error('Followup save error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// CUSTOMER MOU ENDPOINTS
+// ============================================
+app.get('/api/customer-mou', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .query(`SELECT cm.*,
+                ISNULL(cm.FacilityName, cr.InstitutionName) AS CustomerName
+              FROM CustomerMOU cm
+              LEFT JOIN CustomerRegistrations cr ON cm.RegistrationID = cr.RegistrationID
+              ORDER BY cm.CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/customer-mou', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, facilityName, startDate, endDate, contractValue, termsConditions, status } = req.body;
+
+    let resolvedFacilityName = facilityName;
+    if (registrationId) {
+      const regResult = await pool.request()
+        .input('regID', sql.Int, registrationId)
+        .query(`SELECT InstitutionName FROM CustomerRegistrations WHERE RegistrationID = @regID`);
+      if (regResult.recordset.length > 0) resolvedFacilityName = regResult.recordset[0].InstitutionName;
+    }
+
+    const mouCode = 'MOU-' + Date.now();
+    const result = await pool.request()
+      .input('mouCode', sql.NVarChar, mouCode)
+      .input('registrationID', sql.Int, registrationId || null)
+      .input('facilityName', sql.NVarChar, resolvedFacilityName || null)
+      .input('startDate', sql.DateTime, startDate)
+      .input('endDate', sql.DateTime, endDate)
+      .input('contractValue', sql.Decimal(12, 2), contractValue || 0)
+      .input('termsConditions', sql.NVarChar, termsConditions)
+      .input('status', sql.NVarChar, status || 'Active')
+      .query(`INSERT INTO CustomerMOU (MOUCode, RegistrationID, FacilityName, StartDate, EndDate, ContractValue, TermsConditions, Status, CreatedAt)
+              VALUES (@mouCode, @registrationID, @facilityName, @startDate, @endDate, @contractValue, @termsConditions, @status, GETDATE())
+              SELECT SCOPE_IDENTITY() as MOUID`);
+
+    res.json({ message: 'MOU created', MOUID: result.recordset[0].MOUID, MOUCode: mouCode });
+  } catch (err) {
+    console.error('Insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/customer-mou/:mouId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, facilityName, startDate, endDate, contractValue, termsConditions, status } = req.body;
+
+    await pool.request()
+      .input('mouID', sql.Int, req.params.mouId)
+      .input('registrationID', sql.Int, registrationId || null)
+      .input('facilityName', sql.NVarChar, facilityName || null)
+      .input('startDate', sql.DateTime, startDate)
+      .input('endDate', sql.DateTime, endDate)
+      .input('contractValue', sql.Decimal(12, 2), contractValue || 0)
+      .input('termsConditions', sql.NVarChar, termsConditions)
+      .input('status', sql.NVarChar, status)
+      .query(`UPDATE CustomerMOU SET RegistrationID=@registrationID, FacilityName=@facilityName,
+              StartDate=@startDate, EndDate=@endDate, ContractValue=@contractValue,
+              TermsConditions=@termsConditions, Status=@status, UpdatedAt=GETDATE() WHERE MOUID=@mouID`);
+
+    res.json({ message: 'MOU updated' });
+  } catch (err) {
+    console.error('Update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/customer-mou/:mouId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+
+    await pool.request()
+      .input('mouID', sql.Int, req.params.mouId)
+      .query(`DELETE FROM CustomerMOU WHERE MOUID=@mouID`);
+
+    res.json({ message: 'MOU deleted' });
+  } catch (err) {
+    console.error('Delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// FAILED REGISTRATIONS ENDPOINTS
+// ============================================
+app.get('/api/failed-registrations', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .query(`SELECT * FROM FailedRegistrations ORDER BY CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/failed-registrations', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { customerID, facilityName, contactPerson, mobile, planName, amount, errorCode, failureReason, attemptedDate, status, chequeNo, chequeAmount, bankName, chequeDate } = req.body;
+
+    const failureCode = 'FAIL-' + Date.now();
+    const result = await pool.request()
+      .input('failureCode', sql.NVarChar, failureCode)
+      .input('customerID', sql.Int, customerID || null)
+      .input('facilityName', sql.NVarChar, facilityName)
+      .input('contactPerson', sql.NVarChar, contactPerson)
+      .input('mobile', sql.NVarChar, mobile)
+      .input('planName', sql.NVarChar, planName)
+      .input('amount', sql.Decimal(10, 2), amount || 0)
+      .input('errorCode', sql.NVarChar, errorCode)
+      .input('failureReason', sql.NVarChar, failureReason)
+      .input('attemptedDate', sql.DateTime, attemptedDate || new Date())
+      .input('status', sql.NVarChar, status || 'Failed')
+      .input('chequeNo', sql.NVarChar, chequeNo)
+      .input('chequeAmount', sql.Decimal(10, 2), chequeAmount || 0)
+      .input('bankName', sql.NVarChar, bankName)
+      .input('chequeDate', sql.DateTime, chequeDate || null)
+      .query(`INSERT INTO FailedRegistrations (FailureCode, CustomerID, FacilityName, ContactPerson, Mobile, PlanName, Amount,
+              ErrorCode, FailureReason, AttemptedDate, Status, ChequeNo, ChequeAmount, BankName, ChequeDate, CreatedAt)
+              VALUES (@failureCode, @customerID, @facilityName, @contactPerson, @mobile, @planName, @amount, @errorCode,
+              @failureReason, @attemptedDate, @status, @chequeNo, @chequeAmount, @bankName, @chequeDate, GETDATE())
+              SELECT SCOPE_IDENTITY() as FailureID`);
+
+    res.json({ message: 'Failed registration recorded', FailureID: result.recordset[0].FailureID });
+  } catch (err) {
+    console.error('Insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/failed-registrations/:failureId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { customerID, facilityName, contactPerson, mobile, planName, amount, errorCode, failureReason, status, chequeNo, chequeAmount, bankName, chequeDate } = req.body;
+
+    await pool.request()
+      .input('failureID', sql.Int, req.params.failureId)
+      .input('customerID', sql.Int, customerID || null)
+      .input('facilityName', sql.NVarChar, facilityName)
+      .input('contactPerson', sql.NVarChar, contactPerson)
+      .input('mobile', sql.NVarChar, mobile)
+      .input('planName', sql.NVarChar, planName)
+      .input('amount', sql.Decimal(10, 2), amount || 0)
+      .input('errorCode', sql.NVarChar, errorCode)
+      .input('failureReason', sql.NVarChar, failureReason)
+      .input('status', sql.NVarChar, status)
+      .input('chequeNo', sql.NVarChar, chequeNo)
+      .input('chequeAmount', sql.Decimal(10, 2), chequeAmount || 0)
+      .input('bankName', sql.NVarChar, bankName)
+      .input('chequeDate', sql.DateTime, chequeDate || null)
+      .query(`UPDATE FailedRegistrations SET CustomerID=@customerID, FacilityName=@facilityName,
+              ContactPerson=@contactPerson, Mobile=@mobile, PlanName=@planName, Amount=@amount, ErrorCode=@errorCode,
+              FailureReason=@failureReason, Status=@status, ChequeNo=@chequeNo, ChequeAmount=@chequeAmount,
+              BankName=@bankName, ChequeDate=@chequeDate, UpdatedAt=GETDATE() WHERE FailureID=@failureID`);
+
+    res.json({ message: 'Failed registration updated' });
+  } catch (err) {
+    console.error('Update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/failed-registrations/:failureId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+
+    await pool.request()
+      .input('failureID', sql.Int, req.params.failureId)
+      .query(`DELETE FROM FailedRegistrations WHERE FailureID=@failureID`);
+
+    res.json({ message: 'Failed registration deleted' });
+  } catch (err) {
+    console.error('Delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// CERTIFICATES ENDPOINTS
+// ============================================
+app.get('/api/certificates', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .query(`SELECT cert.*,
+                ISNULL(cert.FacilityName, cr.InstitutionName) AS CustomerName,
+                cr.InstitutionType, cr.Zone, cr.Mobile AS RegMobile,
+                cr.ContactPerson AS RegContact
+              FROM Certificates cert
+              LEFT JOIN CustomerRegistrations cr ON cert.RegistrationID = cr.RegistrationID
+              ORDER BY cert.CreatedAt DESC`);
+    res.json({ data: result.recordset });
+  } catch (err) {
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/certificates', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { certificateType, registrationId, facilityName, issueDate, validTill, notes, status } = req.body;
+
+    if (!registrationId && !facilityName) {
+      return res.status(400).json({ error: 'Registration or facility name required' });
+    }
+
+    const certificateCode = 'CERT-' + Date.now();
+
+    // Get facility name from CustomerRegistrations if registrationId is provided
+    let resolvedFacilityName = facilityName;
+    if (registrationId) {
+      const regResult = await pool.request()
+        .input('regID', sql.Int, registrationId)
+        .query(`SELECT InstitutionName FROM CustomerRegistrations WHERE RegistrationID = @regID`);
+      if (regResult.recordset.length > 0) {
+        resolvedFacilityName = regResult.recordset[0].InstitutionName;
+      }
+    }
+
+    const result = await pool.request()
+      .input('certificateCode', sql.NVarChar, certificateCode)
+      .input('certificateType', sql.NVarChar, certificateType)
+      .input('registrationID', sql.Int, registrationId || null)
+      .input('facilityName', sql.NVarChar, resolvedFacilityName || null)
+      .input('issueDate', sql.DateTime, issueDate)
+      .input('validTill', sql.DateTime, validTill)
+      .input('notes', sql.NVarChar, notes || null)
+      .input('status', sql.NVarChar, status || 'Active')
+      .query(`INSERT INTO Certificates (CertificateCode, CertificateType, RegistrationID, FacilityName, IssueDate, ValidTill, Notes, Status, CreatedAt)
+              VALUES (@certificateCode, @certificateType, @registrationID, @facilityName, @issueDate, @validTill, @notes, @status, GETDATE())
+              SELECT SCOPE_IDENTITY() as CertificateID`);
+
+    res.json({ message: 'Certificate created', CertificateID: result.recordset[0].CertificateID, CertificateCode: certificateCode });
+  } catch (err) {
+    console.error('Insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/certificates/:certificateId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { certificateType, issueDate, validTill, notes, status } = req.body;
+
+    await pool.request()
+      .input('certificateID', sql.Int, req.params.certificateId)
+      .input('certificateType', sql.NVarChar, certificateType)
+      .input('issueDate', sql.DateTime, issueDate)
+      .input('validTill', sql.DateTime, validTill)
+      .input('notes', sql.NVarChar, notes || null)
+      .input('status', sql.NVarChar, status)
+      .query(`UPDATE Certificates SET CertificateType=@certificateType, IssueDate=@issueDate,
+              ValidTill=@validTill, Notes=@notes, Status=@status, UpdatedAt=GETDATE()
+              WHERE CertificateID=@certificateID`);
+
+    res.json({ message: 'Certificate updated' });
+  } catch (err) {
+    console.error('Update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/certificates/:certificateId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+
+    await pool.request()
+      .input('certificateID', sql.Int, req.params.certificateId)
+      .query(`DELETE FROM Certificates WHERE CertificateID=@certificateID`);
+
+    res.json({ message: 'Certificate deleted' });
+  } catch (err) {
+    console.error('Delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// CUSTOMER REGISTRATIONS ENDPOINTS
+// ============================================
+app.get('/api/customer-registrations', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .query(`SELECT * FROM CustomerRegistrations
+              ORDER BY CreatedAt DESC`);
+    res.json({ data: result.recordset });
+  } catch (err) {
+    console.error('Fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/customer-registrations', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+
+    const {
+      institutionName, institutionType, numberOfBeds, bmwRegNo, fullAddress, zone, pincode,
+      contactPerson, designation, mobile, email, alternateMobile, website,
+      panNumber, gstNumber,
+      gpsLatitude, gpsLongitude, gpsAddress,
+      selectedPlan, billingCycle, contractStartDate, contractDuration, paymentModePref,
+      paymentMethod, documents,
+      // new fields from landing page wizard
+      category, subCategory, route, kit, consulting, compliance,
+      customerId, txnId, regFee, svcFee, totalAmount, payMode
+    } = req.body;
+
+    const registrationCode = customerId || ('REG-' + Date.now());
+
+    const result = await pool.request()
+      .input('registrationCode', sql.NVarChar, registrationCode)
+      .input('institutionName', sql.NVarChar, institutionName)
+      .input('institutionType', sql.NVarChar, institutionType || null)
+      .input('numberOfBeds', sql.Int, numberOfBeds || null)
+      .input('bmwRegNo', sql.NVarChar, bmwRegNo || null)
+      .input('fullAddress', sql.NVarChar, fullAddress || null)
+      .input('zone', sql.NVarChar, zone || null)
+      .input('pincode', sql.NVarChar, pincode || null)
+      .input('contactPerson', sql.NVarChar, contactPerson || null)
+      .input('designation', sql.NVarChar, designation || null)
+      .input('mobile', sql.NVarChar, mobile || null)
+      .input('email', sql.NVarChar, email || null)
+      .input('alternateMobile', sql.NVarChar, alternateMobile || null)
+      .input('website', sql.NVarChar, website || null)
+      .input('panNumber', sql.NVarChar, panNumber || null)
+      .input('gstNumber', sql.NVarChar, gstNumber || null)
+      .input('gpsLatitude', sql.Decimal(10, 8), gpsLatitude || null)
+      .input('gpsLongitude', sql.Decimal(11, 8), gpsLongitude || null)
+      .input('gpsAddress', sql.NVarChar, gpsAddress || null)
+      .input('selectedPlan', sql.NVarChar, selectedPlan || null)
+      .input('billingCycle', sql.NVarChar, billingCycle || null)
+      .input('contractStartDate', sql.DateTime, contractStartDate || null)
+      .input('contractDuration', sql.Int, contractDuration || null)
+      .input('paymentModePreference', sql.NVarChar, paymentModePref || null)
+      .input('paymentMethod', sql.NVarChar, paymentMethod || null)
+      .input('category', sql.NVarChar, category || null)
+      .input('subCategory', sql.NVarChar, subCategory || null)
+      .input('route', sql.NVarChar, route || null)
+      .input('kit', sql.NVarChar, kit || null)
+      .input('consulting', sql.NVarChar, consulting != null ? String(consulting) : null)
+      .input('compliance', sql.NVarChar, compliance != null ? String(compliance) : null)
+      .input('customerId', sql.NVarChar, customerId || null)
+      .input('txnId', sql.NVarChar, txnId || null)
+      .input('regFee', sql.Decimal(12,2), regFee || null)
+      .input('svcFee', sql.Decimal(12,2), svcFee || null)
+      .input('totalAmount', sql.Decimal(12,2), totalAmount || null)
+      .input('payMode', sql.NVarChar, payMode || null)
+      .input('status', sql.NVarChar, 'Pending')
+      .query(`INSERT INTO CustomerRegistrations
+              (RegistrationCode, InstitutionName, InstitutionType, NumberOfBeds, BMWRegNo, FullAddress, Zone, Pincode,
+               ContactPerson, Designation, Mobile, Email, AlternateMobile, Website, PANNumber, GSTNumber,
+               GPSLatitude, GPSLongitude, GPSAddress, SelectedPlan, BillingCycle, ContractStartDate,
+               ContractDuration, PaymentModePreference, PaymentMethod,
+               Category, SubCategory, Route, Kit, Consulting, Compliance,
+               CustomerID, TxnID, RegFee, SvcFee, TotalAmount, PayMode,
+               Status, CreatedAt)
+              VALUES (@registrationCode, @institutionName, @institutionType, @numberOfBeds, @bmwRegNo, @fullAddress, @zone, @pincode,
+                      @contactPerson, @designation, @mobile, @email, @alternateMobile, @website, @panNumber, @gstNumber,
+                      @gpsLatitude, @gpsLongitude, @gpsAddress, @selectedPlan, @billingCycle, @contractStartDate,
+                      @contractDuration, @paymentModePreference, @paymentMethod,
+                      @category, @subCategory, @route, @kit, @consulting, @compliance,
+                      @customerId, @txnId, @regFee, @svcFee, @totalAmount, @payMode,
+                      @status, GETDATE())
+              SELECT SCOPE_IDENTITY() as RegistrationID`);
+
+    const registrationId = result.recordset[0].RegistrationID;
+    res.json({ message: 'Registration created', RegistrationID: registrationId, RegistrationCode: registrationCode });
+  } catch (err) {
+    console.error('Insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/customer-registrations/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { status, approvedBy } = req.body;
+
+    const query = approvedBy
+      ? `UPDATE CustomerRegistrations SET Status=@status, ApprovedBy=@approvedBy, ApprovedDate=GETDATE(), UpdatedAt=GETDATE() WHERE RegistrationID=@registrationID`
+      : `UPDATE CustomerRegistrations SET Status=@status, UpdatedAt=GETDATE() WHERE RegistrationID=@registrationID`;
+
+    const request = pool.request()
+      .input('registrationID', sql.Int, req.params.registrationId)
+      .input('status', sql.NVarChar, status);
+
+    if (approvedBy) {
+      request.input('approvedBy', sql.Int, approvedBy);
+    }
+
+    await request.query(query);
+    res.json({ message: 'Registration updated' });
+  } catch (err) {
+    console.error('Update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/customer-registrations/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+
+    await pool.request()
+      .input('registrationID', sql.Int, req.params.registrationId)
+      .query(`DELETE FROM CustomerRegistrationDocuments WHERE RegistrationID=@registrationID;
+              DELETE FROM CustomerRegistrations WHERE RegistrationID=@registrationID`);
+
+    res.json({ message: 'Registration deleted' });
+  } catch (err) {
+    console.error('Delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// CATEGORY MASTER ENDPOINTS
+// ============================================
+
+// GET /api/categories — returns categories with their sub-categories as nested array
+app.get('/api/categories', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const catRes = await pool.request()
+      .query(`SELECT * FROM CategoryMaster WHERE IsActive=1 ORDER BY CategoryName`);
+    const subRes = await pool.request()
+      .query(`SELECT * FROM SubCategoryMaster WHERE IsActive=1 ORDER BY SubCategoryName`);
+    const categories = catRes.recordset.map(cat => ({
+      ...cat,
+      SubCategories: subRes.recordset.filter(s => s.CategoryID === cat.CategoryID)
+    }));
+    res.json(categories);
+  } catch (err) {
+    console.error('Query error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/subcategories?categoryId=X — filtered sub-categories for a given category
+app.get('/api/subcategories', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { categoryId } = req.query;
+    let query = `SELECT * FROM SubCategoryMaster WHERE IsActive=1`;
+    if (categoryId) query += ` AND CategoryID=@categoryId`;
+    query += ` ORDER BY SubCategoryName`;
+    const req2 = pool.request();
+    if (categoryId) req2.input('categoryId', sql.Int, parseInt(categoryId));
+    const result = await req2.query(query);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Query error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/categories — create category + optional sub-categories in one call
+app.post('/api/categories', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { categoryName, subCategories } = req.body;
+    if (!categoryName) return res.status(400).json({ error: 'Category Name is required' });
+
+    const catResult = await pool.request()
+      .input('categoryName', sql.NVarChar, categoryName)
+      .query(`INSERT INTO CategoryMaster (CategoryName, IsActive, CreatedAt, UpdatedAt)
+              VALUES (@categoryName, 1, GETDATE(), GETDATE());
+              SELECT SCOPE_IDENTITY() AS CategoryID`);
+    const newCategoryId = catResult.recordset[0].CategoryID;
+
+    if (Array.isArray(subCategories) && subCategories.length > 0) {
+      for (const sub of subCategories) {
+        const subName = typeof sub === 'string' ? sub.trim() : (sub.name || '').trim();
+        if (!subName) continue;
+        await pool.request()
+          .input('categoryId', sql.Int, newCategoryId)
+          .input('subCategoryName', sql.NVarChar, subName)
+          .query(`INSERT INTO SubCategoryMaster (CategoryID, SubCategoryName, IsActive, CreatedAt, UpdatedAt)
+                  VALUES (@categoryId, @subCategoryName, 1, GETDATE(), GETDATE())`);
+      }
+    }
+
+    res.status(201).json({ message: 'Category created', CategoryID: newCategoryId });
+  } catch (err) {
+    console.error('Insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/categories/:id — update category name; replace sub-categories
+app.put('/api/categories/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { categoryName, subCategories } = req.body;
+    const categoryId = parseInt(req.params.id);
+
+    await pool.request()
+      .input('categoryId', sql.Int, categoryId)
+      .input('categoryName', sql.NVarChar, categoryName)
+      .query(`UPDATE CategoryMaster SET CategoryName=@categoryName, UpdatedAt=GETDATE() WHERE CategoryID=@categoryId`);
+
+    // Soft-delete all existing sub-categories, then insert the new list
+    await pool.request()
+      .input('categoryId', sql.Int, categoryId)
+      .query(`UPDATE SubCategoryMaster SET IsActive=0, UpdatedAt=GETDATE() WHERE CategoryID=@categoryId`);
+
+    if (Array.isArray(subCategories) && subCategories.length > 0) {
+      for (const sub of subCategories) {
+        const subName = typeof sub === 'string' ? sub.trim() : (sub.name || '').trim();
+        if (!subName) continue;
+        await pool.request()
+          .input('categoryId', sql.Int, categoryId)
+          .input('subCategoryName', sql.NVarChar, subName)
+          .query(`INSERT INTO SubCategoryMaster (CategoryID, SubCategoryName, IsActive, CreatedAt, UpdatedAt)
+                  VALUES (@categoryId, @subCategoryName, 1, GETDATE(), GETDATE())`);
+      }
+    }
+
+    res.json({ message: 'Category updated' });
+  } catch (err) {
+    console.error('Update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/categories/:id — soft delete category + sub-categories
+app.delete('/api/categories/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const categoryId = parseInt(req.params.id);
+    await pool.request()
+      .input('categoryId', sql.Int, categoryId)
+      .query(`UPDATE SubCategoryMaster SET IsActive=0, UpdatedAt=GETDATE() WHERE CategoryID=@categoryId;
+              UPDATE CategoryMaster SET IsActive=0, UpdatedAt=GETDATE() WHERE CategoryID=@categoryId`);
+    res.json({ message: 'Category deleted' });
+  } catch (err) {
+    console.error('Delete error:', err);
     res.status(500).json({ error: err.message });
   }
 });

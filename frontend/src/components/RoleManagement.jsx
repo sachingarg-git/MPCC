@@ -25,7 +25,7 @@ const RoleManagement = () => {
   const fetchRoles = async () => {
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:8080/api/roles')
+      const response = await fetch('/api/roles')
       if (!response.ok) throw new Error('Failed to fetch roles')
       const data = await response.json()
       setRoles(data)
@@ -38,7 +38,7 @@ const RoleManagement = () => {
 
   const fetchPermissions = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/permissions')
+      const response = await fetch('/api/permissions')
       if (!response.ok) throw new Error('Failed to fetch permissions')
       const data = await response.json()
       setPermissions(data)
@@ -78,7 +78,7 @@ const RoleManagement = () => {
 
   const loadRolePermissions = async (roleId) => {
     try {
-      const response = await fetch(`http://localhost:8080/api/roles/${roleId}/permissions`)
+      const response = await fetch(`/api/roles/${roleId}/permissions`)
       if (!response.ok) throw new Error('Failed to fetch permissions')
       const data = await response.json()
       setSelectedPermissions(data.map(p => p.PermissionID))

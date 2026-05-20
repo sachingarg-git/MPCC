@@ -21,10 +21,10 @@ const CustomerPortal = () => {
       const customerId = localStorage.getItem('customerId') || 1;
 
       const [customerRes, subRes, pickupRes, invoiceRes] = await Promise.all([
-        fetch(`http://localhost:8080/api/customers/${customerId}`),
-        fetch(`http://localhost:8080/api/customers/${customerId}/subscriptions`),
-        fetch(`http://localhost:8080/api/customers/${customerId}/pickups`),
-        fetch(`http://localhost:8080/api/customers/${customerId}/invoices`)
+        fetch(`/api/customers/${customerId}`),
+        fetch(`/api/customers/${customerId}/subscriptions`),
+        fetch(`/api/customers/${customerId}/pickups`),
+        fetch(`/api/customers/${customerId}/invoices`)
       ]);
 
       if (customerRes.ok) {

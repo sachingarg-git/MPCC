@@ -5,6 +5,7 @@ import RoleManagement from '../components/RoleManagement'
 import ServicePlanForm from '../components/ServicePlanForm'
 import CustomerModule from './CustomerModule'
 import CRMHCFMaster from './CRMHCFMaster'
+import MasterDataModule from './MasterDataModule'
 
 // Separate Form Components to prevent focus loss
 const RouteFormComponent = ({ formData, handleInputChange, getAutoCode }) => (
@@ -121,13 +122,14 @@ export default function AdminPanel({ user, onLogout }) {
   // UI State for messages
   const [message, setMessage] = useState({ type: '', text: '' })
   const [loading, setLoading] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Fetch data from API based on active section
   const fetchData = async () => {
     try {
       setLoading(true)
       const endpoint = `/api/${activeSection}`
-      const response = await fetch(`http://localhost:8080${endpoint}`)
+      const response = await fetch(`${endpoint}`)
       if (!response.ok) throw new Error(`Failed to fetch ${activeSection}`)
       const data = await response.json()
 
@@ -327,7 +329,7 @@ export default function AdminPanel({ user, onLogout }) {
       }
 
       // Make API call
-      const response = await fetch(`http://localhost:8080${endpoint}`, {
+      const response = await fetch(`${endpoint}`, {
         method: method,
         headers: {
           'Content-Type': 'application/json'
@@ -416,7 +418,7 @@ export default function AdminPanel({ user, onLogout }) {
           return
       }
 
-      const response = await fetch(`http://localhost:8080${endpoint}`, {
+      const response = await fetch(`${endpoint}`, {
         method: 'DELETE'
       })
 
@@ -1086,7 +1088,7 @@ export default function AdminPanel({ user, onLogout }) {
   // Main navigation items
   const mainNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'masterdata', label: 'Master Data', icon: '📋', hasSubmenu: true },
+    { id: 'masterdata', label: 'Master Data', icon: '📋' },
     { id: 'customer', label: 'Customer', icon: '👥' },
     { id: 'crmhcf', label: 'CRM-HCF', icon: '💼' },
     { id: 'gpsdata', label: 'GPS Data', icon: '📍' },
@@ -1107,204 +1109,126 @@ export default function AdminPanel({ user, onLogout }) {
     { id: 'rolemgmt', label: 'Role Mgmt', icon: '🛡️' }
   ]
 
-  // Master Data submenu items
-  const masterDataItems = [
-    { id: 'routes', label: 'Route Master', icon: '🛣️' },
-    { id: 'serviceplans', label: 'Service Plan', icon: '📋' },
-    { id: 'paymentfreqs', label: 'Payment Frequency', icon: '💳' },
-    { id: 'kits', label: 'Kit Master', icon: '📦' },
-    { id: 'wastecategories', label: 'Waste Category', icon: '♻️' },
-    { id: 'vehicles', label: 'Vehicle Master', icon: '🚛' },
-    { id: 'vendors', label: 'Vendor Master', icon: '🏢' },
-    { id: 'rawmaterials', label: 'Raw Materials', icon: '📦' }
-  ]
+
+  const sw = sidebarCollapsed ? '64px' : '210px'
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f6fb', fontFamily: "'Inter', sans-serif" }}>
-      {/* Sidebar */}
-      <div style={{ width: '260px', background: '#fff', borderRight: '1px solid #e2e8f0', paddingTop: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflowY: 'auto', maxHeight: '100vh' }}>
-        <div style={{ paddingLeft: '20px', marginBottom: '30px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#000', margin: '0' }}>MPCC</h2>
-          <p style={{ fontSize: '12px', color: '#333', margin: '4px 0 0 0' }}>Waste Management</p>
+
+      {/* ── Sidebar ── */}
+      <div style={{
+        width: sw, minWidth: sw, background: '#fff',
+        borderRight: '1px solid #e2e8f0',
+        paddingTop: '0',
+        boxShadow: '2px 0 8px rgba(0,0,0,0.06)',
+        overflowY: 'auto', overflowX: 'hidden',
+        maxHeight: '100vh', flexShrink: 0,
+        transition: 'width 0.25s ease, min-width 0.25s ease',
+        display: 'flex', flexDirection: 'column'
+      }}>
+
+        {/* Top bar: logo + toggle */}
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+          padding: sidebarCollapsed ? '16px 0' : '16px 14px 16px 18px',
+          borderBottom: '1px solid #f1f5f9',
+          flexShrink: 0
+        }}>
+          {!sidebarCollapsed && (
+            <div style={{ overflow: 'hidden' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: '0', letterSpacing: '-0.3px' }}>MPCC</h2>
+              <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0', fontWeight: '500' }}>Waste Management</p>
+            </div>
+          )}
+          <button
+            onClick={() => setSidebarCollapsed(p => !p)}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            style={{
+              background: '#f1f5f9', border: 'none', borderRadius: '8px',
+              width: '34px', height: '34px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '16px', color: '#475569', flexShrink: 0,
+              transition: 'background 0.15s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+            onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
+          >
+            {sidebarCollapsed ? '▶' : '☰'}
+          </button>
         </div>
 
         {/* Main Navigation */}
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingRight: '10px' }}>
-          {mainNavItems.map(item => (
-            <div key={item.id}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '1px', padding: '10px 8px', flex: 1 }}>
+          {mainNavItems.map(item => {
+            const isActive = activeMainNav === item.id
+            return (
               <button
-                onClick={() => {
-                  setActiveMainNav(item.id)
-                  if (item.hasSubmenu) {
-                    setExpandedMainNav(item.id)
-                  }
-                  setShowModal(false)
-                }}
+                key={item.id}
+                onClick={() => { setActiveMainNav(item.id); setShowModal(false) }}
+                title={sidebarCollapsed ? item.label : ''}
                 style={{
                   width: '100%',
-                  padding: '12px 16px',
-                  background: activeMainNav === item.id ? '#ede9fe' : 'transparent',
+                  padding: sidebarCollapsed ? '10px 0' : '10px 12px',
+                  background: isActive ? '#ede9fe' : 'transparent',
                   border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '15px',
-                  fontWeight: activeMainNav === item.id ? '700' : '500',
-                  color: activeMainNav === item.id ? '#000' : '#000',
+                  borderRadius: '8px',
+                  borderLeft: isActive ? '3px solid #7c3aed' : '3px solid transparent',
+                  fontSize: '14px',
+                  fontWeight: isActive ? '700' : '600',
+                  color: isActive ? '#5b21b6' : '#1e293b',
                   cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.2s',
-                  marginLeft: '4px',
+                  textAlign: sidebarCollapsed ? 'center' : 'left',
+                  transition: 'all 0.15s',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between'
+                  gap: '10px',
+                  justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap'
                 }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f8fafc' }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
               >
-                <span>
-                  <span style={{ marginRight: '8px' }}>{item.icon}</span>{item.label}
-                </span>
-                {item.hasSubmenu && (
-                  <span style={{ fontSize: '11px', marginRight: '2px' }}>
-                    {expandedMainNav === item.id ? '▼' : '▶'}
-                  </span>
+                <span style={{ fontSize: '17px', flexShrink: 0 }}>{item.icon}</span>
+                {!sidebarCollapsed && (
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
                 )}
               </button>
-
-              {/* Master Data Submenu */}
-              {item.hasSubmenu && activeMainNav === item.id && expandedMainNav === item.id && (
-                <div style={{ background: '#f8fafc', borderRadius: '6px', marginLeft: '12px', marginRight: '4px', marginTop: '4px', overflow: 'hidden' }}>
-                  {masterDataItems.map(subitem => (
-                    <button
-                      key={subitem.id}
-                      onClick={() => { setActiveSection(subitem.id); setShowModal(false) }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        paddingLeft: '16px',
-                        background: activeSection === subitem.id ? '#ede9fe' : 'transparent',
-                        border: 'none',
-                        borderRadius: '0',
-                        fontSize: '14px',
-                        fontWeight: activeSection === subitem.id ? '700' : '500',
-                        color: '#000',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <span style={{ marginRight: '6px' }}>{subitem.icon}</span>{subitem.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </nav>
 
-        <div style={{ paddingLeft: '20px', marginTop: '30px', paddingRight: '10px' }}>
+        {/* Logout */}
+        <div style={{ padding: '10px 8px 16px', flexShrink: 0 }}>
           <button
             onClick={onLogout}
+            title={sidebarCollapsed ? 'Logout' : ''}
             style={{
               width: '100%',
-              padding: '10px 16px',
-              background: '#fee2e2',
-              border: '1px solid #fecaca',
-              borderRadius: '6px',
-              fontSize: '13px',
-              fontWeight: '600',
-              color: '#dc2626',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
+              padding: sidebarCollapsed ? '10px 0' : '10px 12px',
+              background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '8px',
+              fontSize: '13px', fontWeight: '700', color: '#dc2626',
+              cursor: 'pointer', transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+              gap: '8px'
             }}
           >
-            🚪 Logout
+            <span style={{ fontSize: '16px' }}>🚪</span>
+            {!sidebarCollapsed && <span>Logout</span>}
           </button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, padding: '30px', overflowY: 'auto' }}>
+      <div style={{ flex: 1, padding: '24px', overflowY: 'auto', minWidth: 0 }}>
         {/* User Management Section */}
         {activeMainNav === 'usermgmt' ? (
           <UserManagement />
         ) : activeMainNav === 'rolemgmt' ? (
           <RoleManagement />
         ) : activeMainNav === 'masterdata' ? (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-              <div>
-                <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#1e293b', margin: '0 0 6px 0' }}>Master Data Management</h1>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '0' }}>Manage your system data and configurations</p>
-              </div>
-              <button
-                onClick={handleOpenForm}
-                disabled={loading}
-                style={{
-                  padding: '10px 20px',
-                  background: loading ? '#cbd5e1' : '#7c3aed',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {loading ? '⏳ Loading...' : '+ Add New'}
-              </button>
-            </div>
-
-            {/* Message Display */}
-            {message.text && (
-              <div style={{
-                padding: '12px 16px',
-                marginBottom: '20px',
-                borderRadius: '6px',
-                background: message.type === 'success' ? '#d1fae5' : '#fee2e2',
-                border: `1px solid ${message.type === 'success' ? '#6ee7b7' : '#fecaca'}`,
-                color: message.type === 'success' ? '#065f46' : '#991b1b',
-                fontSize: '13px'
-              }}>
-                {message.type === 'success' ? '✓ ' : '✗ '}{message.text}
-              </div>
-            )}
-
-            {/* Data Table */}
-            <div style={{ background: '#fff', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Code</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Name / Details</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Type</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Status</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentData.length === 0 ? (
-                    <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>No data available. Click "Add New" to create an entry.</td></tr>
-                  ) : currentData.map(item => (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#1e293b', fontWeight: '600' }}>{item.code}</td>
-                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#1e293b' }}>{item.name}</td>
-                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#64748b' }}>{item.type || item.category || item.hazardLevel || '-'}</td>
-                      <td style={{ padding: '12px 16px', fontSize: '13px' }}>
-                        <span style={{ background: item.status === 'Active' || item.isActive ? '#d1fae5' : '#fee2e2', color: item.status === 'Active' || item.isActive ? '#065f46' : '#991b1b', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>
-                          {item.status || (item.isActive ? 'Active' : 'Inactive')}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginRight: '15px', fontSize: '13px', fontWeight: '600' }}>Edit</button>
-                        <button onClick={() => handleDelete(item)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Delete</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <MasterDataModule />
         ) : activeMainNav === 'customer' ? (
           <CustomerModule />
         ) : activeMainNav === 'crmhcf' ? (

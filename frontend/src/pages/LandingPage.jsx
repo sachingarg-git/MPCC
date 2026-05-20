@@ -64,7 +64,7 @@ export default function LandingPage(){
   const [s3tab, setS3tab] = useState('plan')
 
   // Wizard selections
-  const [cat, setCat]       = useState(null) // {label, key}
+  const [cat, setCat]       = useState(null) // {label, categoryId, subCategories[]}
   const [subCat, setSubCat] = useState(null)
   const [planCode, setPlan] = useState(null)
   const [beds, setBeds]     = useState(0)
@@ -86,20 +86,43 @@ export default function LandingPage(){
   // Thank-you
   const [tyData, setTyData] = useState(null)
 
-  const sugPlanCode = cat ? PLAN_SUGGESTIONS[cat.key] : null
-  const sugPlan = sugPlanCode ? MPCC_RATE_CHART.find(r=>r.code===sugPlanCode) : null
-  const selPlan = planCode ? MPCC_RATE_CHART.find(r=>r.code===planCode) : sugPlan
+  // API data
+  const [apiCategories, setApiCategories] = useState([])
+  const [apiPlans, setApiPlans] = useState([])
+  const [apiKits, setApiKits] = useState([])
+  const [apiRoutes, setApiRoutes] = useState([])
+  const [apiZones, setApiZones] = useState([])
+
+  useEffect(() => {
+    fetch('/api/categories').then(r=>r.json()).then(d=>setApiCategories(Array.isArray(d)?d:[])).catch(()=>{})
+    fetch('/api/serviceplans').then(r=>r.json()).then(d=>setApiPlans(Array.isArray(d)?d:[])).catch(()=>{})
+    fetch('/api/kits').then(r=>r.json()).then(d=>setApiKits(Array.isArray(d)?d:[])).catch(()=>{})
+    fetch('/api/routes').then(r=>r.json()).then(d=>setApiRoutes(Array.isArray(d)?d:[])).catch(()=>{})
+    fetch('/api/zones').then(r=>r.json()).then(d=>setApiZones(Array.isArray(d)?d:[])).catch(()=>{})
+  }, [])
+
+  useEffect(() => {
+    if(apiKits.length > 0) {
+      // Always sync selected kit price from API (handles null SellingPrice from old records)
+      const matched = apiKits.find(k => k.KitName === kit.name) || apiKits[0]
+      const livePrice = Number(matched.SellingPrice) || 0
+      if(livePrice !== kit.price || kit.name !== matched.KitName)
+        setKit({name: matched.KitName, price: livePrice})
+    }
+  }, [apiKits])
+
+  const sugPlan = cat ? apiPlans.find(p => p.Category === cat.label) || apiPlans[0] : apiPlans[0]
+  const selPlan = planCode ? apiPlans.find(p=>p.PlanID===planCode) : (apiPlans[0] || null)
 
   function getRegFee(){
-    if(!selPlan) return 2500
-    if(selPlan.rate >= 5000) return 5000
-    if(selPlan.rate >= 2000) return 3500
-    return 2500
+    const p = selPlan || sugPlan
+    return p ? (Number(p.RegistrationCharges) || 0) : 3500
   }
   function getSvcFee(){
-    if(!selPlan) return 0
-    if(selPlan.perBed) return calcBedFee(beds)
-    return selPlan.rate
+    const p = selPlan || sugPlan
+    if(!p) return 0
+    if(p.PricingType === 'perbed') return beds > 0 ? beds * Number(p.MonthlyCharges) : 0
+    return Number(p.MonthlyCharges) || 0
   }
   function calcTotal(){
     const reg = getRegFee()
@@ -143,27 +166,64 @@ export default function LandingPage(){
     return false
   }
 
-  function selectCategory(label, key){
-    setCat({label,key}); setSubCat(null); setPlan(null)
+  function selectCategory(label, categoryId, subCategories){
+    setCat({label, categoryId, subCategories}); setSubCat(null); setPlan(null)
   }
   function selectSubCat(label){ setSubCat(label) }
 
-  function simulatePay(){
+  async function simulatePay(){
     const num = Math.floor(10000+Math.random()*90000)
     const tid = Math.floor(100000000+Math.random()*900000000)
     setPayOpen(false)
     const cid = `MPCC-2026-${String(num).padStart(5,'0')}`
     const uname = `mpcc_user_${String(num).padStart(5,'0')}`
     const pass = `Mpcc@${new Date().getFullYear()}!`
+    const activePlan = selPlan || sugPlan
     const data = {
       instName,mobile,email,zone,route,
-      cat:cat?.label,subCat,plan:selPlan?.name,kit:kit.name,beds,
+      cat:cat?.label,subCat,plan:activePlan?.PlanName,kit:kit.name,beds,
       consulting,compliance,
       regFee:totals.reg,svcFee:totals.svc,total:totals.total,
       txnId:`TXN${tid}`,cid,uname,pass,
       payMode:payTab,ts:new Date().toISOString(),
     }
+    // Save to localStorage as backup
     try{ localStorage.setItem('mpcc_reg_'+Date.now(), JSON.stringify(data)) }catch(e){}
+
+    // Save to backend database
+    try {
+      await fetch('/api/customer-registrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          institutionName: instName,
+          institutionType: cat?.label || '',
+          numberOfBeds: beds || null,
+          zone: zone || '',
+          mobile: mobile || '',
+          email: email || '',
+          selectedPlan: activePlan?.PlanName || '',
+          billingCycle: 'Monthly',
+          paymentMethod: payTab || 'online',
+          // new fields
+          category: cat?.label || '',
+          subCategory: subCat || '',
+          route: route || '',
+          kit: kit?.name || '',
+          consulting: consulting ? 'Yes' : 'No',
+          compliance: compliance ? 'Yes' : 'No',
+          customerId: cid,
+          txnId: `TXN${tid}`,
+          regFee: totals.reg || 0,
+          svcFee: totals.svc || 0,
+          totalAmount: totals.total || 0,
+          payMode: payTab || 'online',
+        })
+      })
+    } catch(err) {
+      console.error('Registration save error:', err)
+    }
+
     setTyData(data); setView('thankyou')
   }
   function submitChequePayment(){
@@ -260,14 +320,32 @@ export default function LandingPage(){
                         <label className="text-xs font-semibold text-slate-500 mb-1 block">Zone *</label>
                         <select value={zone} onChange={e=>setZone(e.target.value)} required className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 bg-white">
                           <option value="">Select Zone</option>
-                          <option>Roorkee</option><option>Haridwar</option><option>Rishikesh</option><option>Dehradun</option>
+                          {apiZones.filter(z => z.IsActive).map(z => (
+                            <option key={z.ZoneID} value={z.ZoneName}>{z.ZoneName}</option>
+                          ))}
+                          {apiZones.length === 0 && (
+                            <>
+                              <option>Roorkee</option>
+                              <option>Haridwar</option>
+                              <option>Rishikesh</option>
+                              <option>Dehradun</option>
+                            </>
+                          )}
                         </select>
                       </div>
                       <div>
                         <label className="text-xs font-semibold text-slate-500 mb-1 block">Route *</label>
                         <select value={route} onChange={e=>setRoute(e.target.value)} required className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 bg-white">
                           <option value="">Select Route</option>
-                          <option>Fatehpur Route</option><option>Jwalapur Route</option><option>Kankhal Route</option>
+                          {apiRoutes.map(r => (
+                            <option key={r.RouteID} value={r.RouteName}>{r.RouteName}</option>
+                          ))}
+                          {apiRoutes.length === 0 && (
+                            <>
+                              <option>Fatehpur Route</option>
+                              <option>Jwalapur Route</option>
+                            </>
+                          )}
                         </select>
                       </div>
                     </div>
@@ -352,7 +430,7 @@ export default function LandingPage(){
 
   // ─── Wizard View ────────────────────────────────────
   const stepTitles = ['Select Category','Select Sub-Category','Plan & Kit','Review & Confirm']
-  const subItems = cat ? (SUB_DATA[cat.key]||[]) : []
+  const subItems = cat ? (cat.subCategories || []).map(s => s.SubCategoryName) : []
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -394,28 +472,35 @@ export default function LandingPage(){
                 </div>
                 <div><h2 className="text-base font-bold text-slate-800">Select Facility Category</h2><p className="text-slate-400 text-xs">Choose the type of your healthcare institution</p></div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-                {[
-                  {label:'Hospital',key:'hosp',sub:'Nursing Home',bg:'linear-gradient(135deg,#2563eb,#3b82f6)',icon:<path d="M19 2H5a2 2 0 00-2 2v18l4-2 4 2 4-2 4 2V4a2 2 0 00-2-2zM9 13H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8-4H7V7h2v2zm4 0h-2V7h2v2zm4 0h-2V7h2v2z"/>},
-                  {label:'Pathology',key:'path',sub:'Lab / Diagnostic',bg:'linear-gradient(135deg,#e11d48,#f43f5e)',icon:<path d="M7 2v11h3v9l7-12h-4l4-8z"/>},
-                  {label:'Clinic',key:'clinic',sub:'General / Poly',bg:'linear-gradient(135deg,#7c3aed,#8b5cf6)',icon:<path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 11h-3v3h-2v-3H8v-2h3V8h2v3h3v2z"/>},
-                  {label:'Dental',key:'dental',sub:'Per chair/month',bg:'linear-gradient(135deg,#059669,#10b981)',icon:<path d="M12 1C8.5 1 7 3.5 7 3.5S3 3 3 7c0 3.9 2 6.5 2 6.5l1 7.5c.3 1.1 1.5 2 2.5 2s2-.5 2.5-1.5L12 19l1 2.5c.5 1 1.5 1.5 2.5 1.5s2.2-.9 2.5-2l1-7.5S21 10.9 21 7c0-4-4-3.5-4-3.5S15.5 1 12 1z"/>},
-                  {label:'Veterinary',key:'vet',sub:'Clinic / Hospital',bg:'linear-gradient(135deg,#dc2626,#ef4444)',icon:<path d="M4.5 11c.83 0 1.5-.67 1.5-1.5v-4C6 4.67 5.33 4 4.5 4S3 4.67 3 5.5v4c0 .83.67 1.5 1.5 1.5zm4 1c.83 0 1.5-.67 1.5-1.5v-6C10 3.67 9.33 3 8.5 3S7 3.67 7 4.5v6c0 .83.67 1.5 1.5 1.5zm7 0c.83 0 1.5-.67 1.5-1.5v-6c0-.83-.67-1.5-1.5-1.5S14 3.67 14 4.5v6c0 .83.67 1.5 1.5 1.5zm4-1c.83 0 1.5-.67 1.5-1.5v-4c0-.83-.67-1.5-1.5-1.5S18 4.67 18 5.5v4c0 .83.67 1.5 1.5 1.5zM17 14H7c-1.1 0-2 .9-2 2 0 3.31 2.69 6 6 6s6-2.69 6-6c0-1.1-.9-2-2-2z"/>},
-                  {label:'Blood Bank',key:'blood',sub:'₹5,000/month',bg:'linear-gradient(135deg,#d97706,#f59e0b)',icon:<path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z"/>},
-                  {label:'School/Inst.',key:'inst',sub:'Medical clinic',bg:'linear-gradient(135deg,#0891b2,#06b6d4)',icon:<path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>},
-                  {label:'Pharma',key:'pharma',sub:'Company / Store',bg:'linear-gradient(135deg,#9333ea,#a855f7)',icon:<path d="M6.5 10h-2v5h2v-5zm5 0h-2v5h2v-5zm8.5 7H2v2h18v-2zm-3.5-7h-2v5h2v-5zM11.5 1L2 6v2h18V6l-8.5-5z"/>},
-                  {label:'Medical Store',key:'medstore',sub:'₹550/month',bg:'linear-gradient(135deg,#16a34a,#22c55e)',icon:<path d="M20 4H4v2l8 5 8-5V4zm0 4.236l-8 5-8-5V20h16V8.236z"/>},
-                  {label:'Health Camp',key:'camp',sub:'₹2,000/camp',bg:'linear-gradient(135deg,#0284c7,#38bdf8)',icon:<path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/>},
-                ].map(c=>(
-                  <div key={c.key} className={`cat-card p-3 text-center ${cat?.key===c.key?'selected':''}`} onClick={()=>selectCategory(c.label,c.key)}>
-                    <div className="cat-icon-wrap" style={{background:c.bg}}>
-                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">{c.icon}</svg>
-                    </div>
-                    <div className="font-semibold text-slate-700 text-xs leading-tight">{c.label}</div>
-                    <div className="text-slate-400 text-xs mt-0.5">{c.sub}</div>
+              {(() => {
+                const CAT_COLORS = [
+                  'linear-gradient(135deg,#2563eb,#3b82f6)',
+                  'linear-gradient(135deg,#e11d48,#f43f5e)',
+                  'linear-gradient(135deg,#7c3aed,#8b5cf6)',
+                  'linear-gradient(135deg,#059669,#10b981)',
+                  'linear-gradient(135deg,#dc2626,#ef4444)',
+                  'linear-gradient(135deg,#d97706,#f59e0b)',
+                  'linear-gradient(135deg,#0891b2,#06b6d4)',
+                  'linear-gradient(135deg,#9333ea,#a855f7)',
+                  'linear-gradient(135deg,#16a34a,#22c55e)',
+                  'linear-gradient(135deg,#0284c7,#38bdf8)',
+                ]
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                    {(apiCategories.length > 0 ? apiCategories : [{CategoryID:'hosp',CategoryName:'Hospital',SubCategories:[]}]).map((c, idx) => (
+                      <div key={c.CategoryID}
+                        className={`cat-card p-3 text-center ${cat?.categoryId===c.CategoryID?'selected':''}`}
+                        onClick={() => selectCategory(c.CategoryName, c.CategoryID, c.SubCategories||[])}>
+                        <div className="cat-icon-wrap" style={{background: CAT_COLORS[idx % CAT_COLORS.length]}}>
+                          <span style={{fontSize:'20px'}}>{['🏥','🔬','🏪','🦷','🐾','🩸','🏫','💊','💉','⛺'][idx % 10]}</span>
+                        </div>
+                        <div className="font-semibold text-slate-700 text-xs leading-tight">{c.CategoryName}</div>
+                        <div className="text-slate-400 text-xs mt-0.5">{c.SubCategories?.length ? `${c.SubCategories.length} types` : 'General'}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )
+              })()}
               {cat && (
                 <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
                   <svg className="w-4 h-4 text-blue-500 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
@@ -462,23 +547,53 @@ export default function LandingPage(){
                 <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-4 sm:p-5">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Suggested Plan</p>
                   {sugPlan && (
-                    <div className={`plan-card p-4 flex items-center gap-3 mb-3 ${!planCode?'selected':''}`} style={{background:'#eff6ff',borderColor:'#2563eb'}} onClick={()=>setPlan(null)}>
-                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 flex items-center justify-center shrink-0"><div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div></div>
-                      <div className="flex-1"><div className="font-bold text-slate-700 text-sm">{sugPlan.name}</div><div className="text-slate-400 text-xs">{sugPlan.unit}</div></div>
-                      <div className="text-right shrink-0"><div className="text-lg font-black text-blue-600">{fmt(sugPlan.rate)}{sugPlan.perBed?'/bed/day':''}</div><div className="text-xs text-emerald-600 font-semibold">✓ Recommended</div></div>
+                    <div className={`plan-card p-4 flex items-center gap-3 mb-3 ${!planCode ? 'selected' : ''}`}
+                      style={{background:'#eff6ff', borderColor:'#2563eb'}}
+                      onClick={() => setPlan(null)}>
+                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 flex items-center justify-center shrink-0">
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-slate-700 text-sm">{sugPlan.PlanName}</div>
+                        <div className="text-slate-400 text-xs">
+                          {sugPlan.PricingType === 'perbed'
+                            ? `Per bed/day × 30 (beds × ₹${Number(sugPlan.MonthlyCharges)} × 30)`
+                            : `${sugPlan.Category || 'Service'} · per month`}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-lg font-black text-blue-600">
+                          {sugPlan.PricingType === 'perbed'
+                            ? `₹${Number(sugPlan.MonthlyCharges)}/bed/day`
+                            : fmt(Number(sugPlan.MonthlyCharges))}
+                        </div>
+                        <div className="text-xs text-emerald-600 font-semibold">✓ Recommended</div>
+                      </div>
                     </div>
                   )}
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 mt-3">All Plans</p>
-                  <div className="space-y-2" style={{maxHeight:'200px',overflowY:'auto',paddingRight:'4px'}}>
-                    {MPCC_RATE_CHART.map(r=>(
-                      <div key={r.code} className={`plan-card p-3 flex items-center gap-3 ${planCode===r.code?'selected':''}`} onClick={()=>setPlan(r.code)}>
-                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${planCode===r.code?'border-blue-500':'border-slate-300'}`}>
-                          {planCode===r.code && <div className="w-2 h-2 rounded-full bg-blue-600"></div>}
+                  <div className="space-y-2" style={{maxHeight:'200px', overflowY:'auto', paddingRight:'4px'}}>
+                    {(apiPlans.length > 0 ? apiPlans : []).map(p => (
+                      <div key={p.PlanID}
+                        className={`plan-card p-3 flex items-center gap-3 ${planCode === p.PlanID ? 'selected' : ''}`}
+                        onClick={() => setPlan(p.PlanID)}>
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${planCode===p.PlanID?'border-blue-500':'border-slate-300'}`}>
+                          {planCode===p.PlanID && <div className="w-2 h-2 rounded-full bg-blue-600"></div>}
                         </div>
-                        <div className="flex-1 text-xs"><span className="font-semibold text-slate-700">{r.code}</span> — {r.name}</div>
-                        <div className="text-xs font-bold text-blue-700 shrink-0">{fmt(r.rate)}{r.perBed?'/bed/day':''}</div>
+                        <div className="flex-1 text-xs">
+                          <div className="font-semibold text-slate-700">{p.PlanName}</div>
+                          <div className="text-slate-400">{p.Category || ''}{p.RegistrationCharges > 0 ? ` · Reg: ${fmt(Number(p.RegistrationCharges))}` : ''}</div>
+                        </div>
+                        <div className="text-xs font-bold text-blue-700 shrink-0 text-right">
+                          {p.PricingType === 'perbed'
+                            ? `₹${Number(p.MonthlyCharges)}/bed/day × 30`
+                            : fmt(Number(p.MonthlyCharges)) + '/mo'}
+                        </div>
                       </div>
                     ))}
+                    {apiPlans.length === 0 && (
+                      <div className="text-center py-4 text-slate-400 text-xs">No plans configured yet. Add plans in Service Plan Master.</div>
+                    )}
                   </div>
                   <div className="mt-3 flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-xl p-3">
                     <svg className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
@@ -518,8 +633,19 @@ export default function LandingPage(){
                     <button className="step-btn" onClick={()=>setBeds(b=>b+10)}><span className="text-xs font-black leading-none">+10</span></button>
                   </div>
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-3 border border-blue-100 flex items-center justify-between mb-4">
-                    <div><div className="text-xs text-slate-500 font-semibold">Calculated Monthly Service Fee</div><div className="text-xs text-slate-400">{beds<=0?'Enter beds above':beds<=10?'Slab 1 (1-10 beds)':beds<=20?'Slab 2 (11-20 beds)':'Slab 3 (21+ beds @ ₹7/bed/day)'}</div></div>
-                    <div className="text-2xl font-black text-blue-700">{fmt(calcBedFee(beds))}</div>
+                    {(() => {
+                      const activePlan = selPlan || sugPlan;
+                      const isPerBed = activePlan && activePlan.PricingType === 'perbed';
+                      const bedRate = activePlan ? Number(activePlan.MonthlyCharges) : 7;
+                      const bedFee = isPerBed ? (beds > 0 ? beds * bedRate * 30 : 0) : calcBedFee(beds);
+                      const bedLabel = isPerBed
+                        ? (beds > 0 ? `${beds} beds × ₹${bedRate}/bed/day × 30` : 'Enter beds above')
+                        : (beds <= 0 ? 'Enter beds above' : beds <= 10 ? 'Slab 1 (1-10 beds)' : beds <= 20 ? 'Slab 2 (11-20 beds)' : 'Slab 3 (21+ beds)');
+                      return (<>
+                        <div><div className="text-xs text-slate-500 font-semibold">Calculated Monthly Service Fee</div><div className="text-xs text-slate-400">{bedLabel}</div></div>
+                        <div className="text-2xl font-black text-blue-700">{fmt(bedFee)}</div>
+                      </>);
+                    })()}
                   </div>
                   <button className="w-full inner-tab active py-2.5 text-sm" onClick={()=>setS3tab('kit')}>Next: Choose Kit →</button>
                 </div>
@@ -529,23 +655,44 @@ export default function LandingPage(){
                 <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-4 sm:p-5">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Collection Kit</p>
                   <div className="grid grid-cols-2 gap-3">
-                    {[
-                      {name:'Small Kit',price:1397,label:'Clinics, pharmacies',color:'from-blue-400 to-blue-600',textColor:'text-emerald-600'},
-                      {name:'Medium Kit',price:2500,label:'Hospitals, nursing homes',color:'from-purple-500 to-purple-600',textColor:'text-purple-600',badge:'Popular'},
-                      {name:'Large Kit',price:4200,label:'Large hospitals',color:'from-orange-400 to-orange-500',textColor:'text-orange-500'},
-                      {name:'Enterprise Kit',price:7500,label:'Research centers',color:'from-slate-700 to-slate-800',textColor:'text-slate-700',badge:'Premium'},
-                    ].map(k=>(
-                      <div key={k.name} className={`kit-card p-4 relative ${kit.name===k.name?'selected':''}`} onClick={()=>setKit({name:k.name,price:k.price})}>
-                        {k.badge && <div className="absolute top-2 left-2 text-xs bg-purple-100 text-purple-600 font-bold px-1.5 py-0.5 rounded-full">{k.badge}</div>}
-                        {kit.name===k.name && <div className="absolute top-2 right-2 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center"><svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg></div>}
-                        <div className={`w-9 h-9 bg-gradient-to-br ${k.color} rounded-xl flex items-center justify-center mb-3 shadow ${k.badge?'mt-5':''}`}>
-                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    {(apiKits.length > 0 ? apiKits : [
+                      {KitID:1, KitName:'Small Kit', SellingPrice:1397, KitType:'Clinics, pharmacies', IsPopular:false},
+                      {KitID:2, KitName:'Medium Kit', SellingPrice:2500, KitType:'Hospitals, nursing homes', IsPopular:true},
+                      {KitID:3, KitName:'Large Kit', SellingPrice:4200, KitType:'Large hospitals', IsPopular:false},
+                      {KitID:4, KitName:'Enterprise Kit', SellingPrice:7500, KitType:'Research centers', IsPopular:false},
+                    ]).map((k, idx) => {
+                      const bgColors = ['from-blue-400 to-blue-600','from-purple-500 to-purple-600','from-orange-400 to-orange-500','from-slate-700 to-slate-800']
+                      const priceColors = ['text-emerald-600','text-purple-600','text-orange-500','text-slate-700']
+                      const isSelected = kit.name === k.KitName
+                      const isEnterprise = k.KitType && k.KitType.toLowerCase().includes('research')
+                      const badgeLabel = k.IsPopular ? 'Popular' : (isEnterprise || k.KitName?.toLowerCase().includes('enterprise') ? 'Premium' : null)
+                      const badgeStyle = k.IsPopular
+                        ? { background: '#f3e8ff', color: '#7c3aed', fontSize: '10px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px' }
+                        : { background: '#fef3c7', color: '#d97706', fontSize: '10px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px' }
+                      return (
+                        <div key={k.KitID} className={`kit-card p-4 relative ${isSelected ? 'selected' : ''}`}
+                          onClick={() => setKit({name: k.KitName, price: Number(k.SellingPrice) || 0})}>
+                          {badgeLabel && !isSelected && (
+                            <div className="absolute top-2 right-2" style={badgeStyle}>{badgeLabel}</div>
+                          )}
+                          {isSelected && (
+                            <div className="absolute top-2 right-2 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/>
+                              </svg>
+                            </div>
+                          )}
+                          <div className={`w-9 h-9 bg-gradient-to-br ${bgColors[idx % bgColors.length]} rounded-xl flex items-center justify-center mb-3 shadow`}>
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                            </svg>
+                          </div>
+                          <div className="font-bold text-slate-700 text-sm">{k.KitName}</div>
+                          <div className="text-xs text-slate-400 mt-0.5 mb-2">{k.KitType || 'Standard kit'}</div>
+                          <div className={`text-lg font-black ${priceColors[idx % priceColors.length]}`}>{fmt(Number(k.SellingPrice) || 0)}</div>
                         </div>
-                        <div className="font-bold text-slate-700 text-sm">{k.name}</div>
-                        <div className="text-xs text-slate-400 mt-0.5 mb-2">{k.label}</div>
-                        <div className={`text-lg font-black ${k.textColor}`}>{fmt(k.price)}</div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                   <button className="mt-4 w-full inner-tab active py-2.5 text-sm" onClick={()=>setS3tab('addons')}>Next: Add-ons →</button>
                 </div>
@@ -572,7 +719,12 @@ export default function LandingPage(){
                     <div className="flex items-center gap-2 mb-3"><span className="font-bold text-sm">Order Summary</span><span className="ml-auto text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">Live</span></div>
                     <div className="space-y-1.5 text-xs text-slate-300 mb-3">
                       <div className="flex justify-between"><span>Registration (one-time)</span><span className="text-white font-semibold">{fmt(totals.reg)}</span></div>
-                      {totals.svc>0 && <div className="flex justify-between"><span>Service ({selPlan?.name})</span><span className="text-white font-semibold">{fmt(totals.svc)}</span></div>}
+                      {totals.svc>0 && (
+                        <div className="flex justify-between">
+                          <span>Service ({(selPlan || sugPlan)?.PlanName || 'Plan'})</span>
+                          <span className="text-white font-semibold">{fmt(totals.svc)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between"><span>Kit ({kit.name})</span><span className="text-white font-semibold">{fmt(kit.price)}</span></div>
                       {consulting && <div className="flex justify-between"><span>Consulting</span><span className="text-white font-semibold">₹2,000</span></div>}
                       {compliance && <div className="flex justify-between"><span>Compliance</span><span className="text-white font-semibold">₹2,000</span></div>}
@@ -612,7 +764,7 @@ export default function LandingPage(){
                   <div className="border-2 border-slate-100 rounded-xl p-3.5">
                     <div className="flex items-center gap-2 mb-2.5"><span className="font-bold text-slate-700 text-xs">Service Details</span></div>
                     <div className="space-y-1.5 text-xs">
-                      {[['Plan',selPlan?.name||'—'],['Kit',kit.name],['Beds',beds||'N/A'],['Consulting',consulting?'Added':'Not added'],['Compliance',compliance?'Added':'Not added']].map(([k,v])=>(
+                      {[['Plan',(selPlan||sugPlan)?.PlanName||'—'],['Kit',kit.name],['Beds',beds||'N/A'],['Consulting',consulting?'Added':'Not added'],['Compliance',compliance?'Added':'Not added']].map(([k,v])=>(
                         <div key={k} className="flex gap-2"><span className="text-slate-400 w-20 shrink-0">{k}</span><span className="font-semibold text-slate-700">{v}</span></div>
                       ))}
                     </div>
