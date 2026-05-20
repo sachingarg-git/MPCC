@@ -5,7 +5,6 @@ import RoleManagement from '../components/RoleManagement'
 import ServicePlanForm from '../components/ServicePlanForm'
 import CustomerModule from './CustomerModule'
 import CRMHCFMaster from './CRMHCFMaster'
-import MasterDataModule from './MasterDataModule'
 
 // Separate Form Components to prevent focus loss
 const RouteFormComponent = ({ formData, handleInputChange, getAutoCode }) => (
@@ -1231,7 +1230,81 @@ export default function AdminPanel({ user, onLogout }) {
         ) : activeMainNav === 'rolemgmt' ? (
           <RoleManagement />
         ) : activeMainNav === 'masterdata' ? (
-          <MasterDataModule />
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+              <div>
+                <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#1e293b', margin: '0 0 6px 0' }}>Master Data Management</h1>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: '0' }}>Manage your system data and configurations</p>
+              </div>
+              <button
+                onClick={handleOpenForm}
+                disabled={loading}
+                style={{
+                  padding: '10px 20px',
+                  background: loading ? '#cbd5e1' : '#7c3aed',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {loading ? '⏳ Loading...' : '+ Add New'}
+              </button>
+            </div>
+
+            {/* Message Display */}
+            {message.text && (
+              <div style={{
+                padding: '12px 16px',
+                marginBottom: '20px',
+                borderRadius: '6px',
+                background: message.type === 'success' ? '#d1fae5' : '#fee2e2',
+                border: `1px solid ${message.type === 'success' ? '#6ee7b7' : '#fecaca'}`,
+                color: message.type === 'success' ? '#065f46' : '#991b1b',
+                fontSize: '13px'
+              }}>
+                {message.type === 'success' ? '✓ ' : '✗ '}{message.text}
+              </div>
+            )}
+
+            {/* Data Table */}
+            <div style={{ background: '#fff', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Code</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Name / Details</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Type</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Status</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentData.length === 0 ? (
+                    <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>No data available. Click "Add New" to create an entry.</td></tr>
+                  ) : currentData.map(item => (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#1e293b', fontWeight: '600' }}>{item.code}</td>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#1e293b' }}>{item.name}</td>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#64748b' }}>{item.type || item.category || item.hazardLevel || '-'}</td>
+                      <td style={{ padding: '12px 16px', fontSize: '13px' }}>
+                        <span style={{ background: item.status === 'Active' || item.isActive ? '#d1fae5' : '#fee2e2', color: item.status === 'Active' || item.isActive ? '#065f46' : '#991b1b', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>
+                          {item.status || (item.isActive ? 'Active' : 'Inactive')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <button onClick={() => handleEdit(item)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginRight: '15px', fontSize: '13px', fontWeight: '600' }}>Edit</button>
+                        <button onClick={() => handleDelete(item)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : activeMainNav === 'customer' ? (
           <CustomerModule />
         ) : activeMainNav === 'crmhcf' ? (
