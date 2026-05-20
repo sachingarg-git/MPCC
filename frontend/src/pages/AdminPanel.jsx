@@ -3,6 +3,8 @@ import '../styles/AdminPanel.css'
 import UserManagement from '../components/UserManagement'
 import RoleManagement from '../components/RoleManagement'
 import ServicePlanForm from '../components/ServicePlanForm'
+import CustomerModule from './CustomerModule'
+import CRMHCFMaster from './CRMHCFMaster'
 
 // Separate Form Components to prevent focus loss
 const RouteFormComponent = ({ formData, handleInputChange, getAutoCode }) => (
@@ -1303,6 +1305,10 @@ export default function AdminPanel({ user, onLogout }) {
               </table>
             </div>
           </>
+        ) : activeMainNav === 'customer' ? (
+          <CustomerModule />
+        ) : activeMainNav === 'crmhcf' ? (
+          <CRMHCFMaster />
         ) : (
           /* Other Main Navigation Sections - Coming Soon */
           <div style={{ background: '#fff', borderRadius: '8px', padding: '40px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
