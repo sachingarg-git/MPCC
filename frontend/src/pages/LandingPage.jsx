@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import '../assets/landing.css'
+import mpccLogo from '../assets/logo.jpg'
 
 const MPCC_RATE_CHART = [
   { code:'R01', name:'Hospital 1–10 beds', unit:'per month', rate:2500 },
@@ -85,6 +86,9 @@ export default function LandingPage(){
 
   // Thank-you
   const [tyData, setTyData] = useState(null)
+
+  // Nav modals: null | 'about' | 'contact'
+  const [navModal, setNavModal] = useState(null)
 
   // API data
   const [apiCategories, setApiCategories] = useState([])
@@ -234,17 +238,16 @@ export default function LandingPage(){
   // ─── Landing View ───────────────────────────────────
   if(view==='landing') return (
     <div className="min-h-screen hero-bg flex flex-col">
-      <nav className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50 shadow-sm">
+      <nav className="bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between h-14">
+          <div className="flex items-center justify-between h-24">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow">M</div>
-              <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">MPCC</span>
+              <img src={mpccLogo} alt="MPCC Logo" style={{height:'85px', width:'85px', objectFit:'contain', borderRadius:'50%', border:'2px solid #e2e8f0', boxShadow:'0 2px 10px rgba(0,0,0,0.12)'}} />
             </div>
             <div className="hidden md:flex items-center gap-6">
               <a href="#" className="text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors">Home</a>
-              <a href="#" className="text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors">About</a>
-              <a href="#" className="text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors">Contact</a>
+              <button onClick={()=>setNavModal('about')} className="text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors" style={{background:'none',border:'none',cursor:'pointer',padding:0}}>About</button>
+              <button onClick={()=>setNavModal('contact')} className="text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors" style={{background:'none',border:'none',cursor:'pointer',padding:0}}>Contact</button>
             </div>
             <div className="flex items-center gap-2">
               <a href="/admin" style={{display:'inline-flex',alignItems:'center',gap:'5px',background:'linear-gradient(135deg,#7c3aed,#5b21b6)',color:'#fff',fontSize:'12px',fontWeight:'700',padding:'7px 14px',borderRadius:'10px',textDecoration:'none',boxShadow:'0 2px 8px rgba(91,33,182,.25)'}}>
@@ -293,11 +296,14 @@ export default function LandingPage(){
                   <span className="text-white text-xs font-semibold">✓ Compliance</span>
                 </div>
                 <div className="p-5 sm:p-6">
+                  <div style={{display:'flex', justifyContent:'center', marginBottom:'10px'}}>
+                    <img src={mpccLogo} alt="MPCC" style={{height:'48px', width:'auto', objectFit:'contain'}} />
+                  </div>
                   <h2 className="text-lg sm:text-xl font-bold text-slate-800 text-center mb-0.5">Get Started with MPCC</h2>
                   <p className="text-slate-400 text-xs text-center mb-4">Quick &amp; easy registration</p>
                   <form onSubmit={startWizard}>
                     <div className="mb-3">
-                      <label className="text-xs font-semibold text-slate-500 mb-1 block">Institution Name *</label>
+                      <label className="text-sm font-bold text-slate-900 mb-1 block">Institution Name *</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
@@ -307,17 +313,17 @@ export default function LandingPage(){
                     </div>
                     <div className="grid grid-cols-2 gap-3 mb-3">
                       <div>
-                        <label className="text-xs font-semibold text-slate-500 mb-1 block">Mobile *</label>
+                        <label className="text-sm font-bold text-slate-900 mb-1 block">Mobile *</label>
                         <input value={mobile} onChange={e=>setMobile(e.target.value)} type="tel" required placeholder="Mobile number" className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 transition-colors"/>
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-slate-500 mb-1 block">Email *</label>
+                        <label className="text-sm font-bold text-slate-900 mb-1 block">Email *</label>
                         <input value={email} onChange={e=>setEmail(e.target.value)} type="email" required placeholder="Email address" className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 transition-colors"/>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3 mb-4">
                       <div>
-                        <label className="text-xs font-semibold text-slate-500 mb-1 block">Zone *</label>
+                        <label className="text-sm font-bold text-slate-900 mb-1 block">Zone *</label>
                         <select value={zone} onChange={e=>setZone(e.target.value)} required className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 bg-white">
                           <option value="">Select Zone</option>
                           {apiZones.filter(z => z.IsActive).map(z => (
@@ -334,7 +340,7 @@ export default function LandingPage(){
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-slate-500 mb-1 block">Route *</label>
+                        <label className="text-sm font-bold text-slate-900 mb-1 block">Route *</label>
                         <select value={route} onChange={e=>setRoute(e.target.value)} required className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:border-blue-500 bg-white">
                           <option value="">Select Route</option>
                           {apiRoutes.map(r => (
@@ -360,6 +366,104 @@ export default function LandingPage(){
           </div>
         </div>
       </div>
+
+      {/* ── About Modal ── */}
+      {navModal === 'about' && (
+        <div onClick={()=>setNavModal(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',backdropFilter:'blur(4px)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'16px'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:'20px',maxWidth:'680px',width:'100%',maxHeight:'90vh',overflowY:'auto',boxShadow:'0 25px 60px rgba(0,0,0,0.2)'}}>
+            {/* Header */}
+            <div style={{background:'linear-gradient(135deg,#1d4ed8,#7c3aed)',borderRadius:'20px 20px 0 0',padding:'28px 32px',position:'relative'}}>
+              <img src={mpccLogo} alt="MPCC" style={{height:'70px',objectFit:'contain',marginBottom:'12px',display:'block'}} />
+              <h2 style={{color:'#fff',fontSize:'22px',fontWeight:'800',margin:'0 0 4px 0'}}>Medical Pollution Control Committee</h2>
+              <p style={{color:'rgba(255,255,255,0.8)',fontSize:'13px',margin:0}}>NGO | Environmental Protection | Est. ~2001</p>
+              <button onClick={()=>setNavModal(null)} style={{position:'absolute',top:'16px',right:'16px',background:'rgba(255,255,255,0.2)',border:'none',color:'#fff',width:'32px',height:'32px',borderRadius:'50%',cursor:'pointer',fontSize:'18px',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+            </div>
+            {/* Body */}
+            <div style={{padding:'28px 32px'}}>
+              {/* Overview */}
+              <p style={{fontSize:'14px',color:'#475569',lineHeight:'1.7',marginBottom:'24px'}}>
+                MPCC is a leading NGO/service organization focused on <strong style={{color:'#1e293b'}}>biomedical waste collection and disposal</strong>, wastewater management, hazardous medical waste handling, and environmental protection. We established one of the <strong style={{color:'#1e293b'}}>first Common Bio-Medical Waste Treatment Facilities (CBWTF) in North India</strong> around 2001.
+              </p>
+
+              {/* Services */}
+              <div style={{marginBottom:'24px'}}>
+                <h3 style={{fontSize:'15px',fontWeight:'700',color:'#1e293b',marginBottom:'12px',display:'flex',alignItems:'center',gap:'8px'}}>
+                  <span style={{background:'#dbeafe',borderRadius:'6px',padding:'4px 8px',fontSize:'13px'}}>🏥</span> Our Services
+                </h3>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
+                  {['Biomedical Waste Transportation','Incineration & Disposal Services','Waste Treatment Plant Operations','Environmental Compliance Support','Blood Donation & Vaccination Camps','Training for BMW Management','Hospital / Clinic Waste Collection','Hazardous Medical Waste Handling'].map(s=>(
+                    <div key={s} style={{display:'flex',alignItems:'center',gap:'8px',background:'#f8fafc',borderRadius:'8px',padding:'8px 12px',fontSize:'13px',color:'#334155'}}>
+                      <span style={{color:'#16a34a',fontWeight:'700',flexShrink:0}}>✓</span>{s}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Locations */}
+              <div style={{marginBottom:'24px'}}>
+                <h3 style={{fontSize:'15px',fontWeight:'700',color:'#1e293b',marginBottom:'12px',display:'flex',alignItems:'center',gap:'8px'}}>
+                  <span style={{background:'#fef3c7',borderRadius:'6px',padding:'4px 8px',fontSize:'13px'}}>📍</span> CBWTF Plant Locations
+                </h3>
+                <div style={{display:'flex',flexWrap:'wrap',gap:'8px'}}>
+                  {['Kanpur','Jhansi','Sant Kabir Nagar','Haridwar','Agra'].map(city=>(
+                    <span key={city} style={{background:'linear-gradient(135deg,#eff6ff,#f5f3ff)',border:'1px solid #bfdbfe',borderRadius:'20px',padding:'5px 14px',fontSize:'13px',fontWeight:'600',color:'#1d4ed8'}}>{city}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px'}}>
+                {[['25+','Years of Service'],['500+','Facilities Served'],['5','CBWTF Plants']].map(([v,l])=>(
+                  <div key={l} style={{background:'linear-gradient(135deg,#f0fdf4,#ecfdf5)',border:'1px solid #bbf7d0',borderRadius:'12px',padding:'14px',textAlign:'center'}}>
+                    <div style={{fontSize:'22px',fontWeight:'900',color:'#16a34a'}}>{v}</div>
+                    <div style={{fontSize:'12px',color:'#475569',fontWeight:'500',marginTop:'2px'}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Contact Modal ── */}
+      {navModal === 'contact' && (
+        <div onClick={()=>setNavModal(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',backdropFilter:'blur(4px)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'16px'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:'20px',maxWidth:'520px',width:'100%',boxShadow:'0 25px 60px rgba(0,0,0,0.2)'}}>
+            {/* Header */}
+            <div style={{background:'linear-gradient(135deg,#1d4ed8,#7c3aed)',borderRadius:'20px 20px 0 0',padding:'24px 28px',position:'relative'}}>
+              <h2 style={{color:'#fff',fontSize:'20px',fontWeight:'800',margin:'0 0 4px 0'}}>📞 Contact Us</h2>
+              <p style={{color:'rgba(255,255,255,0.8)',fontSize:'13px',margin:0}}>We're here to help — reach out anytime</p>
+              <button onClick={()=>setNavModal(null)} style={{position:'absolute',top:'16px',right:'16px',background:'rgba(255,255,255,0.2)',border:'none',color:'#fff',width:'32px',height:'32px',borderRadius:'50%',cursor:'pointer',fontSize:'18px',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+            </div>
+            {/* Body */}
+            <div style={{padding:'28px'}}>
+              {[
+                {icon:'🏢', label:'Headquarters', value:'21, E-Block, Panki, Kanpur – 208020, Uttar Pradesh, India'},
+                {icon:'📱', label:'Phone', value:'+91 9235659305 / 9235659306', href:'tel:+919235659305'},
+                {icon:'✉️', label:'Email', value:'mpcckanpur@gmail.com', href:'mailto:mpcckanpur@gmail.com'},
+                {icon:'🌐', label:'Website', value:'www.mpcc.in', href:'https://www.mpcc.in'},
+              ].map(({icon,label,value,href})=>(
+                <div key={label} style={{display:'flex',gap:'14px',alignItems:'flex-start',padding:'14px',background:'#f8fafc',borderRadius:'12px',marginBottom:'10px'}}>
+                  <div style={{width:'40px',height:'40px',background:'linear-gradient(135deg,#dbeafe,#ede9fe)',borderRadius:'10px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'20px',flexShrink:0}}>{icon}</div>
+                  <div>
+                    <div style={{fontSize:'11px',fontWeight:'700',color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:'3px'}}>{label}</div>
+                    {href
+                      ? <a href={href} style={{fontSize:'14px',fontWeight:'600',color:'#2563eb',textDecoration:'none'}}>{value}</a>
+                      : <div style={{fontSize:'14px',fontWeight:'600',color:'#1e293b',lineHeight:'1.5'}}>{value}</div>
+                    }
+                  </div>
+                </div>
+              ))}
+              <div style={{marginTop:'16px',background:'linear-gradient(135deg,#eff6ff,#f5f3ff)',borderRadius:'12px',padding:'16px',textAlign:'center'}}>
+                <div style={{fontSize:'13px',fontWeight:'600',color:'#475569',marginBottom:'8px'}}>Working Hours</div>
+                <div style={{fontSize:'14px',fontWeight:'700',color:'#1e293b'}}>Monday – Saturday: 9:00 AM – 6:00 PM</div>
+                <div style={{fontSize:'12px',color:'#94a3b8',marginTop:'2px'}}>Sunday: Closed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 

@@ -7,6 +7,185 @@ import CustomerModule from './CustomerModule'
 import CRMHCFMaster from './CRMHCFMaster'
 import MasterDataModule from './MasterDataModule'
 
+// ─── Dashboard Panel ──────────────────────────────────────────────────────────
+function DashboardPanel() {
+  const [stats, setStats] = useState({
+    registrations: [], servicePlans: [], kits: [], categories: [],
+    routes: [], zones: [], rawMaterials: []
+  })
+  const [loading, setLoading] = useState(true)
+  const today = new Date()
+  const dateStr = today.toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
+
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([
+      fetch('/api/customer-registrations').then(r=>r.json()).catch(()=>({data:[]})),
+      fetch('/api/serviceplans').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/kits').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/categories').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/routes').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/zones').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/rawmaterials').then(r=>r.json()).catch(()=>[]),
+    ]).then(([regs, plans, kits, cats, routes, zones, rms]) => {
+      setStats({
+        registrations: regs?.data || [],
+        servicePlans: Array.isArray(plans) ? plans : [],
+        kits: Array.isArray(kits) ? kits : [],
+        categories: Array.isArray(cats) ? cats : [],
+        routes: Array.isArray(routes) ? routes : [],
+        zones: Array.isArray(zones) ? zones : [],
+        rawMaterials: Array.isArray(rms) ? rms : [],
+      })
+      setLoading(false)
+    })
+  }, [])
+
+  const regs = stats.registrations
+  const pending  = regs.filter(r => r.Status === 'Pending').length
+  const approved = regs.filter(r => r.Status === 'Approved' || r.Status === 'Active').length
+  const rejected = regs.filter(r => r.Status === 'Rejected' || r.Status === 'Inactive').length
+  const todayRegs = regs.filter(r => r.CreatedAt && new Date(r.CreatedAt).toDateString() === today.toDateString()).length
+  const totalRevenue = regs.reduce((sum, r) => sum + (Number(r.TotalAmount) || 0), 0)
+  const activeZones = stats.zones.filter(z => z.IsActive === 1 || z.IsActive === true).length
+  const activeRoutes = stats.routes.filter(r => r.IsActive === 1 || r.IsActive === true || r.Status === 'Active').length
+  const activePlans = stats.servicePlans.filter(p => p.IsActive === 1 || p.IsActive === true).length
+  const activeKits  = stats.kits.filter(k => k.IsActive === 1 || k.IsActive === true).length
+
+  const card = (icon, label, value, sub, color, bg) => (
+    <div key={label} style={{background:'#fff', border:`1px solid ${bg}`, borderRadius:'14px', padding:'20px 22px', display:'flex', alignItems:'flex-start', gap:'14px', boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+      <div style={{width:'48px', height:'48px', borderRadius:'12px', background:bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', flexShrink:0}}>{icon}</div>
+      <div style={{flex:1, minWidth:0}}>
+        <div style={{fontSize:'26px', fontWeight:'800', color, lineHeight:1, marginBottom:'4px'}}>{loading ? '…' : value}</div>
+        <div style={{fontSize:'13px', fontWeight:'600', color:'#1e293b', marginBottom:'2px'}}>{label}</div>
+        {sub && <div style={{fontSize:'11px', color:'#94a3b8'}}>{sub}</div>}
+      </div>
+    </div>
+  )
+
+  const recentRegs = [...regs].sort((a,b) => new Date(b.CreatedAt||0) - new Date(a.CreatedAt||0)).slice(0,6)
+
+  return (
+    <div style={{minHeight:'100%'}}>
+      {/* Header */}
+      <div style={{marginBottom:'24px', display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'12px'}}>
+        <div>
+          <h1 style={{fontSize:'26px', fontWeight:'800', color:'#1e293b', margin:'0 0 4px 0'}}>Dashboard</h1>
+          <p style={{fontSize:'13px', color:'#94a3b8', margin:0}}>{dateStr}</p>
+        </div>
+        <div style={{display:'flex', gap:'8px'}}>
+          <div style={{background:'#d1fae5', border:'1px solid #a7f3d0', borderRadius:'8px', padding:'6px 14px', fontSize:'12px', fontWeight:'700', color:'#065f46', display:'flex', alignItems:'center', gap:'6px'}}>
+            <span style={{width:'7px', height:'7px', borderRadius:'50%', background:'#10b981', display:'inline-block'}}></span> System Online
+          </div>
+        </div>
+      </div>
+
+      {/* ── Row 1: Customer Stats ── */}
+      <div style={{marginBottom:'8px', fontSize:'11px', fontWeight:'800', color:'#7c3aed', textTransform:'uppercase', letterSpacing:'0.1em'}}>👥 Customer Overview</div>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'14px', marginBottom:'24px'}}>
+        {card('📋', 'Total Registrations', regs.length,      `${todayRegs} registered today`,  '#1d4ed8', '#dbeafe')}
+        {card('✅', 'Approved / Active',   approved,          `${Math.round(regs.length?approved/regs.length*100:0)}% approval rate`, '#065f46', '#d1fae5')}
+        {card('⏳', 'Pending Review',      pending,           'Awaiting approval',               '#92400e', '#fef3c7')}
+        {card('💰', 'Total Revenue',       `₹${totalRevenue.toLocaleString('en-IN')}`, `from ${regs.filter(r=>r.TotalAmount>0).length} paid registrations`, '#7c3aed', '#ede9fe')}
+      </div>
+
+      {/* ── Row 2: Master Data Stats ── */}
+      <div style={{marginBottom:'8px', fontSize:'11px', fontWeight:'800', color:'#0891b2', textTransform:'uppercase', letterSpacing:'0.1em'}}>📋 Master Data Overview</div>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'14px', marginBottom:'24px'}}>
+        {card('🗺️', 'Zones',          `${activeZones} / ${stats.zones.length}`,         'Active / Total',           '#0891b2', '#cffafe')}
+        {card('🛣️', 'Routes',         `${activeRoutes} / ${stats.routes.length}`,        'Active / Total',           '#0369a1', '#dbeafe')}
+        {card('📦', 'Service Plans',  `${activePlans} / ${stats.servicePlans.length}`,  'Active / Total',           '#7c3aed', '#ede9fe')}
+        {card('🧰', 'Kits',           `${activeKits} / ${stats.kits.length}`,            'Active / Total',           '#15803d', '#dcfce7')}
+      </div>
+
+      {/* ── Row 3: CRM-HCF Stats ── */}
+      <div style={{marginBottom:'8px', fontSize:'11px', fontWeight:'800', color:'#b45309', textTransform:'uppercase', letterSpacing:'0.1em'}}>🏥 CRM / HCF Overview</div>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'14px', marginBottom:'24px'}}>
+        {card('🏷️', 'Categories',    stats.categories.length,  'HCF facility categories',  '#b45309', '#fef3c7')}
+        {card('🧪', 'Raw Materials', stats.rawMaterials.length,'In materials master',       '#0f766e', '#ccfbf1')}
+        {card('🏢', 'HCF Registered', regs.length,             'Across all zones',          '#1d4ed8', '#dbeafe')}
+        {card('📅', 'This Month',    regs.filter(r => r.CreatedAt && new Date(r.CreatedAt).getMonth()===today.getMonth() && new Date(r.CreatedAt).getFullYear()===today.getFullYear()).length, 'New registrations', '#7c3aed', '#ede9fe')}
+      </div>
+
+      {/* ── Bottom Row: Recent + Status breakdown ── */}
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px'}}>
+
+        {/* Recent Registrations */}
+        <div style={{background:'#fff', border:'1px solid #e2e8f0', borderRadius:'14px', overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+          <div style={{padding:'16px 20px', borderBottom:'1px solid #f1f5f9', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+            <div style={{fontSize:'14px', fontWeight:'700', color:'#1e293b'}}>🕒 Recent Registrations</div>
+            <span style={{fontSize:'11px', color:'#94a3b8', fontWeight:'600'}}>{regs.length} total</span>
+          </div>
+          <div style={{padding:'8px 0'}}>
+            {loading ? (
+              <div style={{textAlign:'center', padding:'30px', color:'#94a3b8', fontSize:'13px'}}>Loading…</div>
+            ) : recentRegs.length === 0 ? (
+              <div style={{textAlign:'center', padding:'30px', color:'#94a3b8', fontSize:'13px'}}>No registrations yet</div>
+            ) : recentRegs.map((r, i) => (
+              <div key={i} style={{display:'flex', alignItems:'center', gap:'12px', padding:'10px 20px', borderBottom: i < recentRegs.length-1 ? '1px solid #f8fafc' : 'none'}}>
+                <div style={{width:'36px', height:'36px', borderRadius:'10px', background:'linear-gradient(135deg,#dbeafe,#ede9fe)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', flexShrink:0}}>🏥</div>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{fontSize:'13px', fontWeight:'700', color:'#1e293b', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{r.InstitutionName || 'N/A'}</div>
+                  <div style={{fontSize:'11px', color:'#94a3b8'}}>{r.CustomerID || r.RegistrationCode} · {r.Zone || '—'}</div>
+                </div>
+                <span style={{fontSize:'10px', fontWeight:'700', padding:'3px 8px', borderRadius:'20px', flexShrink:0,
+                  background: r.Status==='Approved'||r.Status==='Active' ? '#d1fae5' : r.Status==='Pending' ? '#fef3c7' : '#fee2e2',
+                  color:       r.Status==='Approved'||r.Status==='Active' ? '#065f46' : r.Status==='Pending' ? '#92400e' : '#7f1d1d'
+                }}>{r.Status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Status Breakdown + Quick Links */}
+        <div style={{display:'flex', flexDirection:'column', gap:'14px'}}>
+          {/* Status Donut-style breakdown */}
+          <div style={{background:'#fff', border:'1px solid #e2e8f0', borderRadius:'14px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+            <div style={{fontSize:'14px', fontWeight:'700', color:'#1e293b', marginBottom:'14px'}}>📊 Registration Status</div>
+            {[['Approved / Active', approved, '#10b981', '#d1fae5'], ['Pending', pending, '#f59e0b', '#fef3c7'], ['Rejected / Inactive', rejected, '#ef4444', '#fee2e2']].map(([label, val, color, bg]) => {
+              const pct = regs.length ? Math.round(val / regs.length * 100) : 0
+              return (
+                <div key={label} style={{marginBottom:'10px'}}>
+                  <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px', fontWeight:'600', color:'#475569', marginBottom:'5px'}}>
+                    <span>{label}</span><span style={{color}}>{val} ({pct}%)</span>
+                  </div>
+                  <div style={{height:'8px', background:'#f1f5f9', borderRadius:'4px', overflow:'hidden'}}>
+                    <div style={{height:'100%', width:`${pct}%`, background:color, borderRadius:'4px', transition:'width 0.6s ease'}}></div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Quick Links */}
+          <div style={{background:'#fff', border:'1px solid #e2e8f0', borderRadius:'14px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+            <div style={{fontSize:'14px', fontWeight:'700', color:'#1e293b', marginBottom:'14px'}}>⚡ Quick Summary</div>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px'}}>
+              {[
+                ['🗺️', 'Zones',     stats.zones.length,         '#cffafe', '#0891b2'],
+                ['🛣️', 'Routes',    stats.routes.length,        '#dbeafe', '#1d4ed8'],
+                ['📦', 'Plans',     stats.servicePlans.length,  '#ede9fe', '#7c3aed'],
+                ['🧰', 'Kits',      stats.kits.length,          '#dcfce7', '#15803d'],
+                ['🏷️', 'Categories',stats.categories.length,   '#fef3c7', '#b45309'],
+                ['🧪', 'Materials', stats.rawMaterials.length,  '#ccfbf1', '#0f766e'],
+              ].map(([ic, lbl, val, bg, col]) => (
+                <div key={lbl} style={{background:bg, borderRadius:'10px', padding:'10px 12px', display:'flex', alignItems:'center', gap:'8px'}}>
+                  <span style={{fontSize:'18px'}}>{ic}</span>
+                  <div>
+                    <div style={{fontSize:'16px', fontWeight:'800', color:col, lineHeight:1}}>{val}</div>
+                    <div style={{fontSize:'11px', color:'#475569', fontWeight:'500'}}>{lbl}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Separate Form Components to prevent focus loss
 const RouteFormComponent = ({ formData, handleInputChange, getAutoCode }) => (
   <div style={{ padding: '20px' }}>
@@ -1233,6 +1412,8 @@ export default function AdminPanel({ user, onLogout }) {
           <CustomerModule />
         ) : activeMainNav === 'crmhcf' ? (
           <CRMHCFMaster />
+        ) : activeMainNav === 'dashboard' ? (
+          <DashboardPanel />
         ) : (
           /* Other Main Navigation Sections - Coming Soon */
           <div style={{ background: '#fff', borderRadius: '8px', padding: '40px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>

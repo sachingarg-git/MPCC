@@ -122,6 +122,139 @@ async function ensureTablesExist() {
     }
     console.log('✓ CustomerRegistrations columns migrated');
 
+    // HCFDocuments
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='HCFDocuments' AND xtype='U')
+        CREATE TABLE HCFDocuments (
+          DocID INT PRIMARY KEY IDENTITY(1,1),
+          RegistrationID INT,
+          DocumentType NVARCHAR(100),
+          Version NVARCHAR(50),
+          ExpiryDate DATE NULL,
+          UploadedBy NVARCHAR(100),
+          Remarks NVARCHAR(500),
+          CreatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ HCFDocuments table ready');
+    } catch(e) { console.warn('HCFDocuments init warn:', e.message); }
+
+    // HCFContacts
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='HCFContacts' AND xtype='U')
+        CREATE TABLE HCFContacts (
+          ContactID INT PRIMARY KEY IDENTITY(1,1),
+          RegistrationID INT,
+          ContactName NVARCHAR(100),
+          Designation NVARCHAR(100),
+          Mobile NVARCHAR(20),
+          Email NVARCHAR(100),
+          IsPrimary BIT DEFAULT 0,
+          CreatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ HCFContacts table ready');
+    } catch(e) { console.warn('HCFContacts init warn:', e.message); }
+
+    // HCFApprovals
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='HCFApprovals' AND xtype='U')
+        CREATE TABLE HCFApprovals (
+          ApprovalID INT PRIMARY KEY IDENTITY(1,1),
+          RegistrationID INT,
+          FacilityName NVARCHAR(255),
+          Zone NVARCHAR(100),
+          Category NVARCHAR(100),
+          CurrentStage NVARCHAR(100) DEFAULT 'RM Raises',
+          Status NVARCHAR(50) DEFAULT 'Pending',
+          RaisedBy NVARCHAR(100),
+          MonthlyAmount DECIMAL(12,2) DEFAULT 0,
+          Remarks NVARCHAR(1000),
+          CreatedAt DATETIME DEFAULT GETDATE(),
+          UpdatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ HCFApprovals table ready');
+    } catch(e) { console.warn('HCFApprovals init warn:', e.message); }
+
+    // HCFRenewals
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='HCFRenewals' AND xtype='U')
+        CREATE TABLE HCFRenewals (
+          RenewalID INT PRIMARY KEY IDENTITY(1,1),
+          RegistrationID INT,
+          FacilityName NVARCHAR(255),
+          Zone NVARCHAR(100),
+          RenewalDate DATE NULL,
+          AutoRenew BIT DEFAULT 0,
+          MoUReSigned BIT DEFAULT 0,
+          LastReminded DATETIME NULL,
+          Status NVARCHAR(50) DEFAULT 'Pending',
+          CreatedAt DATETIME DEFAULT GETDATE(),
+          UpdatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ HCFRenewals table ready');
+    } catch(e) { console.warn('HCFRenewals init warn:', e.message); }
+
+    // HCFDeregistrations
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='HCFDeregistrations' AND xtype='U')
+        CREATE TABLE HCFDeregistrations (
+          DeregID INT PRIMARY KEY IDENTITY(1,1),
+          RegistrationID INT,
+          FacilityName NVARCHAR(255),
+          Zone NVARCHAR(100),
+          Reason NVARCHAR(500),
+          Stage NVARCHAR(100) DEFAULT 'Awaiting Accounts',
+          LetterheadReceived BIT DEFAULT 0,
+          CertReturned BIT DEFAULT 0,
+          AgreementReturned BIT DEFAULT 0,
+          OutstandingCleared BIT DEFAULT 0,
+          KitReturned BIT DEFAULT 0,
+          HologramClosed BIT DEFAULT 0,
+          Outstanding DECIMAL(12,2) DEFAULT 0,
+          Remarks NVARCHAR(1000),
+          CreatedAt DATETIME DEFAULT GETDATE(),
+          UpdatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ HCFDeregistrations table ready');
+    } catch(e) { console.warn('HCFDeregistrations init warn:', e.message); }
+
+    // HCFSupportTickets
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='HCFSupportTickets' AND xtype='U')
+        CREATE TABLE HCFSupportTickets (
+          TicketID INT PRIMARY KEY IDENTITY(1,1),
+          TicketCode NVARCHAR(30),
+          RegistrationID INT,
+          HCFName NVARCHAR(255),
+          Zone NVARCHAR(100),
+          Route NVARCHAR(100),
+          Category NVARCHAR(100),
+          Priority NVARCHAR(50) DEFAULT 'Medium',
+          Subject NVARCHAR(255),
+          Description NVARCHAR(MAX),
+          AssignedTo NVARCHAR(100),
+          Status NVARCHAR(50) DEFAULT 'Open',
+          DueDate DATE NULL,
+          Resolution NVARCHAR(MAX),
+          NotifyBM BIT DEFAULT 0,
+          BMName NVARCHAR(100),
+          CreatedAt DATETIME DEFAULT GETDATE(),
+          UpdatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ HCFSupportTickets table ready');
+    } catch(e) { console.warn('HCFSupportTickets init warn:', e.message); }
+
     // Certificates — no FK to Customers, linked to CustomerRegistrations
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Certificates' AND xtype='U')
@@ -2320,6 +2453,585 @@ app.delete('/api/customer-registrations/:registrationId', async (req, res) => {
     res.json({ message: 'Registration deleted' });
   } catch (err) {
     console.error('Delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// HCF MASTER ENDPOINTS
+// ============================================
+
+// GET /api/hcf-master — list CustomerRegistrations with doc/contact counts
+app.get('/api/hcf-master', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request().query(`
+      SELECT cr.*,
+        (SELECT COUNT(*) FROM HCFDocuments d WHERE d.RegistrationID = cr.RegistrationID) AS DocCount,
+        (SELECT COUNT(*) FROM HCFContacts c WHERE c.RegistrationID = cr.RegistrationID) AS ContactCount
+      FROM CustomerRegistrations cr
+      ORDER BY cr.CreatedAt DESC
+    `);
+    res.json({ data: result.recordset });
+  } catch (err) {
+    console.error('HCF Master fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-master/:id/state — update lifecycle state
+app.put('/api/hcf-master/:id/state', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { state } = req.body;
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('state', sql.NVarChar, state)
+      .query(`UPDATE CustomerRegistrations SET Status=@state, UpdatedAt=GETDATE() WHERE RegistrationID=@id`);
+    res.json({ message: 'State updated' });
+  } catch (err) {
+    console.error('HCF state update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// HCF DOCUMENTS ENDPOINTS
+// ============================================
+
+// GET /api/hcf-documents?registrationId=X
+app.get('/api/hcf-documents', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId } = req.query;
+    let query = `SELECT * FROM HCFDocuments`;
+    const req2 = pool.request();
+    if (registrationId) {
+      query += ` WHERE RegistrationID=@registrationId`;
+      req2.input('registrationId', sql.Int, parseInt(registrationId));
+    }
+    query += ` ORDER BY CreatedAt DESC`;
+    const result = await req2.query(query);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('HCF Documents fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hcf-documents
+app.post('/api/hcf-documents', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, documentType, version, expiryDate, uploadedBy, remarks } = req.body;
+    const result = await pool.request()
+      .input('registrationId', sql.Int, registrationId || null)
+      .input('documentType', sql.NVarChar, documentType || null)
+      .input('version', sql.NVarChar, version || null)
+      .input('expiryDate', sql.Date, expiryDate || null)
+      .input('uploadedBy', sql.NVarChar, uploadedBy || null)
+      .input('remarks', sql.NVarChar, remarks || null)
+      .query(`INSERT INTO HCFDocuments (RegistrationID, DocumentType, Version, ExpiryDate, UploadedBy, Remarks, CreatedAt)
+              VALUES (@registrationId, @documentType, @version, @expiryDate, @uploadedBy, @remarks, GETDATE());
+              SELECT SCOPE_IDENTITY() AS DocID`);
+    res.status(201).json({ message: 'Document added', docId: result.recordset[0].DocID });
+  } catch (err) {
+    console.error('HCF Document insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hcf-documents/:docId
+app.delete('/api/hcf-documents/:docId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('docId', sql.Int, req.params.docId)
+      .query(`DELETE FROM HCFDocuments WHERE DocID=@docId`);
+    res.json({ message: 'Document deleted' });
+  } catch (err) {
+    console.error('HCF Document delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// HCF CONTACTS ENDPOINTS
+// ============================================
+
+// GET /api/hcf-contacts?registrationId=X
+app.get('/api/hcf-contacts', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId } = req.query;
+    let query = `SELECT * FROM HCFContacts`;
+    const req2 = pool.request();
+    if (registrationId) {
+      query += ` WHERE RegistrationID=@registrationId`;
+      req2.input('registrationId', sql.Int, parseInt(registrationId));
+    }
+    query += ` ORDER BY IsPrimary DESC, CreatedAt DESC`;
+    const result = await req2.query(query);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('HCF Contacts fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hcf-contacts
+app.post('/api/hcf-contacts', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, contactName, designation, mobile, email, isPrimary } = req.body;
+    const result = await pool.request()
+      .input('registrationId', sql.Int, registrationId || null)
+      .input('contactName', sql.NVarChar, contactName || null)
+      .input('designation', sql.NVarChar, designation || null)
+      .input('mobile', sql.NVarChar, mobile || null)
+      .input('email', sql.NVarChar, email || null)
+      .input('isPrimary', sql.Bit, isPrimary ? 1 : 0)
+      .query(`INSERT INTO HCFContacts (RegistrationID, ContactName, Designation, Mobile, Email, IsPrimary, CreatedAt)
+              VALUES (@registrationId, @contactName, @designation, @mobile, @email, @isPrimary, GETDATE());
+              SELECT SCOPE_IDENTITY() AS ContactID`);
+    res.status(201).json({ message: 'Contact added', contactId: result.recordset[0].ContactID });
+  } catch (err) {
+    console.error('HCF Contact insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hcf-contacts/:contactId
+app.delete('/api/hcf-contacts/:contactId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('contactId', sql.Int, req.params.contactId)
+      .query(`DELETE FROM HCFContacts WHERE ContactID=@contactId`);
+    res.json({ message: 'Contact deleted' });
+  } catch (err) {
+    console.error('HCF Contact delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// HCF APPROVALS ENDPOINTS
+// ============================================
+
+const APPROVAL_STAGES = ['RM Raises', 'Branch Head', 'Reg. Dept', 'Accounts', 'Material', 'Transport', 'RM Welcome'];
+
+// GET /api/hcf-approvals
+app.get('/api/hcf-approvals', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request().query(`SELECT * FROM HCFApprovals ORDER BY CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('HCF Approvals fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hcf-approvals
+app.post('/api/hcf-approvals', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, facilityName, zone, category, raisedBy, monthlyAmount } = req.body;
+    const result = await pool.request()
+      .input('registrationId', sql.Int, registrationId || null)
+      .input('facilityName', sql.NVarChar, facilityName || null)
+      .input('zone', sql.NVarChar, zone || null)
+      .input('category', sql.NVarChar, category || null)
+      .input('raisedBy', sql.NVarChar, raisedBy || null)
+      .input('monthlyAmount', sql.Decimal(12,2), monthlyAmount || 0)
+      .query(`INSERT INTO HCFApprovals (RegistrationID, FacilityName, Zone, Category, RaisedBy, MonthlyAmount, CurrentStage, Status, CreatedAt, UpdatedAt)
+              VALUES (@registrationId, @facilityName, @zone, @category, @raisedBy, @monthlyAmount, 'RM Raises', 'Pending', GETDATE(), GETDATE());
+              SELECT SCOPE_IDENTITY() AS ApprovalID`);
+    res.status(201).json({ message: 'Approval created', approvalId: result.recordset[0].ApprovalID });
+  } catch (err) {
+    console.error('HCF Approval insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-approvals/:id/action
+app.put('/api/hcf-approvals/:id/action', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { action, remarks, stage } = req.body;
+    const approvalId = req.params.id;
+
+    if (action === 'approve') {
+      // Get current stage and advance to next
+      const current = await pool.request()
+        .input('id', sql.Int, approvalId)
+        .query(`SELECT CurrentStage FROM HCFApprovals WHERE ApprovalID=@id`);
+      if (current.recordset.length === 0) return res.status(404).json({ error: 'Approval not found' });
+      const currentStage = current.recordset[0].CurrentStage;
+      const currentIdx = APPROVAL_STAGES.indexOf(currentStage);
+      const nextStage = currentIdx >= 0 && currentIdx < APPROVAL_STAGES.length - 1
+        ? APPROVAL_STAGES[currentIdx + 1]
+        : currentStage;
+      const newStatus = currentIdx >= APPROVAL_STAGES.length - 1 ? 'Approved' : 'Pending';
+      await pool.request()
+        .input('id', sql.Int, approvalId)
+        .input('nextStage', sql.NVarChar, nextStage)
+        .input('status', sql.NVarChar, newStatus)
+        .input('remarks', sql.NVarChar, remarks || null)
+        .query(`UPDATE HCFApprovals SET CurrentStage=@nextStage, Status=@status, Remarks=@remarks, UpdatedAt=GETDATE() WHERE ApprovalID=@id`);
+    } else if (action === 'reject') {
+      await pool.request()
+        .input('id', sql.Int, approvalId)
+        .input('remarks', sql.NVarChar, remarks || null)
+        .query(`UPDATE HCFApprovals SET Status='Rejected', Remarks=@remarks, UpdatedAt=GETDATE() WHERE ApprovalID=@id`);
+    } else if (action === 'sendback') {
+      await pool.request()
+        .input('id', sql.Int, approvalId)
+        .input('remarks', sql.NVarChar, remarks || null)
+        .query(`UPDATE HCFApprovals SET Status='Sent Back', Remarks=@remarks, UpdatedAt=GETDATE() WHERE ApprovalID=@id`);
+    } else {
+      return res.status(400).json({ error: 'Invalid action. Use approve, reject, or sendback' });
+    }
+
+    res.json({ message: `Approval action '${action}' applied` });
+  } catch (err) {
+    console.error('HCF Approval action error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hcf-approvals/:id
+app.delete('/api/hcf-approvals/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`DELETE FROM HCFApprovals WHERE ApprovalID=@id`);
+    res.json({ message: 'Approval deleted' });
+  } catch (err) {
+    console.error('HCF Approval delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// HCF RENEWALS ENDPOINTS
+// ============================================
+
+// GET /api/hcf-renewals
+app.get('/api/hcf-renewals', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request().query(`SELECT * FROM HCFRenewals ORDER BY CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('HCF Renewals fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hcf-renewals
+app.post('/api/hcf-renewals', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, facilityName, zone, renewalDate } = req.body;
+    const result = await pool.request()
+      .input('registrationId', sql.Int, registrationId || null)
+      .input('facilityName', sql.NVarChar, facilityName || null)
+      .input('zone', sql.NVarChar, zone || null)
+      .input('renewalDate', sql.Date, renewalDate || null)
+      .query(`INSERT INTO HCFRenewals (RegistrationID, FacilityName, Zone, RenewalDate, Status, CreatedAt, UpdatedAt)
+              VALUES (@registrationId, @facilityName, @zone, @renewalDate, 'Pending', GETDATE(), GETDATE());
+              SELECT SCOPE_IDENTITY() AS RenewalID`);
+    res.status(201).json({ message: 'Renewal created', renewalId: result.recordset[0].RenewalID });
+  } catch (err) {
+    console.error('HCF Renewal insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-renewals/:id/remind — set LastReminded=GETDATE()
+app.put('/api/hcf-renewals/:id/remind', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`UPDATE HCFRenewals SET LastReminded=GETDATE(), UpdatedAt=GETDATE() WHERE RenewalID=@id`);
+    res.json({ message: 'Reminder sent' });
+  } catch (err) {
+    console.error('HCF Renewal remind error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-renewals/:id/renew — set Status='Renewed', advance RenewalDate by +1 year
+app.put('/api/hcf-renewals/:id/renew', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`UPDATE HCFRenewals SET Status='Renewed', RenewalDate=DATEADD(year,1,RenewalDate), UpdatedAt=GETDATE() WHERE RenewalID=@id`);
+    res.json({ message: 'Renewal completed' });
+  } catch (err) {
+    console.error('HCF Renewal renew error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-renewals/:id — update fields
+app.put('/api/hcf-renewals/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { autoRenew, mouReSigned, renewalDate } = req.body;
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('autoRenew', sql.Bit, autoRenew ? 1 : 0)
+      .input('mouReSigned', sql.Bit, mouReSigned ? 1 : 0)
+      .input('renewalDate', sql.Date, renewalDate || null)
+      .query(`UPDATE HCFRenewals SET AutoRenew=@autoRenew, MoUReSigned=@mouReSigned, RenewalDate=@renewalDate, UpdatedAt=GETDATE() WHERE RenewalID=@id`);
+    res.json({ message: 'Renewal updated' });
+  } catch (err) {
+    console.error('HCF Renewal update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hcf-renewals/:id
+app.delete('/api/hcf-renewals/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`DELETE FROM HCFRenewals WHERE RenewalID=@id`);
+    res.json({ message: 'Renewal deleted' });
+  } catch (err) {
+    console.error('HCF Renewal delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// HCF DEREGISTRATIONS ENDPOINTS
+// ============================================
+
+// GET /api/hcf-deregistrations
+app.get('/api/hcf-deregistrations', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request().query(`SELECT * FROM HCFDeregistrations ORDER BY CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('HCF Deregistrations fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hcf-deregistrations
+app.post('/api/hcf-deregistrations', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, facilityName, zone, reason, outstanding } = req.body;
+    const result = await pool.request()
+      .input('registrationId', sql.Int, registrationId || null)
+      .input('facilityName', sql.NVarChar, facilityName || null)
+      .input('zone', sql.NVarChar, zone || null)
+      .input('reason', sql.NVarChar, reason || null)
+      .input('outstanding', sql.Decimal(12,2), outstanding || 0)
+      .query(`INSERT INTO HCFDeregistrations (RegistrationID, FacilityName, Zone, Reason, Outstanding, Stage, CreatedAt, UpdatedAt)
+              VALUES (@registrationId, @facilityName, @zone, @reason, @outstanding, 'Awaiting Accounts', GETDATE(), GETDATE());
+              SELECT SCOPE_IDENTITY() AS DeregID`);
+    res.status(201).json({ message: 'Deregistration created', deregId: result.recordset[0].DeregID });
+  } catch (err) {
+    console.error('HCF Deregistration insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/hcf-deregistrations/:id
+app.get('/api/hcf-deregistrations/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`SELECT * FROM HCFDeregistrations WHERE DeregID=@id`);
+    if (result.recordset.length === 0) return res.status(404).json({ error: 'Deregistration not found' });
+    res.json(result.recordset[0]);
+  } catch (err) {
+    console.error('HCF Deregistration fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-deregistrations/:id — update checklist fields + stage + remarks
+app.put('/api/hcf-deregistrations/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const {
+      stage, remarks,
+      letterheadReceived, certReturned, agreementReturned,
+      outstandingCleared, kitReturned, hologramClosed, outstanding
+    } = req.body;
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('stage', sql.NVarChar, stage || null)
+      .input('remarks', sql.NVarChar, remarks || null)
+      .input('letterheadReceived', sql.Bit, letterheadReceived ? 1 : 0)
+      .input('certReturned', sql.Bit, certReturned ? 1 : 0)
+      .input('agreementReturned', sql.Bit, agreementReturned ? 1 : 0)
+      .input('outstandingCleared', sql.Bit, outstandingCleared ? 1 : 0)
+      .input('kitReturned', sql.Bit, kitReturned ? 1 : 0)
+      .input('hologramClosed', sql.Bit, hologramClosed ? 1 : 0)
+      .input('outstanding', sql.Decimal(12,2), outstanding || 0)
+      .query(`UPDATE HCFDeregistrations SET
+                Stage=ISNULL(@stage, Stage),
+                Remarks=ISNULL(@remarks, Remarks),
+                LetterheadReceived=@letterheadReceived,
+                CertReturned=@certReturned,
+                AgreementReturned=@agreementReturned,
+                OutstandingCleared=@outstandingCleared,
+                KitReturned=@kitReturned,
+                HologramClosed=@hologramClosed,
+                Outstanding=@outstanding,
+                UpdatedAt=GETDATE()
+              WHERE DeregID=@id`);
+    res.json({ message: 'Deregistration updated' });
+  } catch (err) {
+    console.error('HCF Deregistration update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-deregistrations/:id/action — approve or reject
+app.put('/api/hcf-deregistrations/:id/action', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { action, remarks } = req.body;
+    if (action !== 'approve' && action !== 'reject') {
+      return res.status(400).json({ error: 'Invalid action. Use approve or reject' });
+    }
+    const newStage = action === 'approve' ? 'Approved' : 'Rejected';
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('stage', sql.NVarChar, newStage)
+      .input('remarks', sql.NVarChar, remarks || null)
+      .query(`UPDATE HCFDeregistrations SET Stage=@stage, Remarks=ISNULL(@remarks, Remarks), UpdatedAt=GETDATE() WHERE DeregID=@id`);
+    res.json({ message: `Deregistration ${action}d` });
+  } catch (err) {
+    console.error('HCF Deregistration action error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hcf-deregistrations/:id
+app.delete('/api/hcf-deregistrations/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`DELETE FROM HCFDeregistrations WHERE DeregID=@id`);
+    res.json({ message: 'Deregistration deleted' });
+  } catch (err) {
+    console.error('HCF Deregistration delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// SUPPORT TICKETS ENDPOINTS
+// ============================================
+
+// GET /api/support-tickets
+app.get('/api/support-tickets', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { status, category, priority } = req.query;
+    let query = `SELECT * FROM HCFSupportTickets WHERE 1=1`;
+    const req2 = pool.request();
+    if (status) { query += ` AND Status=@status`; req2.input('status', sql.NVarChar, status); }
+    if (category) { query += ` AND Category=@category`; req2.input('category', sql.NVarChar, category); }
+    if (priority) { query += ` AND Priority=@priority`; req2.input('priority', sql.NVarChar, priority); }
+    query += ` ORDER BY CreatedAt DESC`;
+    const result = await req2.query(query);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Support Tickets fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/support-tickets
+app.post('/api/support-tickets', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const {
+      registrationId, hcfName, zone, route, category, priority,
+      subject, description, assignedTo, dueDate, notifyBM, bmName
+    } = req.body;
+    const ticketCode = 'TKT-' + Date.now();
+    const result = await pool.request()
+      .input('ticketCode', sql.NVarChar, ticketCode)
+      .input('registrationId', sql.Int, registrationId || null)
+      .input('hcfName', sql.NVarChar, hcfName || null)
+      .input('zone', sql.NVarChar, zone || null)
+      .input('route', sql.NVarChar, route || null)
+      .input('category', sql.NVarChar, category || null)
+      .input('priority', sql.NVarChar, priority || 'Medium')
+      .input('subject', sql.NVarChar, subject || null)
+      .input('description', sql.NVarChar, description || null)
+      .input('assignedTo', sql.NVarChar, assignedTo || null)
+      .input('dueDate', sql.Date, dueDate || null)
+      .input('notifyBM', sql.Bit, notifyBM ? 1 : 0)
+      .input('bmName', sql.NVarChar, bmName || null)
+      .query(`INSERT INTO HCFSupportTickets
+                (TicketCode, RegistrationID, HCFName, Zone, Route, Category, Priority, Subject, Description,
+                 AssignedTo, Status, DueDate, NotifyBM, BMName, CreatedAt, UpdatedAt)
+              VALUES
+                (@ticketCode, @registrationId, @hcfName, @zone, @route, @category, @priority, @subject, @description,
+                 @assignedTo, 'Open', @dueDate, @notifyBM, @bmName, GETDATE(), GETDATE());
+              SELECT SCOPE_IDENTITY() AS TicketID`);
+    res.status(201).json({ message: 'Ticket created', ticketId: result.recordset[0].TicketID, ticketCode });
+  } catch (err) {
+    console.error('Support Ticket insert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/support-tickets/:id
+app.put('/api/support-tickets/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { status, resolution, assignedTo, priority } = req.body;
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('status', sql.NVarChar, status || null)
+      .input('resolution', sql.NVarChar, resolution || null)
+      .input('assignedTo', sql.NVarChar, assignedTo || null)
+      .input('priority', sql.NVarChar, priority || null)
+      .query(`UPDATE HCFSupportTickets SET
+                Status=ISNULL(@status, Status),
+                Resolution=ISNULL(@resolution, Resolution),
+                AssignedTo=ISNULL(@assignedTo, AssignedTo),
+                Priority=ISNULL(@priority, Priority),
+                UpdatedAt=GETDATE()
+              WHERE TicketID=@id`);
+    res.json({ message: 'Ticket updated' });
+  } catch (err) {
+    console.error('Support Ticket update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/support-tickets/:id
+app.delete('/api/support-tickets/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`DELETE FROM HCFSupportTickets WHERE TicketID=@id`);
+    res.json({ message: 'Ticket deleted' });
+  } catch (err) {
+    console.error('Support Ticket delete error:', err);
     res.status(500).json({ error: err.message });
   }
 });

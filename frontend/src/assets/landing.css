@@ -2,7 +2,7 @@
 *{font-family:'Inter',sans-serif;box-sizing:border-box;}
 html,body{height:100%;margin:0;padding:0;}
 
-.hero-bg{background:linear-gradient(135deg,#f0f7ff 0%,#e8f4fd 40%,#f5f0ff 100%);}
+.hero-bg{background:#ffffff;}
 .wizard-banner{background:linear-gradient(90deg,#2563eb 0%,#7c3aed 100%);}
 .btn-primary{background:linear-gradient(135deg,#2563eb,#1d4ed8);transition:all .3s;}
 .btn-primary:hover{background:linear-gradient(135deg,#1d4ed8,#1e40af);transform:translateY(-1px);box-shadow:0 6px 20px rgba(37,99,235,.35);}
