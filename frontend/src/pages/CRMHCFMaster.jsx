@@ -159,13 +159,13 @@ const CRMHCFMaster = () => {
           fetch('/api/routes').then(x => x.json()).catch(() => []),
           fetch('/api/categories').then(x => x.json()).catch(() => []),
           fetch('/api/serviceplans').then(x => x.json()).catch(() => []),
-          fetch('/api/hcf-master').then(x => x.json()).catch(() => []),
+          fetch('/api/hcf-master').then(x => x.json()).catch(() => ({ data: [] })),
         ]);
         setZones(Array.isArray(z) ? z : []);
         setRoutes(Array.isArray(r) ? r : []);
         setCategories(Array.isArray(c) ? c : []);
         setServicePlans(Array.isArray(sp) ? sp : []);
-        setHcfMaster(Array.isArray(hcf) ? hcf : []);
+        setHcfMaster(Array.isArray(hcf) ? hcf : (hcf.data || []));
       } catch { /* silent */ }
     };
     loadDropdowns();
@@ -173,8 +173,8 @@ const CRMHCFMaster = () => {
 
   const refreshHcfMaster = async () => {
     try {
-      const data = await fetch('/api/hcf-master').then(x => x.json());
-      setHcfMaster(Array.isArray(data) ? data : []);
+      const json = await fetch('/api/hcf-master').then(x => x.json());
+      setHcfMaster(Array.isArray(json) ? json : (json.data || []));
     } catch { /* silent */ }
   };
 
@@ -235,6 +235,7 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
   const [search, setSearch] = useState('');
   const [filterZone, setFilterZone] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
 
   // Modals
   const [showNewModal, setShowNewModal] = useState(false);
@@ -258,7 +259,7 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
     try {
       const res = await fetch('/api/hcf-master');
       const json = await res.json();
-      setData(Array.isArray(json) ? json : []);
+      setData(Array.isArray(json) ? json : (json.data || []));
     } catch { showToast('Failed to load HCF data', 'error'); }
     finally { setLoading(false); }
   };
@@ -277,7 +278,6 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
   const elevenMonthsAgo = new Date();
   elevenMonthsAgo.setMonth(elevenMonthsAgo.getMonth() - 11);
 
-  const [filterCategory, setFilterCategory] = useState('');
   const stats = {
     total:      data.length,
     active:     data.filter(r => r.Status === 'Active').length,
@@ -404,32 +404,68 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
         ))}
       </div>
 
-      {/* Filter Bar */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        <input placeholder="🔍 Search HCF name / mobile / ID..." value={search} onChange={e => setSearch(e.target.value)}
-          style={{ ...inputStyle, border: '1.5px solid #c4b5fd', minWidth: 220, flex: 1 }} />
+      {/* Filter Bar — single horizontal row */}
+      <div style={{
+        display:'flex', gap:8, marginBottom:14, alignItems:'center', flexWrap:'nowrap',
+        background:'linear-gradient(135deg,#f8fafc,#f1f5f9)', border:'1.5px solid #cbd5e1',
+        borderRadius:10, padding:'8px 12px'
+      }}>
+        <span style={{ fontSize:16, flexShrink:0 }}>🔍</span>
+        <input placeholder="Search HCF name / mobile / ID..." value={search} onChange={e => setSearch(e.target.value)}
+          style={{ border:'1.5px solid #c4b5fd', borderRadius:7, padding:'7px 10px', fontSize:13, fontWeight:500, color:'#111827', flex:2, minWidth:180, fontFamily:'inherit', outline:'none', background:'#fff' }} />
         <select value={filterZone} onChange={e => setFilterZone(e.target.value)}
-          style={{ ...inputStyle, border: '1.5px solid #7c3aed', color: '#5b21b6', fontWeight: 700, minWidth: 130 }}>
+          style={{ border:'1.5px solid #a78bfa', borderRadius:7, padding:'7px 10px', fontSize:12, fontWeight:700, color:'#5b21b6', flex:1, minWidth:110, fontFamily:'inherit', background:'#fff', cursor:'pointer' }}>
           <option value="">All Zones</option>
           {zones.map(z => <option key={z.ZoneName || z} value={z.ZoneName || z}>{z.ZoneName || z}</option>)}
         </select>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...inputStyle, minWidth: 140 }}>
-          <option value="">All States</option>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+          style={{ border:'1.5px solid #cbd5e1', borderRadius:7, padding:'7px 10px', fontSize:12, fontWeight:600, color:'#374151', flex:1, minWidth:120, fontFamily:'inherit', background:'#fff', cursor:'pointer' }}>
+          <option value="">All Status</option>
           {['Active','Late Payer','Slow Payer','Disputed','Defaulter','Suspended','Closed'].map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...inputStyle, minWidth: 140 }}>
+        <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
+          style={{ border:'1.5px solid #cbd5e1', borderRadius:7, padding:'7px 10px', fontSize:12, fontWeight:600, color:'#374151', flex:1, minWidth:130, fontFamily:'inherit', background:'#fff', cursor:'pointer' }}>
           <option value="">All Categories</option>
-          {['Hospital','Clinic','Nursing Home','Diagnostic','Pharmacy'].map(c => <option key={c} value={c}>{c}</option>)}
+          {['Hospital (Nursing Home)','Hospital','Clinic','Nursing Home','Diagnostic','Pharmacy'].map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+        {(search || filterZone || filterStatus || filterCategory) && (
+          <button onClick={() => { setSearch(''); setFilterZone(''); setFilterStatus(''); setFilterCategory(''); }}
+            style={{ background:'#fee2e2', color:'#dc2626', border:'1.5px solid #fca5a5', borderRadius:7, padding:'7px 12px', fontSize:11, fontWeight:800, cursor:'pointer', flexShrink:0, whiteSpace:'nowrap' }}>
+            ✕ Clear
+          </button>
+        )}
       </div>
 
-      <div className="table-wrap" style={{ overflowX: 'auto' }}>
+      {/* Table info bar */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6, padding:'0 2px' }}>
+        <span style={{ fontSize:12, color:'#64748b', fontWeight:600 }}>
+          Showing <strong style={{ color:'#1e293b' }}>{filtered.length}</strong> of <strong style={{ color:'#1e293b' }}>{data.length}</strong> HCFs
+        </span>
+        <span style={{ fontSize:11, color:'#94a3b8' }}>Click row header to sort · Hover row to highlight</span>
+      </div>
+
+      <div className="table-wrap">
         {loading ? <div className="no-data">Loading...</div> : (
-          <table style={{ minWidth: 1300 }}>
+          <table style={{ minWidth: 1400 }}>
+            <colgroup>
+              <col style={{ width:70 }} />
+              <col style={{ width:200 }} />
+              <col style={{ width:160 }} />
+              <col style={{ width:100 }} />
+              <col style={{ width:110 }} />
+              <col style={{ width:140 }} />
+              <col style={{ width:120 }} />
+              <col style={{ width:110 }} />
+              <col style={{ width:100 }} />
+              <col style={{ width:110 }} />
+              <col style={{ width:100 }} />
+              <col style={{ width:90 }} />
+              <col style={{ width:160 }} />
+            </colgroup>
             <thead>
               <tr>
-                <th>HCF ID</th><th>Institution Name</th><th>Category</th><th>Zone</th><th>Route</th>
-                <th>Contact Person</th><th>Mobile</th><th>State</th><th>Reg. Date</th>
+                <th>#</th><th>Institution Name</th><th>Category</th><th>Zone</th><th>Route</th>
+                <th>Contact Person</th><th>Mobile</th><th>Status</th><th>Reg. Date</th>
                 <th>Renewal Date</th><th>Outstanding</th><th>Docs</th><th>Actions</th>
               </tr>
             </thead>
@@ -438,36 +474,89 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
                 <tr><td colSpan={13} className="no-data">No records found</td></tr>
               ) : filtered.map(row => (
                 <tr key={row.RegistrationID}>
-                  <td><span style={{ fontWeight: 700, color: '#5b21b6' }}>{row.RegistrationID}</span></td>
                   <td>
-                    <strong>{row.InstitutionName}</strong>
-                    {row.FullAddress && <><br /><span style={{ fontSize: 10, color: '#64748b' }}>{row.FullAddress.substring(0, 40)}</span></>}
-                  </td>
-                  <td>{row.Category}</td>
-                  <td>{row.Zone}</td>
-                  <td>{row.Route}</td>
-                  <td>{row.ContactPerson}</td>
-                  <td>{row.Mobile}</td>
-                  <td><StatusBadge value={row.Status || 'Active'} /></td>
-                  <td>{row.CreatedAt ? new Date(row.CreatedAt).toLocaleDateString('en-IN') : '—'}</td>
-                  <td>{row.RenewalDate ? new Date(row.RenewalDate).toLocaleDateString('en-IN') : '—'}</td>
-                  <td style={{ color: '#dc2626', fontWeight: 700 }}>{row.Outstanding ? `₹${Number(row.Outstanding).toLocaleString('en-IN')}` : '—'}</td>
-                  <td>
-                    <button style={{ background: '#ede9fe', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: '#5b21b6', cursor: 'pointer', fontWeight: 700 }}>
-                      📁 Docs
-                    </button>
+                    <span style={{
+                      display:'inline-block', background:'linear-gradient(135deg,#5b21b6,#7c3aed)',
+                      color:'#fff', fontWeight:800, fontSize:12, borderRadius:6,
+                      padding:'3px 9px', letterSpacing:'0.02em'
+                    }}>{row.RegistrationID}</span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
+                    <div style={{ fontWeight:800, fontSize:14, color:'#0f172a', letterSpacing:'-0.01em' }}>{row.InstitutionName}</div>
+                    {row.FullAddress && <div style={{ fontSize:11, color:'#64748b', marginTop:3, maxWidth:180, fontWeight:500 }}>{row.FullAddress.substring(0, 48)}</div>}
+                  </td>
+                  <td>
+                    <span style={{ background:'#e2e8f0', color:'#1e293b', fontSize:12, fontWeight:700, borderRadius:6, padding:'4px 10px', whiteSpace:'nowrap', display:'inline-block' }}>
+                      {row.Category || '—'}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ background:'#ede9fe', color:'#4c1d95', fontSize:12, fontWeight:800, borderRadius:6, padding:'4px 10px', display:'inline-block' }}>
+                      {row.Zone || '—'}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ background:'#dbeafe', color:'#1e40af', fontSize:12, fontWeight:800, borderRadius:6, padding:'4px 10px', display:'inline-block' }}>
+                      {row.Route || '—'}
+                    </span>
+                  </td>
+                  <td style={{ color:'#0f172a', fontWeight:700, fontSize:14 }}>{row.ContactPerson || '—'}</td>
+                  <td>
+                    <a href={`tel:${row.Mobile}`} style={{ color:'#1d4ed8', fontWeight:800, textDecoration:'none', fontSize:14, letterSpacing:'0.01em' }}>
+                      {row.Mobile || '—'}
+                    </a>
+                  </td>
+                  <td><StatusBadge value={row.Status || 'Pending'} /></td>
+                  <td style={{ color:'#1e293b', fontWeight:700, fontSize:13 }}>{row.CreatedAt ? new Date(row.CreatedAt).toLocaleDateString('en-IN') : <span style={{color:'#94a3b8'}}>—</span>}</td>
+                  <td style={{ color:'#1e293b', fontWeight:700, fontSize:13 }}>{row.RenewalDate ? new Date(row.RenewalDate).toLocaleDateString('en-IN') : <span style={{color:'#94a3b8'}}>—</span>}</td>
+                  <td>
+                    {row.Outstanding
+                      ? <span style={{ color:'#b91c1c', fontWeight:900, fontSize:14 }}>₹{Number(row.Outstanding).toLocaleString('en-IN')}</span>
+                      : <span style={{ color:'#94a3b8', fontSize:14, fontWeight:700 }}>—</span>
+                    }
+                  </td>
+                  <td>
+                    <button style={{
+                      background:'linear-gradient(135deg,#ede9fe,#ddd6fe)', border:'1.5px solid #c4b5fd',
+                      borderRadius:7, padding:'5px 11px', fontSize:11, color:'#5b21b6', cursor:'pointer', fontWeight:700
+                    }}>📁 Docs</button>
+                  </td>
+                  <td>
+                    <div style={{ display:'flex', gap:4, flexWrap:'nowrap' }}>
                       <button onClick={() => { setView360Row(row); setShow360Modal(true); }}
-                        style={{ background: '#5b21b6', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>👁 360°</button>
-                      <ActionBtn label="✏" color="#0369a1" onClick={() => handleEdit(row)} />
-                      <ActionBtn label="🗑" color="#ef4444" onClick={() => handleDelete(row)} />
+                        style={{
+                          background:'linear-gradient(135deg,#5b21b6,#7c3aed)', color:'#fff', border:'none',
+                          borderRadius:7, padding:'5px 11px', fontSize:11, fontWeight:800, cursor:'pointer', whiteSpace:'nowrap',
+                          boxShadow:'0 2px 6px rgba(91,33,182,0.3)'
+                        }}>● 360°</button>
+                      <button onClick={() => handleEdit(row)} style={{
+                        background:'linear-gradient(135deg,#0369a1,#0ea5e9)', color:'#fff', border:'none',
+                        borderRadius:7, padding:'5px 9px', fontSize:12, fontWeight:700, cursor:'pointer'
+                      }}>✏</button>
+                      <button onClick={() => handleDelete(row)} style={{
+                        background:'linear-gradient(135deg,#dc2626,#ef4444)', color:'#fff', border:'none',
+                        borderRadius:7, padding:'5px 9px', fontSize:12, fontWeight:700, cursor:'pointer'
+                      }}>🗑</button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
+            {/* Excel-style footer total row */}
+            {filtered.length > 0 && (
+              <tfoot>
+                <tr style={{ background:'linear-gradient(135deg,#1e293b,#334155)' }}>
+                  <td colSpan={2} style={{ padding:'12px 16px', fontWeight:900, fontSize:13, color:'#f1f5f9', borderRight:'2px solid rgba(255,255,255,0.15)', borderBottom:'none' }}>
+                    📊 Total: {filtered.length} HCFs
+                  </td>
+                  <td colSpan={8} style={{ borderBottom:'none', borderRight:'2px solid rgba(255,255,255,0.1)' }} />
+                  <td style={{ padding:'12px 16px', fontWeight:900, fontSize:14, color:'#fca5a5', borderBottom:'none', borderRight:'2px solid rgba(255,255,255,0.1)' }}>
+                    {filtered.some(r => r.Outstanding) ? `₹${filtered.reduce((s,r) => s + (Number(r.Outstanding)||0), 0).toLocaleString('en-IN')}` : '—'}
+                  </td>
+                  <td colSpan={2} style={{ borderBottom:'none' }} />
+                </tr>
+              </tfoot>
+            )}
           </table>
         )}
       </div>
@@ -509,6 +598,7 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
 
   const [docs, setDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [uploadingDocType, setUploadingDocType] = useState(null);
   const [docForm, setDocForm] = useState({ DocumentType: '', Version: '', ExpiryDate: '', UploadedBy: '', Remarks: '' });
   const [savingDoc, setSavingDoc] = useState(false);
 
@@ -516,10 +606,20 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [contactForm, setContactForm] = useState({ ContactName: '', Designation: '', Mobile: '', Email: '', IsPrimary: false });
   const [savingContact, setSavingContact] = useState(false);
+  const [complaints360, setComplaints360] = useState([]);
+  const [loadingComplaints360, setLoadingComplaints360] = useState(false);
+  const [showAddContact, setShowAddContact] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'documents') loadDocs();
     if (activeTab === 'contacts') loadContacts();
+    if (activeTab === 'complaints') {
+      setLoadingComplaints360(true);
+      fetch(`/api/portal/complaints/${row.RegistrationID}`).then(r => r.json())
+        .then(d => setComplaints360(Array.isArray(d) ? d : []))
+        .catch(() => {})
+        .finally(() => setLoadingComplaints360(false));
+    }
   }, [activeTab]);
 
   const loadDocs = async () => {
@@ -569,6 +669,25 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
     finally { setSavingDoc(false); }
   };
 
+  const uploadDocFile = async (docType, file) => {
+    if (!file) return;
+    setUploadingDocType(docType);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('registrationId', row.RegistrationID);
+      fd.append('documentType', docType);
+      fd.append('version', 'v1');
+      fd.append('uploadedBy', 'Admin');
+      fd.append('uploadSource', 'Admin');
+      const res = await fetch('/api/hcf-documents/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) { showToast(`${docType} uploaded`); loadDocs(); }
+      else showToast('Upload failed: ' + (data.error || ''), 'error');
+    } catch { showToast('Upload error', 'error'); }
+    finally { setUploadingDocType(null); }
+  };
+
   const deleteDoc = async (id) => {
     if (!window.confirm('Delete document?')) return;
     try {
@@ -578,8 +697,8 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
     } catch { showToast('Delete failed', 'error'); }
   };
 
-  const addContact = async (e) => {
-    e.preventDefault();
+  const addContact = async () => {
+    if (!contactForm.ContactName || !contactForm.Mobile) { showToast('Name and Mobile are required', 'error'); return; }
     setSavingContact(true);
     try {
       await fetch('/api/hcf-contacts', {
@@ -588,6 +707,7 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
       });
       showToast('Contact added');
       setContactForm({ ContactName: '', Designation: '', Mobile: '', Email: '', IsPrimary: false });
+      setShowAddContact(false);
       loadContacts();
     } catch { showToast('Save failed', 'error'); }
     finally { setSavingContact(false); }
@@ -625,126 +745,327 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
 
   return (
     <div style={modalOverlay}>
-      <div style={modalBox(900)}>
-        <ModalHeader title={`360° View — ${row.InstitutionName}`} onClose={onClose} />
+      <div style={{ ...modalBox(960), padding:0, overflow:'hidden', borderRadius:16, boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid #e2e8f0', marginBottom: 20 }}>
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
-              padding: '8px 16px', border: 'none', borderRadius: '6px 6px 0 0', cursor: 'pointer',
-              fontWeight: 600, fontSize: 13,
-              background: activeTab === t.id ? '#7c3aed' : 'transparent',
-              color: activeTab === t.id ? '#fff' : '#64748b',
-            }}>{t.label}</button>
-          ))}
+        {/* ── Modal Header with gradient ── */}
+        <div style={{
+          background:'linear-gradient(135deg,#1e293b 0%,#312e81 50%,#5b21b6 100%)',
+          padding:'22px 28px 18px', position:'relative'
+        }}>
+          <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:14 }}>
+            <div style={{
+              width:48, height:48, borderRadius:12, background:'rgba(255,255,255,0.15)',
+              display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0
+            }}>🏥</div>
+            <div>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,0.6)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em' }}>360° View</div>
+              <div style={{ fontSize:20, fontWeight:800, color:'#fff', lineHeight:1.2 }}>{row.InstitutionName}</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.7)', marginTop:2 }}>
+                ID: {row.RegistrationID} &nbsp;·&nbsp; {row.CustomerID || '—'} &nbsp;·&nbsp;
+                <span style={{ background:'rgba(255,255,255,0.15)', padding:'1px 8px', borderRadius:10 }}>{row.Status || 'Pending'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs inside header */}
+          <div style={{ display:'flex', gap:2 }}>
+            {tabs.map(t => (
+              <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+                padding:'7px 16px', border:'none', borderRadius:'8px 8px 0 0', cursor:'pointer',
+                fontWeight:700, fontSize:12,
+                background: activeTab === t.id ? '#fff' : 'rgba(255,255,255,0.12)',
+                color: activeTab === t.id ? '#5b21b6' : 'rgba(255,255,255,0.75)',
+                transition:'all 0.15s',
+              }}>{t.label}</button>
+            ))}
+          </div>
+
+          {/* Close btn */}
+          <button onClick={onClose} style={{
+            position:'absolute', top:16, right:16, background:'rgba(255,255,255,0.15)',
+            border:'none', borderRadius:8, width:32, height:32, fontSize:18, cursor:'pointer',
+            color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1
+          }}>×</button>
         </div>
+
+        {/* ── Tab body ── */}
+        <div style={{ padding:24, maxHeight:'65vh', overflowY:'auto' }}>
 
         {/* Overview */}
         {activeTab === 'overview' && (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px', marginBottom: 20 }}>
+            {/* Info cards grid */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 16px', marginBottom:20 }}>
               {overviewFields.map(([lbl, val]) => (
-                <div key={lbl} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 8 }}>
-                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{lbl}</div>
-                  <div style={{ fontSize: 14, color: '#1e293b', fontWeight: 500, marginTop: 2 }}>{val || '—'}</div>
+                <div key={lbl} style={{
+                  background:'#f8fafc', borderRadius:10, padding:'10px 14px',
+                  border:'1px solid #e2e8f0'
+                }}>
+                  <div style={{ fontSize:10, color:'#7c3aed', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:4 }}>{lbl}</div>
+                  <div style={{ fontSize:14, color:'#111827', fontWeight:700 }}>{val || <span style={{ color:'#cbd5e1' }}>—</span>}</div>
                 </div>
               ))}
             </div>
-            <div style={{ background: '#f8fafc', borderRadius: 8, padding: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
-              <label style={{ fontWeight: 600, fontSize: 13 }}>Lifecycle State:</label>
-              <select value={lifecycleState} onChange={e => setLifecycleState(e.target.value)} style={{ ...inputStyle, maxWidth: 220 }}>
+
+            {/* Lifecycle state */}
+            <div style={{ background:'linear-gradient(135deg,#f5f3ff,#ede9fe)', border:'1.5px solid #c4b5fd', borderRadius:12, padding:'14px 18px', display:'flex', alignItems:'center', gap:16 }}>
+              <span style={{ fontSize:16 }}>🔄</span>
+              <label style={{ fontWeight:800, fontSize:13, color:'#5b21b6', flex:1 }}>Lifecycle State</label>
+              <select value={lifecycleState} onChange={e => setLifecycleState(e.target.value)}
+                style={{ ...inputStyle, maxWidth:200, border:'1.5px solid #a78bfa', borderRadius:8, fontWeight:700, color:'#3730a3' }}>
                 {['Active', 'Late Payer', 'Slow Payer', 'Disputed', 'Defaulter', 'Suspended', 'Closed'].map(s =>
                   <option key={s} value={s}>{s}</option>)}
               </select>
-              <button className="btn btn-primary" onClick={saveLifecycleState} disabled={savingState}>
-                {savingState ? 'Saving...' : 'Save'}
-              </button>
+              <button onClick={saveLifecycleState} disabled={savingState} style={{
+                background:'linear-gradient(135deg,#5b21b6,#7c3aed)', color:'#fff', border:'none',
+                borderRadius:8, padding:'8px 20px', fontSize:13, fontWeight:700, cursor:'pointer',
+                boxShadow:'0 2px 8px rgba(91,33,182,0.3)'
+              }}>{savingState ? 'Saving...' : '💾 Save'}</button>
             </div>
           </div>
         )}
 
         {/* Documents */}
-        {activeTab === 'documents' && (
-          <div>
-            <form onSubmit={addDoc} style={{ ...formGrid, marginBottom: 20 }}>
-              <Select label="Document Type" value={docForm.DocumentType}
-                onChange={e => setDocForm(p => ({ ...p, DocumentType: e.target.value }))}
-                required options={docTypes} />
-              <Input label="Version" value={docForm.Version}
-                onChange={e => setDocForm(p => ({ ...p, Version: e.target.value }))} />
-              <Input label="Expiry Date" type="date" value={docForm.ExpiryDate}
-                onChange={e => setDocForm(p => ({ ...p, ExpiryDate: e.target.value }))} />
-              <Input label="Uploaded By" value={docForm.UploadedBy}
-                onChange={e => setDocForm(p => ({ ...p, UploadedBy: e.target.value }))} />
-              <div style={{ gridColumn: '1/-1' }}>
-                <Textarea label="Remarks" value={docForm.Remarks}
-                  onChange={e => setDocForm(p => ({ ...p, Remarks: e.target.value }))} />
+        {activeTab === 'documents' && (() => {
+          const ALL_DOC_TYPES = [
+            { key: 'Aadhaar Card',                   icon: '🪪', color: '#2563eb', bg: '#dbeafe' },
+            { key: 'PAN Card',                       icon: '💳', color: '#7c3aed', bg: '#ede9fe' },
+            { key: 'GST Certificate',                icon: '📋', color: '#0891b2', bg: '#e0f2fe' },
+            { key: 'BMW Authorization',              icon: '🏥', color: '#16a34a', bg: '#dcfce7' },
+            { key: 'PCB Authorization',              icon: '🏭', color: '#d97706', bg: '#fef3c7' },
+            { key: 'Cancelled Cheque',               icon: '🏦', color: '#64748b', bg: '#f1f5f9' },
+            { key: 'Facility Photo (Display Board)', icon: '📷', color: '#0891b2', bg: '#e0f2fe' },
+            { key: 'Letterhead',                     icon: '📄', color: '#7c3aed', bg: '#ede9fe' },
+            { key: 'MoU Copy',                       icon: '📝', color: '#dc2626', bg: '#fee2e2' },
+            { key: 'Agreement Copy',                 icon: '📃', color: '#16a34a', bg: '#dcfce7' },
+            { key: 'NOC (CMO/RO Consent)',           icon: '✅', color: '#2563eb', bg: '#dbeafe' },
+          ];
+          const docMap = {};
+          docs.forEach(d => { docMap[d.DocumentType] = d; });
+
+          function docStatus(d) {
+            if (!d || !d.FilePath) return { label: 'Not Uploaded', color: '#94a3b8', bg: '#f1f5f9' };
+            const st = (d.DocStatus || 'Valid').toLowerCase();
+            if (st === 'expired')  return { label: 'Expired',  color: '#dc2626', bg: '#fee2e2' };
+            if (st === 'expiring') return { label: 'Expiring', color: '#92400e', bg: '#fef3c7' };
+            return { label: 'Valid', color: '#15803d', bg: '#dcfce7' };
+          }
+
+          const uploadedCount = ALL_DOC_TYPES.filter(dt => docMap[dt.key]?.FilePath).length;
+
+          return (
+            <div>
+              {/* Header */}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:8 }}>
+                <div>
+                  <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>📁 Document Repository</h3>
+                  <p style={{ margin:'2px 0 0', fontSize:11, color:'#64748b' }}>{uploadedCount}/{ALL_DOC_TYPES.length} documents uploaded · Updates by customer visible here in real-time</p>
+                </div>
+                <span style={{ fontSize:12, fontWeight:700, color:'#5b21b6', background:'#ede9fe', padding:'4px 12px', borderRadius:20 }}>
+                  {loadingDocs ? 'Loading...' : `${uploadedCount} uploaded`}
+                </span>
               </div>
-              <div style={{ gridColumn: '1/-1', textAlign: 'right' }}>
-                <button type="submit" className="btn btn-primary" disabled={savingDoc}>{savingDoc ? 'Adding...' : 'Add Document'}</button>
-              </div>
-            </form>
-            <div className="table-wrap">
-              {loadingDocs ? <div className="no-data">Loading...</div> : (
-                <table>
-                  <thead><tr><th>Type</th><th>Version</th><th>Expiry</th><th>Uploaded By</th><th>Remarks</th><th>Action</th></tr></thead>
-                  <tbody>
-                    {docs.length === 0
-                      ? <tr><td colSpan={6} className="no-data">No documents uploaded</td></tr>
-                      : docs.map(d => (
-                        <tr key={d.DocumentID}>
-                          <td>{d.DocumentType}</td><td>{d.Version}</td>
-                          <td>{d.ExpiryDate ? new Date(d.ExpiryDate).toLocaleDateString() : '—'}</td>
-                          <td>{d.UploadedBy}</td><td>{d.Remarks}</td>
-                          <td><ActionBtn label="🗑" color="#ef4444" onClick={() => deleteDoc(d.DocumentID)} /></td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+
+              {loadingDocs ? (
+                <div className="no-data">Loading documents...</div>
+              ) : (
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:12 }}>
+                  {ALL_DOC_TYPES.map(dt => {
+                    const d = docMap[dt.key];
+                    const sb = docStatus(d);
+                    const isUp = uploadingDocType === dt.key;
+                    const inputId = `adm-doc-${dt.key.replace(/\s+/g,'-')}`;
+                    return (
+                      <div key={dt.key} style={{
+                        background: d?.FilePath ? `linear-gradient(135deg,${dt.bg},#fff)` : '#fff',
+                        border: d?.FilePath ? `1.5px solid ${dt.color}44` : '1.5px dashed #e2e8f0',
+                        borderRadius:12, padding:12
+                      }}>
+                        {/* Icon + Name + Badge */}
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
+                          <div style={{
+                            width:36, height:36, borderRadius:8, flexShrink:0,
+                            background: d?.FilePath ? `linear-gradient(135deg,${dt.color},${dt.color}bb)` : '#f1f5f9',
+                            display:'flex', alignItems:'center', justifyContent:'center', fontSize:16
+                          }}>{dt.icon}</div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:11, fontWeight:700, color:'#1e293b', lineHeight:1.3, marginBottom:4 }}>{dt.key}</div>
+                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20, background:sb.bg, color:sb.color }}>
+                              {sb.label}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Meta */}
+                        {d?.FileName && (
+                          <div style={{ fontSize:10, color:'#64748b', background:'#f1f5f9', borderRadius:5, padding:'3px 7px', marginBottom:6, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            📎 {d.FileName}
+                          </div>
+                        )}
+                        {d && (
+                          <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6 }}>
+                            {d.Version || 'v1'} · {d.UploadSource === 'Customer' ? '👤 Customer' : '🏢 Admin'}
+                            {d.ExpiryDate ? ` · Exp: ${new Date(d.ExpiryDate).toLocaleDateString('en-IN')}` : ''}
+                          </div>
+                        )}
+
+                        {/* Buttons */}
+                        <div style={{ display:'flex', gap:5, marginTop:4 }}>
+                          {d?.FilePath && (
+                            <a href={d.FilePath} target="_blank" rel="noreferrer" style={{
+                              flex:1, textAlign:'center', padding:'5px 0', fontSize:10, fontWeight:700,
+                              background:'#fff', color:dt.color, border:`1.5px solid ${dt.color}`,
+                              borderRadius:6, textDecoration:'none', cursor:'pointer'
+                            }}>👁 View</a>
+                          )}
+                          <label htmlFor={inputId} style={{
+                            flex:1, textAlign:'center', padding:'5px 0', fontSize:10, fontWeight:700,
+                            background: isUp ? '#f1f5f9' : `linear-gradient(135deg,${dt.color},${dt.color}bb)`,
+                            color: isUp ? '#94a3b8' : '#fff',
+                            borderRadius:6, cursor: isUp ? 'not-allowed' : 'pointer', display:'block'
+                          }}>
+                            {isUp ? '⏳' : d?.FilePath ? '🔄 Update' : '⬆ Upload'}
+                            <input id={inputId} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                              style={{ display:'none' }} disabled={isUp}
+                              onChange={e => { if (e.target.files[0]) uploadDocFile(dt.key, e.target.files[0]); e.target.value = ''; }}
+                            />
+                          </label>
+                          {d && (
+                            <button onClick={() => deleteDoc(d.DocID)} style={{
+                              width:28, padding:'5px 0', fontSize:12, fontWeight:700,
+                              background:'#fee2e2', color:'#dc2626', border:'none', borderRadius:6, cursor:'pointer'
+                            }}>🗑</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Contacts */}
         {activeTab === 'contacts' && (
           <div>
-            <form onSubmit={addContact} style={{ ...formGrid, marginBottom: 20 }}>
-              <Input label="Contact Name" value={contactForm.ContactName} required
-                onChange={e => setContactForm(p => ({ ...p, ContactName: e.target.value }))} />
-              <Input label="Designation" value={contactForm.Designation}
-                onChange={e => setContactForm(p => ({ ...p, Designation: e.target.value }))} />
-              <Input label="Mobile" value={contactForm.Mobile} required
-                onChange={e => setContactForm(p => ({ ...p, Mobile: e.target.value }))} />
-              <Input label="Email" value={contactForm.Email} type="email"
-                onChange={e => setContactForm(p => ({ ...p, Email: e.target.value }))} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, gridColumn: '1/-1' }}>
-                <input type="checkbox" id="isPrimary" checked={contactForm.IsPrimary}
-                  onChange={e => setContactForm(p => ({ ...p, IsPrimary: e.target.checked }))} />
-                <label htmlFor="isPrimary" style={{ fontSize: 13, fontWeight: 600 }}>Primary Contact</label>
+            {/* Header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+              <div>
+                <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>👤 Contact Persons</h3>
+                <p style={{ margin:'3px 0 0', fontSize:11, color:'#64748b' }}>Manage authorized contacts for this HCF</p>
               </div>
-              <div style={{ gridColumn: '1/-1', textAlign: 'right' }}>
-                <button type="submit" className="btn btn-primary" disabled={savingContact}>{savingContact ? 'Adding...' : 'Add Contact'}</button>
+              <button onClick={() => setShowAddContact(true)} style={{
+                background:'linear-gradient(135deg,#5b21b6,#7c3aed)', color:'#fff', border:'none',
+                borderRadius:10, padding:'8px 16px', fontSize:12, fontWeight:700, cursor:'pointer'
+              }}>+ Add Contact</button>
+            </div>
+
+            {/* Add Contact inline form (toggle) */}
+            {showAddContact && (
+              <div style={{ background:'#f5f3ff', border:'1.5px solid #c4b5fd', borderRadius:12, padding:16, marginBottom:20 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'#5b21b6', marginBottom:12 }}>New Contact Person</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                  <div>
+                    <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Name *</label>
+                    <input value={contactForm.ContactName} onChange={e => setContactForm(p=>({...p,ContactName:e.target.value}))}
+                      style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }}
+                      placeholder="Dr. Ramesh Kumar" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Designation</label>
+                    <input value={contactForm.Designation} onChange={e => setContactForm(p=>({...p,Designation:e.target.value}))}
+                      style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }}
+                      placeholder="Director" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Mobile *</label>
+                    <input value={contactForm.Mobile} onChange={e => setContactForm(p=>({...p,Mobile:e.target.value}))}
+                      style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }}
+                      placeholder="98765-43210" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Email</label>
+                    <input value={contactForm.Email} type="email" onChange={e => setContactForm(p=>({...p,Email:e.target.value}))}
+                      style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }}
+                      placeholder="dr@hospital.com" />
+                  </div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+                  <input type="checkbox" id="admIsPrimary" checked={contactForm.IsPrimary}
+                    onChange={e => setContactForm(p=>({...p,IsPrimary:e.target.checked}))} />
+                  <label htmlFor="admIsPrimary" style={{ fontSize:12, fontWeight:600, color:'#374151' }}>Mark as Primary Contact</label>
+                </div>
+                <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                  <button onClick={() => { setShowAddContact(false); setContactForm({ ContactName:'', Designation:'', Mobile:'', Email:'', IsPrimary:false }); }}
+                    style={{ background:'#fff', color:'#64748b', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'7px 16px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                    Cancel
+                  </button>
+                  <button onClick={addContact} disabled={savingContact} style={{
+                    background:'linear-gradient(135deg,#5b21b6,#7c3aed)', color:'#fff', border:'none',
+                    borderRadius:8, padding:'7px 16px', fontSize:12, fontWeight:700, cursor:'pointer'
+                  }}>{savingContact ? 'Saving...' : 'Save Contact'}</button>
+                </div>
               </div>
-            </form>
-            {loadingContacts ? <div className="no-data">Loading...</div> : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px,1fr))', gap: 12 }}>
-                {contacts.length === 0 ? <div className="no-data">No contacts on file</div>
-                  : contacts.map(c => (
-                    <div key={c.ContactID} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 4 }}>
-                        {c.ContactName}
-                        {c.IsPrimary && <span style={{ ...badgeStyle({ bg: '#dbeafe', text: '#1e40af' }), marginLeft: 8 }}>Primary</span>}
+            )}
+
+            {/* Contact Cards */}
+            {loadingContacts ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40 }}>Loading contacts...</div>
+            ) : contacts.length === 0 ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40, background:'#f8fafc', borderRadius:12, border:'1.5px dashed #e2e8f0' }}>
+                No contact persons added yet
+              </div>
+            ) : (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:14 }}>
+                {contacts.map(c => {
+                  const initials = (c.ContactName || '?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+                  const colors = ['#7c3aed','#2563eb','#0891b2','#16a34a','#d97706','#dc2626'];
+                  const col = colors[c.ContactID % colors.length];
+                  return (
+                    <div key={c.ContactID} style={{
+                      background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:14, padding:16,
+                      position:'relative', transition:'box-shadow .2s',
+                      boxShadow: c.IsPrimary ? '0 0 0 2px #7c3aed22' : 'none'
+                    }}>
+                      <button onClick={() => deleteContact(c.ContactID)} style={{
+                        position:'absolute', top:10, right:10, background:'#fee2e2', color:'#dc2626',
+                        border:'none', borderRadius:6, width:26, height:26, fontSize:12, cursor:'pointer', fontWeight:700
+                      }}>✕</button>
+                      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
+                        <div style={{
+                          width:44, height:44, borderRadius:12,
+                          background:`linear-gradient(135deg,${col},${col}cc)`,
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          color:'#fff', fontWeight:800, fontSize:16, flexShrink:0
+                        }}>{initials}</div>
+                        <div>
+                          <div style={{ fontWeight:800, fontSize:14, color:'#1e293b' }}>{c.ContactName}</div>
+                          <div style={{ fontSize:12, color:'#64748b', marginTop:1 }}>{c.Designation || '—'}</div>
+                          {c.IsPrimary && (
+                            <span style={{ fontSize:10, fontWeight:700, background:'#dbeafe', color:'#1d4ed8', padding:'2px 8px', borderRadius:20, display:'inline-block', marginTop:4 }}>Primary</span>
+                          )}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>{c.Designation}</div>
-                      <div style={{ fontSize: 12, color: '#475569', marginTop: 6 }}>📱 {c.Mobile}</div>
-                      <div style={{ fontSize: 12, color: '#475569' }}>✉️ {c.Email}</div>
-                      <div style={{ marginTop: 10 }}>
-                        <ActionBtn label="🗑 Delete" color="#ef4444" onClick={() => deleteContact(c.ContactID)} />
+                      <div style={{ fontSize:12, color:'#475569', marginBottom:4 }}>📱 {c.Mobile || '—'}</div>
+                      <div style={{ fontSize:12, color:'#475569', marginBottom:12 }}>✉️ {c.Email || '—'}</div>
+                      <div style={{ display:'flex', gap:8 }}>
+                        {c.Mobile && (
+                          <a href={`https://wa.me/91${c.Mobile.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" style={{
+                            flex:1, textAlign:'center', padding:'6px 0', fontSize:11, fontWeight:700,
+                            background:'#dcfce7', color:'#15803d', borderRadius:8, textDecoration:'none'
+                          }}>💬 WhatsApp</a>
+                        )}
+                        {c.Email && (
+                          <a href={`mailto:${c.Email}`} style={{
+                            flex:1, textAlign:'center', padding:'6px 0', fontSize:11, fontWeight:700,
+                            background:'#dbeafe', color:'#1d4ed8', borderRadius:8, textDecoration:'none'
+                          }}>✉ Email</a>
+                        )}
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -777,8 +1098,49 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
 
         {/* Complaints */}
         {activeTab === 'complaints' && (
-          <div className="no-data" style={{ padding: 40 }}>No complaints recorded</div>
+          <div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+              <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>📣 Support Tickets</h3>
+              <span style={{ fontSize:11, color:'#64748b' }}>{complaints360.length} total</span>
+            </div>
+            {loadingComplaints360 ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40 }}>Loading...</div>
+            ) : complaints360.length === 0 ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40, background:'#f8fafc', borderRadius:12, border:'1.5px dashed #e2e8f0' }}>
+                No complaints/tickets raised by this HCF
+              </div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {complaints360.map(t => {
+                  const statusMap = { Open:{bg:'#dbeafe',c:'#1d4ed8'}, Closed:{bg:'#dcfce7',c:'#15803d'}, 'In Progress':{bg:'#fef3c7',c:'#92400e'} };
+                  const s = statusMap[t.Status] || statusMap.Open;
+                  const priMap = { High:{bg:'#fee2e2',c:'#dc2626'}, Medium:{bg:'#fef3c7',c:'#92400e'}, Low:{bg:'#f1f5f9',c:'#64748b'} };
+                  const p = priMap[t.Priority] || priMap.Medium;
+                  return (
+                    <div key={t.TicketID} style={{ background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:12, padding:14 }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:8 }}>
+                        <div>
+                          <span style={{ fontSize:10, fontFamily:'monospace', color:'#7c3aed', fontWeight:700 }}>{t.TicketCode || `TKT-${t.TicketID}`}</span>
+                          <div style={{ fontSize:13, fontWeight:700, color:'#1e293b', marginTop:2 }}>{t.Subject || t.Category}</div>
+                        </div>
+                        <div style={{ display:'flex', gap:6 }}>
+                          <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:s.bg, color:s.c }}>{t.Status}</span>
+                          <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:p.bg, color:p.c }}>{t.Priority}</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize:12, color:'#374151', fontWeight:500, marginBottom:6 }}>{t.Description}</div>
+                      <div style={{ fontSize:11, color:'#64748b' }}>
+                        Raised: {t.CreatedAt ? new Date(t.CreatedAt).toLocaleDateString('en-IN') : '—'} · Assigned: {t.AssignedTo || 'Unassigned'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
+
+        </div>{/* end tab body */}
       </div>
     </div>
   );
@@ -1558,6 +1920,14 @@ const SupportModule = ({ hcfMaster, showToast }) => {
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [ticketHistory, setTicketHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [updateNote, setUpdateNote] = useState('');
+  const [updateStatus, setUpdateStatus] = useState('');
+  const [savingUpdate, setSavingUpdate] = useState(false);
+
+  const adminUser = (() => { try { return JSON.parse(localStorage.getItem('adminUser') || '{}'); } catch { return {}; } })();
+  const currentAdminName = adminUser.username || adminUser.name || adminUser.email || 'Admin';
 
   const blankForm = {
     RegistrationID: '', HCFName: '', Zone: '', Route: '', Category: '',
@@ -1601,6 +1971,48 @@ const SupportModule = ({ hcfMaster, showToast }) => {
   const handleHCFSelect = (regId) => {
     const hcf = hcfMaster.find(h => String(h.RegistrationID) === String(regId));
     setForm(p => ({ ...p, RegistrationID: regId, HCFName: hcf?.InstitutionName || '', Zone: hcf?.Zone || '', Route: hcf?.Route || '' }));
+  };
+
+  const openViewModal = async (row) => {
+    setViewRow(row);
+    setUpdateStatus(row.Status || 'Open');
+    setUpdateNote('');
+    setShowViewModal(true);
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/support-tickets/${row.TicketID}/history`);
+      const json = await res.json();
+      setTicketHistory(Array.isArray(json) ? json : []);
+    } catch { setTicketHistory([]); }
+    finally { setLoadingHistory(false); }
+  };
+
+  const handleUpdateTicket = async () => {
+    if (!viewRow) return;
+    setSavingUpdate(true);
+    try {
+      await fetch(`/api/support-tickets/${viewRow.TicketID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: updateStatus,
+          assignedTo: viewRow.AssignedTo,
+          updatedBy: currentAdminName,
+          notes: updateNote,
+        }),
+      });
+      showToast('Ticket updated');
+      setUpdateNote('');
+      // Refresh history + list
+      const [hist, list] = await Promise.all([
+        fetch(`/api/support-tickets/${viewRow.TicketID}/history`).then(r => r.json()),
+        fetch('/api/support-tickets').then(r => r.json()),
+      ]);
+      setTicketHistory(Array.isArray(hist) ? hist : []);
+      setData(Array.isArray(list) ? list : []);
+      setViewRow(prev => ({ ...prev, Status: updateStatus }));
+    } catch { showToast('Update failed', 'error'); }
+    finally { setSavingUpdate(false); }
   };
 
   const handleSave = async (e) => {
@@ -1761,7 +2173,7 @@ const SupportModule = ({ hcfMaster, showToast }) => {
                     <td>{row.DueDate ? new Date(row.DueDate).toLocaleDateString() : '—'}</td>
                     <td>{row.AssignedTo}</td>
                     <td>
-                      <ActionBtn label="👁 View" color="#0ea5e9" onClick={() => { setViewRow(row); setShowViewModal(true); }} />
+                      <ActionBtn label="👁 View" color="#0ea5e9" onClick={() => openViewModal(row)} />
                       <ActionBtn label="✏️" color="#2563eb" onClick={() => handleEdit(row)} />
                       <ActionBtn label="🗑" color="#ef4444" onClick={() => handleDelete(row)} />
                     </td>
@@ -1854,46 +2266,140 @@ const SupportModule = ({ hcfMaster, showToast }) => {
         </div>
       )}
 
-      {/* View Modal */}
-      {showViewModal && viewRow && (
-        <div style={modalOverlay}>
-          <div style={modalBox(600)}>
-            <ModalHeader title={`Ticket — ${viewRow.TicketCode}`} onClose={() => setShowViewModal(false)} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px', marginBottom: 16 }}>
-              {[
-                ['Ticket Code', viewRow.TicketCode], ['HCF Name', viewRow.HCFName],
-                ['Zone', viewRow.Zone], ['Route', viewRow.Route],
-                ['Category', viewRow.Category], ['Priority', viewRow.Priority],
-                ['Status', viewRow.Status], ['Assigned To', viewRow.AssignedTo],
-                ['Due Date', viewRow.DueDate ? new Date(viewRow.DueDate).toLocaleDateString() : '—'],
-                ['Created', viewRow.CreatedAt ? new Date(viewRow.CreatedAt).toLocaleDateString() : '—'],
-              ].map(([lbl, val]) => (
-                <div key={lbl} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 8 }}>
-                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>{lbl}</div>
-                  <div style={{ fontSize: 14, color: '#1e293b', fontWeight: 500, marginTop: 2 }}>{val || '—'}</div>
+      {/* View Modal — with Update & History */}
+      {showViewModal && viewRow && (() => {
+        const STATUS_COLORS = { Open:'#2563eb', 'In Progress':'#d97706', Resolved:'#16a34a', Closed:'#64748b', Escalated:'#dc2626' };
+        const sc = STATUS_COLORS[viewRow.Status] || '#2563eb';
+        return (
+          <div style={modalOverlay}>
+            <div style={{ ...modalBox(720), maxHeight:'90vh', overflowY:'auto', display:'flex', flexDirection:'column', gap:0 }}>
+              {/* Header */}
+              <div style={{ background:'linear-gradient(135deg,#0f172a,#1e3a5f)', borderRadius:'14px 14px 0 0', padding:'18px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div>
+                  <div style={{ fontFamily:'monospace', fontSize:12, color:'#94a3b8', marginBottom:4 }}>{viewRow.TicketCode}</div>
+                  <div style={{ fontSize:16, fontWeight:800, color:'#fff' }}>{viewRow.Subject || viewRow.Category}</div>
+                  <div style={{ fontSize:12, color:'#94a3b8', marginTop:3 }}>{viewRow.HCFName} · {viewRow.Category}</div>
                 </div>
-              ))}
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>SUBJECT</div>
-              <div style={{ fontSize: 14, color: '#1e293b', fontWeight: 600 }}>{viewRow.Subject}</div>
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>DESCRIPTION</div>
-              <div style={{ fontSize: 13, color: '#475569', background: '#f8fafc', borderRadius: 6, padding: 12 }}>{viewRow.Description}</div>
-            </div>
-            {viewRow.Resolution && (
-              <div>
-                <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>RESOLUTION</div>
-                <div style={{ fontSize: 13, color: '#065f46', background: '#d1fae5', borderRadius: 6, padding: 12 }}>{viewRow.Resolution}</div>
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6 }}>
+                  <span style={{ fontSize:11, fontWeight:700, padding:'4px 12px', borderRadius:20, background:`${sc}22`, color:sc, border:`1.5px solid ${sc}44` }}>{viewRow.Status}</span>
+                  <span style={{ fontSize:11, color:'#64748b' }}>
+                    {viewRow.Priority === 'Critical' || viewRow.Priority === 'High' ? '🔴' : viewRow.Priority === 'Medium' ? '🟡' : '🟢'} {viewRow.Priority}
+                  </span>
+                  <button onClick={() => setShowViewModal(false)} style={{ background:'none', border:'none', color:'#94a3b8', fontSize:20, cursor:'pointer', lineHeight:1 }}>✕</button>
+                </div>
               </div>
-            )}
-            <div style={{ marginTop: 20, textAlign: 'right' }}>
-              <button className="btn btn-export" onClick={() => setShowViewModal(false)}>Close</button>
+
+              <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:16 }}>
+                {/* Details grid */}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 24px' }}>
+                  {[
+                    ['HCF Name', viewRow.HCFName], ['Zone / Route', `${viewRow.Zone||'—'} / ${viewRow.Route||'—'}`],
+                    ['Assigned To', viewRow.AssignedTo], ['Due Date', viewRow.DueDate ? new Date(viewRow.DueDate).toLocaleDateString('en-IN') : '—'],
+                    ['Created', viewRow.CreatedAt ? new Date(viewRow.CreatedAt).toLocaleDateString('en-IN') : '—'],
+                    ['Last Updated', viewRow.UpdatedAt ? new Date(viewRow.UpdatedAt).toLocaleDateString('en-IN') : '—'],
+                  ].map(([lbl,val]) => (
+                    <div key={lbl} style={{ borderBottom:'1px solid #f1f5f9', paddingBottom:8 }}>
+                      <div style={{ fontSize:10, color:'#94a3b8', fontWeight:700, textTransform:'uppercase', letterSpacing:.5 }}>{lbl}</div>
+                      <div style={{ fontSize:13, color:'#1e293b', fontWeight:600, marginTop:2 }}>{val||'—'}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Description */}
+                <div>
+                  <div style={{ fontSize:11, color:'#94a3b8', fontWeight:700, textTransform:'uppercase', marginBottom:6 }}>Description</div>
+                  <div style={{ fontSize:13, color:'#475569', background:'#f8fafc', borderRadius:8, padding:'10px 14px', lineHeight:1.6 }}>{viewRow.Description||'—'}</div>
+                </div>
+
+                {viewRow.Resolution && (
+                  <div>
+                    <div style={{ fontSize:11, color:'#15803d', fontWeight:700, textTransform:'uppercase', marginBottom:6 }}>Resolution</div>
+                    <div style={{ fontSize:13, color:'#065f46', background:'#dcfce7', borderRadius:8, padding:'10px 14px' }}>{viewRow.Resolution}</div>
+                  </div>
+                )}
+
+                {/* ─── Update Action Panel ─── */}
+                <div style={{ background:'#f5f3ff', border:'1.5px solid #c4b5fd', borderRadius:12, padding:16 }}>
+                  <div style={{ fontSize:13, fontWeight:800, color:'#5b21b6', marginBottom:12 }}>✏️ Update Ticket</div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+                    <div>
+                      <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:5 }}>Change Status</label>
+                      <select value={updateStatus} onChange={e => setUpdateStatus(e.target.value)} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13 }}>
+                        {['Open','In Progress','Resolved','Closed','Escalated'].map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:5 }}>Updated By</label>
+                      <input value={currentAdminName} readOnly style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, background:'#f8fafc', color:'#5b21b6', fontWeight:700, boxSizing:'border-box' }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom:12 }}>
+                    <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:5 }}>Update Notes / Remarks</label>
+                    <textarea
+                      value={updateNote}
+                      onChange={e => setUpdateNote(e.target.value)}
+                      placeholder="Add update notes, action taken, or resolution details..."
+                      rows={3}
+                      style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, resize:'vertical', boxSizing:'border-box', fontFamily:'inherit' }}
+                    />
+                  </div>
+                  <button onClick={handleUpdateTicket} disabled={savingUpdate} style={{
+                    padding:'9px 24px', background:'linear-gradient(135deg,#5b21b6,#7c3aed)', color:'#fff',
+                    border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor: savingUpdate ? 'not-allowed' : 'pointer',
+                    opacity: savingUpdate ? .7 : 1
+                  }}>{savingUpdate ? '⏳ Saving...' : '💾 Save Update'}</button>
+                </div>
+
+                {/* ─── Update History Timeline ─── */}
+                <div>
+                  <div style={{ fontSize:13, fontWeight:800, color:'#1e293b', marginBottom:12 }}>🕐 Update History</div>
+                  {loadingHistory ? (
+                    <div style={{ color:'#94a3b8', fontSize:12, textAlign:'center', padding:20 }}>Loading history...</div>
+                  ) : ticketHistory.length === 0 ? (
+                    <div style={{ color:'#94a3b8', fontSize:12, textAlign:'center', padding:'16px', background:'#f8fafc', borderRadius:8, border:'1.5px dashed #e2e8f0' }}>No updates recorded yet</div>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+                      {ticketHistory.map((h, i) => {
+                        const isAdmin = h.Source === 'Admin';
+                        const statusChanged = h.OldStatus !== h.NewStatus;
+                        return (
+                          <div key={h.UpdateID} style={{ display:'flex', gap:12, paddingBottom:14 }}>
+                            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', flexShrink:0 }}>
+                              <div style={{ width:32, height:32, borderRadius:'50%', background: isAdmin ? 'linear-gradient(135deg,#5b21b6,#7c3aed)' : 'linear-gradient(135deg,#0891b2,#0e7490)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:13, fontWeight:700 }}>
+                                {isAdmin ? '👤' : '🏥'}
+                              </div>
+                              {i < ticketHistory.length - 1 && <div style={{ width:2, flex:1, background:'#e2e8f0', margin:'4px 0' }} />}
+                            </div>
+                            <div style={{ flex:1, paddingTop:4 }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 }}>
+                                <span style={{ fontSize:12, fontWeight:700, color:'#1e293b' }}>{h.UpdatedBy}</span>
+                                <span style={{ fontSize:10, color:'#94a3b8' }}>{isAdmin ? 'Admin' : 'Customer'}</span>
+                                {statusChanged && (
+                                  <span style={{ fontSize:10, fontWeight:700 }}>
+                                    <span style={{ color:'#dc2626' }}>{h.OldStatus}</span>
+                                    <span style={{ color:'#94a3b8', margin:'0 4px' }}>→</span>
+                                    <span style={{ color:'#16a34a' }}>{h.NewStatus}</span>
+                                  </span>
+                                )}
+                              </div>
+                              {h.Notes && <div style={{ fontSize:12, color:'#475569', background:'#f8fafc', borderRadius:6, padding:'6px 10px', marginBottom:4 }}>{h.Notes}</div>}
+                              <div style={{ fontSize:10, color:'#94a3b8' }}>{h.CreatedAt ? new Date(h.CreatedAt).toLocaleString('en-IN') : ''}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ textAlign:'right' }}>
+                  <button className="btn btn-export" onClick={() => setShowViewModal(false)}>Close</button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Edit Modal */}
       {showEditModal && editRow && (

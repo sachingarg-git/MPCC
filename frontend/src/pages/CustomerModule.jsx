@@ -1832,6 +1832,19 @@ const CustomerModule = () => {
           )}
         </div>
 
+        {/* Row count */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+          <span style={{ fontSize:12, color:'#64748b', fontWeight:600 }}>
+            Showing <strong style={{ color:'#1e293b' }}>
+              {activeSubModule==='customer-reg' ? customerRegistrations.length
+               : activeSubModule==='certificate' ? certificates.length
+               : activeSubModule==='servicereq' ? serviceRequests.length
+               : activeSubModule==='mou' ? mouRecords.length
+               : failedRegistrations.length}
+            </strong> records
+          </span>
+        </div>
+
         {/* Table Section */}
         <div className="table-wrap">
           <table id={content.tableId} style={{minWidth: '1400px'}}>
@@ -1866,27 +1879,29 @@ const CustomerModule = () => {
               {activeSubModule === 'customer-reg' && customerRegistrations.length > 0 ? (
                 customerRegistrations.map((reg, idx) => (
                   <tr key={idx}>
-                    <td style={{fontWeight:'600', color:'#7c3aed'}}>{reg.CustomerID || reg.RegistrationCode || 'N/A'}</td>
-                    <td>{reg.InstitutionName}</td>
-                    <td>{reg.Category || reg.InstitutionType || 'N/A'}</td>
-                    <td>{reg.SubCategory || 'N/A'}</td>
-                    <td>{reg.Zone || 'N/A'}</td>
-                    <td>{reg.Route || 'N/A'}</td>
-                    <td>{reg.Mobile || 'N/A'}</td>
-                    <td>{reg.Email || 'N/A'}</td>
-                    <td>{reg.SelectedPlan || 'N/A'}</td>
-                    <td>{reg.NumberOfBeds || 0}</td>
-                    <td>{reg.Kit || 'N/A'}</td>
-                    <td>{reg.Consulting || 'N/A'}</td>
-                    <td>{reg.Compliance || 'N/A'}</td>
-                    <td>{reg.RegistrationDate ? new Date(reg.RegistrationDate).toLocaleDateString() : (reg.CreatedAt ? new Date(reg.CreatedAt).toLocaleDateString() : 'N/A')}</td>
-                    <td><span style={{padding:'4px 8px', borderRadius:'4px', background: reg.Status === 'Approved' ? '#d1fae5' : reg.Status === 'Pending' ? '#fef3c7' : '#fee2e2', color: reg.Status === 'Approved' ? '#065f46' : reg.Status === 'Pending' ? '#92400e' : '#7f1d1d', fontSize:'11px', fontWeight:'600'}}>{reg.Status}</span></td>
-                    <td style={{textAlign: 'center'}}>--</td>
-                    <td style={{textAlign: 'center', whiteSpace:'nowrap'}}>
-                      <button onClick={() => handleViewRegistration(reg)} style={{background:'#ede9fe', border:'none', color:'#7c3aed', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px', marginRight:'4px'}}>👁 View</button>
-                      <button onClick={() => handleEditRegistration(reg)} style={{background:'#dbeafe', border:'none', color:'#1d4ed8', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px', marginRight:'4px'}}>✏️ Edit</button>
-                      <button onClick={() => handleEnablePortal(reg)} style={{background: reg.PortalEnabled ? '#d1fae5' : '#f5f3ff', border:'none', color: reg.PortalEnabled ? '#065f46' : '#5b21b6', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px', marginRight:'4px'}}>🔐 {reg.PortalEnabled ? 'Portal ✓' : 'Portal'}</button>
-                      <button onClick={() => handleDeleteRegistration(reg.RegistrationID)} style={{background:'#fee2e2', border:'none', color:'#dc2626', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px'}}>🗑 Del</button>
+                    <td><span style={{display:'inline-block',background:'linear-gradient(135deg,#5b21b6,#7c3aed)',color:'#fff',fontWeight:800,fontSize:12,borderRadius:6,padding:'3px 9px'}}>{reg.CustomerID || reg.RegistrationCode || 'N/A'}</span></td>
+                    <td style={{fontWeight:800,color:'#0f172a'}}>{reg.InstitutionName}</td>
+                    <td><span style={{background:'#e2e8f0',color:'#1e293b',fontSize:11,fontWeight:700,borderRadius:5,padding:'3px 8px'}}>{reg.Category || reg.InstitutionType || 'N/A'}</span></td>
+                    <td style={{fontWeight:600}}>{reg.SubCategory || '—'}</td>
+                    <td><span style={{background:'#ede9fe',color:'#4c1d95',fontSize:11,fontWeight:800,borderRadius:5,padding:'3px 8px'}}>{reg.Zone || '—'}</span></td>
+                    <td><span style={{background:'#dbeafe',color:'#1e40af',fontSize:11,fontWeight:800,borderRadius:5,padding:'3px 8px'}}>{reg.Route || '—'}</span></td>
+                    <td style={{fontWeight:800,color:'#1d4ed8'}}>{reg.Mobile || '—'}</td>
+                    <td style={{fontWeight:600,color:'#0f172a'}}>{reg.Email || '—'}</td>
+                    <td style={{fontWeight:700}}>{reg.SelectedPlan || '—'}</td>
+                    <td style={{fontWeight:700,textAlign:'center'}}>{reg.NumberOfBeds || 0}</td>
+                    <td style={{fontWeight:600}}>{reg.Kit || '—'}</td>
+                    <td style={{fontWeight:600}}>{reg.Consulting || '—'}</td>
+                    <td style={{fontWeight:600}}>{reg.Compliance || '—'}</td>
+                    <td style={{fontWeight:700,color:'#374151'}}>{reg.RegistrationDate ? new Date(reg.RegistrationDate).toLocaleDateString('en-IN') : (reg.CreatedAt ? new Date(reg.CreatedAt).toLocaleDateString('en-IN') : '—')}</td>
+                    <td><span style={{padding:'4px 10px',borderRadius:20,fontWeight:800,fontSize:11, background:reg.Status==='Approved'?'#d1fae5':reg.Status==='Pending'?'#fef3c7':'#fee2e2', color:reg.Status==='Approved'?'#065f46':reg.Status==='Pending'?'#92400e':'#7f1d1d'}}>{reg.Status}</span></td>
+                    <td style={{fontWeight:600,color:'#94a3b8',textAlign:'center'}}>—</td>
+                    <td style={{whiteSpace:'nowrap'}}>
+                      <div style={{display:'flex',gap:4}}>
+                        <button onClick={() => handleViewRegistration(reg)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>👁 View</button>
+                        <button onClick={() => handleEditRegistration(reg)} style={{background:'linear-gradient(135deg,#0369a1,#0ea5e9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>✏ Edit</button>
+                        <button onClick={() => handleEnablePortal(reg)} style={{background:reg.PortalEnabled?'linear-gradient(135deg,#16a34a,#15803d)':'linear-gradient(135deg,#5b21b6,#7c3aed)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>🔐 {reg.PortalEnabled?'✓':'Portal'}</button>
+                        <button onClick={() => handleDeleteRegistration(reg.RegistrationID)} style={{background:'linear-gradient(135deg,#dc2626,#ef4444)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 9px',borderRadius:6}}>🗑</button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -1910,9 +1925,9 @@ const CustomerModule = () => {
                       }}>{cert.Status}</span>
                     </td>
                     <td style={{textAlign:'center', whiteSpace:'nowrap'}}>
-                      <button onClick={() => handleViewCertificate(cert)} style={{background:'#ede9fe', border:'none', color:'#7c3aed', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px', marginRight:'4px'}}>👁 View</button>
-                      <button onClick={() => handlePrintCertificate(cert)} style={{background:'#d1fae5', border:'none', color:'#065f46', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px', marginRight:'4px'}}>🖨 Print</button>
-                      <button onClick={() => handleDeleteCertificate(cert.CertificateID)} style={{background:'#fee2e2', border:'none', color:'#dc2626', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px'}}>🗑 Del</button>
+                        <button onClick={() => handleViewCertificate(cert)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>👁 View</button>
+                        <button onClick={() => handlePrintCertificate(cert)} style={{background:'linear-gradient(135deg,#16a34a,#15803d)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>🖨 Print</button>
+                        <button onClick={() => handleDeleteCertificate(cert.CertificateID)} style={{background:'linear-gradient(135deg,#dc2626,#ef4444)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 9px',borderRadius:6}}>🗑</button>
                     </td>
                   </tr>
                 ))
@@ -1920,9 +1935,7 @@ const CustomerModule = () => {
                 serviceRequests.map((req, idx) => (
                   <tr key={idx}
                       onClick={() => openFollowupModal(req)}
-                      style={{cursor:'pointer', transition:'background 0.15s'}}
-                      onMouseEnter={e => e.currentTarget.style.background='#f5f3ff'}
-                      onMouseLeave={e => e.currentTarget.style.background=''}>
+                      style={{cursor:'pointer', transition:'background 0.15s'}}>
                     <td style={{color:'#7c3aed', fontWeight:'600'}}>{req.RequestCode}</td>
                     <td>{req.CustomerName}</td>
                     <td>{req.RequestType}</td>
@@ -1937,15 +1950,13 @@ const CustomerModule = () => {
                       }}>{req.Status}</span>
                     </td>
                     <td style={{textAlign:'center'}} onClick={e => e.stopPropagation()}>
-                      <button onClick={() => openFollowupModal(req)} style={{background:'#ede9fe', border:'none', color:'#6d28d9', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 10px', borderRadius:'4px'}}>Follow-up</button>
+                      <button onClick={() => openFollowupModal(req)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 11px',borderRadius:6}}>Follow-up</button>
                     </td>
                   </tr>
                 ))
               ) : activeSubModule === 'mou' && mouRecords.length > 0 ? (
                 mouRecords.map((mou, idx) => (
-                  <tr key={idx} style={{transition:'background 0.15s'}}
-                      onMouseEnter={e => e.currentTarget.style.background='#f5f3ff'}
-                      onMouseLeave={e => e.currentTarget.style.background=''}>
+                  <tr key={idx} style={{transition:'background 0.15s'}}>
                     <td style={{fontWeight:'600', color:'#7c3aed'}}>{mou.MOUCode}</td>
                     <td>{mou.CustomerName}</td>
                     <td>--</td>
@@ -1960,9 +1971,9 @@ const CustomerModule = () => {
                       }}>{mou.Status}</span>
                     </td>
                     <td style={{textAlign:'center', whiteSpace:'nowrap'}}>
-                      <button onClick={() => handleViewMou(mou)} style={{background:'#ede9fe', border:'none', color:'#7c3aed', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 9px', borderRadius:'4px', marginRight:'4px'}}>👁 View</button>
-                      <button onClick={() => handleEditMou(mou)} style={{background:'#dbeafe', border:'none', color:'#1d4ed8', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 9px', borderRadius:'4px', marginRight:'4px'}}>✏️ Edit</button>
-                      <button onClick={() => handleDeleteMou(mou.MOUID)} style={{background:'#fee2e2', border:'none', color:'#dc2626', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 9px', borderRadius:'4px'}}>🗑 Del</button>
+                        <button onClick={() => handleViewMou(mou)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>👁 View</button>
+                        <button onClick={() => handleEditMou(mou)} style={{background:'linear-gradient(135deg,#0369a1,#0ea5e9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>✏ Edit</button>
+                        <button onClick={() => handleDeleteMou(mou.MOUID)} style={{background:'linear-gradient(135deg,#dc2626,#ef4444)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 9px',borderRadius:6}}>🗑</button>
                     </td>
                   </tr>
                 ))

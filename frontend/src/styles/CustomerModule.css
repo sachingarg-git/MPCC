@@ -186,46 +186,103 @@
   color: #ef4444;
 }
 
-/* Table Styles */
+/* ════════════════════════════════════════════
+   EXCEL-STYLE MASTER TABLE
+   ════════════════════════════════════════════ */
 .table-wrap {
-  background: white;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 10px;
+  border: 2.5px solid #475569;
   overflow-x: auto;
-  margin-bottom: 25px;
+  margin-bottom: 20px;
+  box-shadow: 0 6px 28px rgba(0,0,0,0.13);
 }
 
 .table-wrap table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: 14px;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
+/* ── Header row ── */
 .table-wrap thead {
-  background: #f1f5f9;
-  border-bottom: 2px solid #e2e8f0;
+  background: #1e293b;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 3px 0 #6d28d9;
 }
 
 .table-wrap th {
-  padding: 13px 15px;
+  padding: 15px 16px;
   text-align: left;
-  font-weight: 700;
-  font-size: 12.5px;
-  color: #0f172a;
+  font-weight: 900;
+  color: #ffffff;
   white-space: nowrap;
+  font-size: 11.5px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.09em;
+  border-right: 2px solid rgba(255,255,255,0.15);
 }
 
+.table-wrap th:last-child {
+  border-right: none;
+}
+
+/* ── Data cells — thick visible gridlines ── */
 .table-wrap td {
-  padding: 12px 15px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #1e293b;
-  font-weight: 500;
+  padding: 13px 16px;
+  border-bottom: 2px solid #cbd5e1;
+  border-right: 2px solid #cbd5e1;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 600;
+  vertical-align: middle;
+  height: 58px;
+  background: inherit;
+}
+
+.table-wrap td:last-child {
+  border-right: none;
+}
+
+/* ── Alternating zebra rows ── */
+.table-wrap tbody tr:nth-child(odd) {
+  background: #ffffff;
+}
+
+.table-wrap tbody tr:nth-child(even) {
+  background: #f1f5ff;
+}
+
+/* ── Hover = Excel row selection ── */
+.table-wrap tbody tr {
+  transition: background 0.1s, box-shadow 0.1s;
+  cursor: pointer;
 }
 
 .table-wrap tbody tr:hover {
-  background: #f5f3ff;
+  background: #bfdbfe !important;
+  box-shadow: inset 4px 0 0 #2563eb, inset -1px 0 0 #93c5fd;
+}
+
+.table-wrap tbody tr:hover td {
+  color: #1e3a8a;
+  font-weight: 700;
+  border-right-color: #93c5fd;
+  border-bottom-color: #bfdbfe;
+}
+
+/* ── Footer total row ── */
+.table-wrap tfoot td {
+  font-size: 13px;
+  color: #f1f5f9;
+  font-weight: 900;
+  padding: 12px 16px;
+  border-right: 2px solid rgba(255,255,255,0.15);
+  border-bottom: none;
+  background: linear-gradient(135deg,#1e293b,#334155);
 }
 
 /* Filter Row */

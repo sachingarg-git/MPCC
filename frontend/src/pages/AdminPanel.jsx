@@ -1344,7 +1344,7 @@ export default function AdminPanel({ user, onLogout }) {
             return (
               <button
                 key={item.id}
-                onClick={() => { setActiveMainNav(item.id); setShowModal(false) }}
+                onClick={() => { setActiveMainNav(item.id); setShowModal(false); setSidebarCollapsed(true); }}
                 title={sidebarCollapsed ? item.label : ''}
                 style={{
                   width: '100%',

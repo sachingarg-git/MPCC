@@ -914,10 +914,12 @@ const MasterDataModule = () => {
   );
 
   const actionBtns = (row) => (
-    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-      <button onClick={() => handleView(row)} style={{ background: '#ede9fe', border: 'none', color: '#7c3aed', cursor: 'pointer', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '4px', marginRight: '4px' }}>👁 View</button>
-      <button onClick={() => handleEdit(row)} style={{ background: '#dbeafe', border: 'none', color: '#1d4ed8', cursor: 'pointer', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '4px', marginRight: '4px' }}>✏️ Edit</button>
-      <button onClick={() => handleDelete(row)} style={{ background: '#fee2e2', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '4px' }}>🗑 Del</button>
+    <td style={{ whiteSpace: 'nowrap' }}>
+      <div style={{ display:'flex', gap:5 }}>
+        <button onClick={() => handleView(row)} style={{ background:'linear-gradient(135deg,#7c3aed,#6d28d9)', border:'none', color:'#fff', cursor:'pointer', fontSize:'11px', fontWeight:'800', padding:'5px 11px', borderRadius:'6px', boxShadow:'0 2px 6px rgba(124,58,237,0.3)' }}>👁 View</button>
+        <button onClick={() => handleEdit(row)} style={{ background:'linear-gradient(135deg,#0369a1,#0ea5e9)', border:'none', color:'#fff', cursor:'pointer', fontSize:'11px', fontWeight:'800', padding:'5px 11px', borderRadius:'6px', boxShadow:'0 2px 6px rgba(3,105,161,0.3)' }}>✏ Edit</button>
+        <button onClick={() => handleDelete(row)} style={{ background:'linear-gradient(135deg,#dc2626,#ef4444)', border:'none', color:'#fff', cursor:'pointer', fontSize:'11px', fontWeight:'800', padding:'5px 11px', borderRadius:'6px', boxShadow:'0 2px 6px rgba(220,38,38,0.3)' }}>🗑</button>
+      </div>
     </td>
   );
 
@@ -1108,6 +1110,14 @@ const MasterDataModule = () => {
         {loading ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Loading data...</div>
         ) : (
+          <>
+          {/* Row count info */}
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+            <span style={{ fontSize:12, color:'#64748b', fontWeight:600 }}>
+              Showing <strong style={{ color:'#1e293b' }}>{getRawData().length}</strong> records
+            </span>
+          </div>
+
           <div className="table-wrap">
             <table style={{ minWidth: '900px' }}>
               <thead>
@@ -1120,24 +1130,30 @@ const MasterDataModule = () => {
               <tbody>
                 {getRawData().length > 0 ? (
                   getRawData().map((row, idx) => (
-                    <tr key={idx}
-                        style={{ cursor: 'pointer' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f5f3ff'}
-                        onMouseLeave={e => e.currentTarget.style.background = ''}>
+                    <tr key={idx}>
                       {renderRowCells(row)}
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={content.columns.length} style={{ textAlign: 'center', padding: '50px', color: '#94a3b8', fontSize: '14px' }}>
+                    <td colSpan={content.columns.length} style={{ textAlign: 'center', padding: '50px', color: '#94a3b8', fontSize: '14px', fontWeight:600 }}>
                       <div style={{ fontSize: '32px', marginBottom: '8px' }}>📭</div>
                       No data found. Click <strong>+ Add</strong> to create the first record.
                     </td>
                   </tr>
                 )}
               </tbody>
+              {getRawData().length > 0 && (
+                <tfoot>
+                  <tr>
+                    <td colSpan={content.columns.length - 1}>📊 Total: {getRawData().length} records</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
+          </>
         )}
       </div>
 

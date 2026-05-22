@@ -2,6 +2,9 @@ const express = require('express');
 const sql = require('mssql');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -15,6 +18,30 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+
+// ─── File Upload (multer) ────────────────────────────────────────────────────
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e6);
+    cb(null, unique + path.extname(file.originalname));
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /pdf|jpg|jpeg|png|doc|docx/i;
+    const ext = path.extname(file.originalname).slice(1);
+    cb(null, allowed.test(ext));
+  }
+});
+
+// Serve uploaded files publicly
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Database configuration
 const sqlConfig = {
@@ -138,9 +165,29 @@ async function ensureTablesExist() {
           ExpiryDate DATE NULL,
           UploadedBy NVARCHAR(100),
           Remarks NVARCHAR(500),
-          CreatedAt DATETIME DEFAULT GETDATE()
+          FileName NVARCHAR(300) NULL,
+          FilePath NVARCHAR(500) NULL,
+          FileSize INT NULL,
+          MimeType NVARCHAR(100) NULL,
+          UploadSource NVARCHAR(50) NULL,
+          DocStatus NVARCHAR(50) NULL DEFAULT 'Valid',
+          CreatedAt DATETIME DEFAULT GETDATE(),
+          UpdatedAt DATETIME NULL
         )
       `);
+      // Migrate existing table — add columns if missing
+      const colMigs = [
+        `IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('HCFDocuments') AND name='FileName') ALTER TABLE HCFDocuments ADD FileName NVARCHAR(300) NULL`,
+        `IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('HCFDocuments') AND name='FilePath') ALTER TABLE HCFDocuments ADD FilePath NVARCHAR(500) NULL`,
+        `IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('HCFDocuments') AND name='FileSize') ALTER TABLE HCFDocuments ADD FileSize INT NULL`,
+        `IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('HCFDocuments') AND name='MimeType') ALTER TABLE HCFDocuments ADD MimeType NVARCHAR(100) NULL`,
+        `IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('HCFDocuments') AND name='UploadSource') ALTER TABLE HCFDocuments ADD UploadSource NVARCHAR(50) NULL`,
+        `IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('HCFDocuments') AND name='DocStatus') ALTER TABLE HCFDocuments ADD DocStatus NVARCHAR(50) NULL DEFAULT 'Valid'`,
+        `IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('HCFDocuments') AND name='UpdatedAt') ALTER TABLE HCFDocuments ADD UpdatedAt DATETIME NULL`,
+      ];
+      for (const q of colMigs) {
+        try { await pool.request().query(q); } catch(e) { console.warn('HCFDoc col mig:', e.message); }
+      }
       console.log('✓ HCFDocuments table ready');
     } catch(e) { console.warn('HCFDocuments init warn:', e.message); }
 
@@ -161,6 +208,26 @@ async function ensureTablesExist() {
       `);
       console.log('✓ HCFContacts table ready');
     } catch(e) { console.warn('HCFContacts init warn:', e.message); }
+
+    // ProfileUpdateHistory
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ProfileUpdateHistory' AND xtype='U')
+        CREATE TABLE ProfileUpdateHistory (
+          HistoryID INT PRIMARY KEY IDENTITY(1,1),
+          RegistrationID INT,
+          UpdatedBy NVARCHAR(100),
+          FieldChanged NVARCHAR(200),
+          OldValue NVARCHAR(500),
+          NewValue NVARCHAR(500),
+          Remarks NVARCHAR(500),
+          AttachmentPath NVARCHAR(500) NULL,
+          AttachmentName NVARCHAR(300) NULL,
+          CreatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ ProfileUpdateHistory table ready');
+    } catch(e) { console.warn('ProfileUpdateHistory init warn:', e.message); }
 
     // HCFApprovals
     try {
@@ -258,6 +325,24 @@ async function ensureTablesExist() {
       `);
       console.log('✓ HCFSupportTickets table ready');
     } catch(e) { console.warn('HCFSupportTickets init warn:', e.message); }
+
+    // TicketUpdateHistory
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='TicketUpdateHistory' AND xtype='U')
+        CREATE TABLE TicketUpdateHistory (
+          UpdateID INT PRIMARY KEY IDENTITY(1,1),
+          TicketID INT NOT NULL,
+          UpdatedBy NVARCHAR(100),
+          OldStatus NVARCHAR(50),
+          NewStatus NVARCHAR(50),
+          Notes NVARCHAR(1000),
+          Source NVARCHAR(20) DEFAULT 'Admin',
+          CreatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ TicketUpdateHistory table ready');
+    } catch(e) { console.warn('TicketUpdateHistory init warn:', e.message); }
 
     // Certificates — no FK to Customers, linked to CustomerRegistrations
     await pool.request().query(`
@@ -2503,13 +2588,17 @@ app.put('/api/hcf-master/:id/state', async (req, res) => {
 // HCF DOCUMENTS ENDPOINTS
 // ============================================
 
+// ============================================
+// HCF DOCUMENTS ENDPOINTS (with file upload)
+// ============================================
+
 // GET /api/hcf-documents?registrationId=X
 app.get('/api/hcf-documents', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
     const { registrationId } = req.query;
-    let query = `SELECT * FROM HCFDocuments`;
     const req2 = pool.request();
+    let query = `SELECT * FROM HCFDocuments`;
     if (registrationId) {
       query += ` WHERE RegistrationID=@registrationId`;
       req2.input('registrationId', sql.Int, parseInt(registrationId));
@@ -2523,20 +2612,90 @@ app.get('/api/hcf-documents', async (req, res) => {
   }
 });
 
-// POST /api/hcf-documents
+// POST /api/hcf-documents/upload  (multipart — with actual file)
+app.post('/api/hcf-documents/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, documentType, version, expiryDate, uploadedBy, remarks, uploadSource, docStatus } = req.body;
+    const file = req.file;
+    const fileName = file ? file.originalname : null;
+    const filePath  = file ? `/uploads/${file.filename}` : null;
+    const fileSize  = file ? file.size : null;
+    const mimeType  = file ? file.mimetype : null;
+
+    // Upsert: if same RegistrationID + DocumentType exists, update it; else insert
+    const existing = await pool.request()
+      .input('rid', sql.Int, parseInt(registrationId))
+      .input('dt',  sql.NVarChar, documentType)
+      .query(`SELECT DocID, FilePath FROM HCFDocuments WHERE RegistrationID=@rid AND DocumentType=@dt`);
+
+    if (existing.recordset.length > 0) {
+      const old = existing.recordset[0];
+      // Delete old file from disk if a new one was uploaded
+      if (file && old.FilePath) {
+        const oldFull = path.join(UPLOADS_DIR, path.basename(old.FilePath));
+        if (fs.existsSync(oldFull)) fs.unlinkSync(oldFull);
+      }
+      await pool.request()
+        .input('docId',   sql.Int,      old.DocID)
+        .input('ver',     sql.NVarChar, version    || null)
+        .input('exp',     sql.Date,     expiryDate || null)
+        .input('by',      sql.NVarChar, uploadedBy || null)
+        .input('rem',     sql.NVarChar, remarks    || null)
+        .input('fn',      sql.NVarChar, fileName)
+        .input('fp',      sql.NVarChar, filePath)
+        .input('fs',      sql.Int,      fileSize)
+        .input('mt',      sql.NVarChar, mimeType)
+        .input('src',     sql.NVarChar, uploadSource || 'Admin')
+        .input('st',      sql.NVarChar, docStatus    || 'Valid')
+        .query(`UPDATE HCFDocuments SET
+                  Version=@ver, ExpiryDate=@exp, UploadedBy=@by, Remarks=@rem,
+                  FileName=COALESCE(@fn,FileName), FilePath=COALESCE(@fp,FilePath),
+                  FileSize=COALESCE(@fs,FileSize), MimeType=COALESCE(@mt,MimeType),
+                  UploadSource=@src, DocStatus=@st, UpdatedAt=GETDATE()
+                WHERE DocID=@docId`);
+      return res.json({ success: true, message: 'Document updated', docId: old.DocID, filePath });
+    } else {
+      const result = await pool.request()
+        .input('rid', sql.Int,      parseInt(registrationId))
+        .input('dt',  sql.NVarChar, documentType)
+        .input('ver', sql.NVarChar, version    || 'v1')
+        .input('exp', sql.Date,     expiryDate || null)
+        .input('by',  sql.NVarChar, uploadedBy || null)
+        .input('rem', sql.NVarChar, remarks    || null)
+        .input('fn',  sql.NVarChar, fileName)
+        .input('fp',  sql.NVarChar, filePath)
+        .input('fs',  sql.Int,      fileSize)
+        .input('mt',  sql.NVarChar, mimeType)
+        .input('src', sql.NVarChar, uploadSource || 'Admin')
+        .input('st',  sql.NVarChar, docStatus    || 'Valid')
+        .query(`INSERT INTO HCFDocuments
+                  (RegistrationID,DocumentType,Version,ExpiryDate,UploadedBy,Remarks,
+                   FileName,FilePath,FileSize,MimeType,UploadSource,DocStatus,CreatedAt)
+                VALUES(@rid,@dt,@ver,@exp,@by,@rem,@fn,@fp,@fs,@mt,@src,@st,GETDATE());
+                SELECT SCOPE_IDENTITY() AS DocID`);
+      return res.status(201).json({ success: true, message: 'Document added', docId: result.recordset[0].DocID, filePath });
+    }
+  } catch (err) {
+    console.error('HCF Document upload error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hcf-documents  (JSON only — no file, legacy support)
 app.post('/api/hcf-documents', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
     const { registrationId, documentType, version, expiryDate, uploadedBy, remarks } = req.body;
     const result = await pool.request()
-      .input('registrationId', sql.Int, registrationId || null)
-      .input('documentType', sql.NVarChar, documentType || null)
-      .input('version', sql.NVarChar, version || null)
-      .input('expiryDate', sql.Date, expiryDate || null)
-      .input('uploadedBy', sql.NVarChar, uploadedBy || null)
-      .input('remarks', sql.NVarChar, remarks || null)
-      .query(`INSERT INTO HCFDocuments (RegistrationID, DocumentType, Version, ExpiryDate, UploadedBy, Remarks, CreatedAt)
-              VALUES (@registrationId, @documentType, @version, @expiryDate, @uploadedBy, @remarks, GETDATE());
+      .input('registrationId', sql.Int,      registrationId || null)
+      .input('documentType',   sql.NVarChar, documentType   || null)
+      .input('version',        sql.NVarChar, version        || null)
+      .input('expiryDate',     sql.Date,     expiryDate     || null)
+      .input('uploadedBy',     sql.NVarChar, uploadedBy     || null)
+      .input('remarks',        sql.NVarChar, remarks        || null)
+      .query(`INSERT INTO HCFDocuments (RegistrationID,DocumentType,Version,ExpiryDate,UploadedBy,Remarks,CreatedAt)
+              VALUES (@registrationId,@documentType,@version,@expiryDate,@uploadedBy,@remarks,GETDATE());
               SELECT SCOPE_IDENTITY() AS DocID`);
     res.status(201).json({ message: 'Document added', docId: result.recordset[0].DocID });
   } catch (err) {
@@ -2549,8 +2708,16 @@ app.post('/api/hcf-documents', async (req, res) => {
 app.delete('/api/hcf-documents/:docId', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    // Also delete file from disk
+    const rec = await pool.request()
+      .input('docId', sql.Int, parseInt(req.params.docId))
+      .query(`SELECT FilePath FROM HCFDocuments WHERE DocID=@docId`);
+    if (rec.recordset.length > 0 && rec.recordset[0].FilePath) {
+      const full = path.join(UPLOADS_DIR, path.basename(rec.recordset[0].FilePath));
+      if (fs.existsSync(full)) fs.unlinkSync(full);
+    }
     await pool.request()
-      .input('docId', sql.Int, req.params.docId)
+      .input('docId', sql.Int, parseInt(req.params.docId))
       .query(`DELETE FROM HCFDocuments WHERE DocID=@docId`);
     res.json({ message: 'Document deleted' });
   } catch (err) {
@@ -3005,13 +3172,21 @@ app.post('/api/support-tickets', async (req, res) => {
 app.put('/api/support-tickets/:id', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { status, resolution, assignedTo, priority } = req.body;
+    const { status, resolution, assignedTo, priority, updatedBy, notes } = req.body;
+    const tid = parseInt(req.params.id);
+
+    // Fetch old status for history log
+    const old = await pool.request()
+      .input('id', sql.Int, tid)
+      .query(`SELECT Status FROM HCFSupportTickets WHERE TicketID=@id`);
+    const oldStatus = old.recordset[0]?.Status || null;
+
     await pool.request()
-      .input('id', sql.Int, req.params.id)
-      .input('status', sql.NVarChar, status || null)
+      .input('id',         sql.Int,      tid)
+      .input('status',     sql.NVarChar, status     || null)
       .input('resolution', sql.NVarChar, resolution || null)
       .input('assignedTo', sql.NVarChar, assignedTo || null)
-      .input('priority', sql.NVarChar, priority || null)
+      .input('priority',   sql.NVarChar, priority   || null)
       .query(`UPDATE HCFSupportTickets SET
                 Status=ISNULL(@status, Status),
                 Resolution=ISNULL(@resolution, Resolution),
@@ -3019,11 +3194,56 @@ app.put('/api/support-tickets/:id', async (req, res) => {
                 Priority=ISNULL(@priority, Priority),
                 UpdatedAt=GETDATE()
               WHERE TicketID=@id`);
-    res.json({ message: 'Ticket updated' });
+
+    // Log to TicketUpdateHistory
+    await pool.request()
+      .input('tid',       sql.Int,      tid)
+      .input('by',        sql.NVarChar, updatedBy || 'Admin')
+      .input('oldStatus', sql.NVarChar, oldStatus)
+      .input('newStatus', sql.NVarChar, status || oldStatus)
+      .input('notes',     sql.NVarChar, notes || null)
+      .input('src',       sql.NVarChar, 'Admin')
+      .query(`INSERT INTO TicketUpdateHistory (TicketID,UpdatedBy,OldStatus,NewStatus,Notes,Source,CreatedAt)
+              VALUES(@tid,@by,@oldStatus,@newStatus,@notes,@src,GETDATE())`);
+
+    res.json({ success: true, message: 'Ticket updated' });
   } catch (err) {
     console.error('Support Ticket update error:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// GET /api/support-tickets/:id/history
+app.get('/api/support-tickets/:id/history', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('id', sql.Int, parseInt(req.params.id))
+      .query(`SELECT * FROM TicketUpdateHistory WHERE TicketID=@id ORDER BY CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/support-tickets/:id/note  — customer or admin adds a note without changing status
+app.post('/api/support-tickets/:id/note', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { updatedBy, notes, source } = req.body;
+    const tid = parseInt(req.params.id);
+    const cur = await pool.request()
+      .input('id', sql.Int, tid)
+      .query(`SELECT Status FROM HCFSupportTickets WHERE TicketID=@id`);
+    const curStatus = cur.recordset[0]?.Status || 'Open';
+    await pool.request()
+      .input('tid',   sql.Int,      tid)
+      .input('by',    sql.NVarChar, updatedBy || 'Customer')
+      .input('st',    sql.NVarChar, curStatus)
+      .input('notes', sql.NVarChar, notes || '')
+      .input('src',   sql.NVarChar, source  || 'Customer')
+      .query(`INSERT INTO TicketUpdateHistory (TicketID,UpdatedBy,OldStatus,NewStatus,Notes,Source,CreatedAt)
+              VALUES(@tid,@by,@st,@st,@notes,@src,GETDATE())`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // DELETE /api/support-tickets/:id
@@ -3215,8 +3435,7 @@ app.post('/api/portal/login', async (req, res) => {
     const result = await pool.request()
       .input('customerId', sql.NVarChar, customerId.trim())
       .input('pin', sql.NVarChar, pin.trim())
-      .query(`SELECT RegistrationID, InstitutionName, CustomerID, Zone, Route, Mobile, Email, ContactPerson, Status, PortalEnabled, CreatedAt
-              FROM CustomerRegistrations
+      .query(`SELECT * FROM CustomerRegistrations
               WHERE CustomerID=@customerId AND PortalEnabled=1 AND PortalPin=@pin`);
     if (!result.recordset.length) {
       return res.status(401).json({ success: false, message: 'Invalid Member ID or PIN, or portal not enabled' });
@@ -3326,6 +3545,241 @@ app.post('/api/portal/tickets', async (req, res) => {
     console.error('Portal ticket create error:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── PORTAL DOCUMENT ENDPOINTS ───────────────────────────────────────────────
+
+// GET /api/portal/documents/:registrationId  — list all docs for a customer
+app.get('/api/portal/documents/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('rid', sql.Int, parseInt(req.params.registrationId))
+      .query(`SELECT * FROM HCFDocuments WHERE RegistrationID=@rid ORDER BY DocumentType ASC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Portal docs fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/portal/documents/upload  — customer uploads a document
+app.post('/api/portal/documents/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, documentType, version, expiryDate, remarks } = req.body;
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'No file provided' });
+    if (!registrationId || !documentType) return res.status(400).json({ error: 'registrationId and documentType required' });
+
+    const fileName = file.originalname;
+    const filePath  = `/uploads/${file.filename}`;
+    const fileSize  = file.size;
+    const mimeType  = file.mimetype;
+
+    // Lookup customer name for UploadedBy
+    const custRec = await pool.request()
+      .input('rid', sql.Int, parseInt(registrationId))
+      .query(`SELECT InstitutionName FROM CustomerRegistrations WHERE RegistrationID=@rid`);
+    const uploadedBy = custRec.recordset.length > 0 ? custRec.recordset[0].InstitutionName : 'Customer';
+
+    // Upsert
+    const existing = await pool.request()
+      .input('rid', sql.Int, parseInt(registrationId))
+      .input('dt',  sql.NVarChar, documentType)
+      .query(`SELECT DocID, FilePath FROM HCFDocuments WHERE RegistrationID=@rid AND DocumentType=@dt`);
+
+    if (existing.recordset.length > 0) {
+      const old = existing.recordset[0];
+      if (old.FilePath) {
+        const oldFull = path.join(UPLOADS_DIR, path.basename(old.FilePath));
+        if (fs.existsSync(oldFull)) fs.unlinkSync(oldFull);
+      }
+      await pool.request()
+        .input('docId', sql.Int,      old.DocID)
+        .input('ver',   sql.NVarChar, version    || 'v1')
+        .input('exp',   sql.Date,     expiryDate || null)
+        .input('rem',   sql.NVarChar, remarks    || null)
+        .input('fn',    sql.NVarChar, fileName)
+        .input('fp',    sql.NVarChar, filePath)
+        .input('fs',    sql.Int,      fileSize)
+        .input('mt',    sql.NVarChar, mimeType)
+        .input('by',    sql.NVarChar, uploadedBy)
+        .query(`UPDATE HCFDocuments SET
+                  Version=@ver, ExpiryDate=@exp, Remarks=@rem,
+                  FileName=@fn, FilePath=@fp, FileSize=@fs, MimeType=@mt,
+                  UploadedBy=@by, UploadSource='Customer', DocStatus='Valid', UpdatedAt=GETDATE()
+                WHERE DocID=@docId`);
+      return res.json({ success: true, message: 'Document updated', filePath });
+    } else {
+      const result = await pool.request()
+        .input('rid', sql.Int,      parseInt(registrationId))
+        .input('dt',  sql.NVarChar, documentType)
+        .input('ver', sql.NVarChar, version    || 'v1')
+        .input('exp', sql.Date,     expiryDate || null)
+        .input('rem', sql.NVarChar, remarks    || null)
+        .input('fn',  sql.NVarChar, fileName)
+        .input('fp',  sql.NVarChar, filePath)
+        .input('fs',  sql.Int,      fileSize)
+        .input('mt',  sql.NVarChar, mimeType)
+        .input('by',  sql.NVarChar, uploadedBy)
+        .query(`INSERT INTO HCFDocuments
+                  (RegistrationID,DocumentType,Version,ExpiryDate,Remarks,
+                   FileName,FilePath,FileSize,MimeType,UploadedBy,UploadSource,DocStatus,CreatedAt)
+                VALUES(@rid,@dt,@ver,@exp,@rem,@fn,@fp,@fs,@mt,@by,'Customer','Valid',GETDATE());
+                SELECT SCOPE_IDENTITY() AS DocID`);
+      return res.status(201).json({ success: true, message: 'Document uploaded', docId: result.recordset[0].DocID, filePath });
+    }
+  } catch (err) {
+    console.error('Portal document upload error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PORTAL PROFILE ENDPOINTS ────────────────────────────────────────────────
+
+// GET /api/portal/profile/:registrationId
+app.get('/api/portal/profile/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('rid', sql.Int, parseInt(req.params.registrationId))
+      .query(`SELECT * FROM CustomerRegistrations WHERE RegistrationID=@rid`);
+    if (result.recordset.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.recordset[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/portal/profile/:registrationId  — customer updates their profile
+app.put('/api/portal/profile/:registrationId', upload.single('attachment'), async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const rid = parseInt(req.params.registrationId);
+    const {
+      FullAddress, Pincode, PANNumber, GSTNumber, BMWRegNo,
+      GPSLatitude, GPSLongitude, Website, AlternateMobile,
+      ContactPerson, Designation, NumberOfBeds, remarks
+    } = req.body;
+
+    // Fetch old values for history
+    const old = await pool.request()
+      .input('rid', sql.Int, rid)
+      .query(`SELECT * FROM CustomerRegistrations WHERE RegistrationID=@rid`);
+    const oldRow = old.recordset[0] || {};
+
+    // Update CustomerRegistrations
+    await pool.request()
+      .input('rid', sql.Int, rid)
+      .input('addr',  sql.NVarChar, FullAddress    || oldRow.FullAddress    || null)
+      .input('pin',   sql.NVarChar, Pincode        || oldRow.Pincode        || null)
+      .input('pan',   sql.NVarChar, PANNumber      || oldRow.PANNumber      || null)
+      .input('gst',   sql.NVarChar, GSTNumber      || oldRow.GSTNumber      || null)
+      .input('bmw',   sql.NVarChar, BMWRegNo       || oldRow.BMWRegNo       || null)
+      .input('lat',   sql.NVarChar, GPSLatitude    || oldRow.GPSLatitude    || null)
+      .input('lng',   sql.NVarChar, GPSLongitude   || oldRow.GPSLongitude   || null)
+      .input('web',   sql.NVarChar, Website        || oldRow.Website        || null)
+      .input('alt',   sql.NVarChar, AlternateMobile|| oldRow.AlternateMobile|| null)
+      .input('cp',    sql.NVarChar, ContactPerson  || oldRow.ContactPerson  || null)
+      .input('des',   sql.NVarChar, Designation    || oldRow.Designation    || null)
+      .input('beds',  sql.Int,      NumberOfBeds   ? parseInt(NumberOfBeds) : (oldRow.NumberOfBeds || null))
+      .query(`UPDATE CustomerRegistrations SET
+                FullAddress=@addr, Pincode=@pin, PANNumber=@pan, GSTNumber=@gst,
+                BMWRegNo=@bmw, GPSLatitude=@lat, GPSLongitude=@lng,
+                Website=@web, AlternateMobile=@alt, ContactPerson=@cp,
+                Designation=@des, NumberOfBeds=@beds, UpdatedAt=GETDATE()
+              WHERE RegistrationID=@rid`);
+
+    // Log to history
+    const attPath = req.file ? `/uploads/${req.file.filename}` : null;
+    const attName = req.file ? req.file.originalname : null;
+    const changed = [];
+    if (FullAddress && FullAddress !== oldRow.FullAddress) changed.push('Address');
+    if (PANNumber   && PANNumber   !== oldRow.PANNumber)   changed.push('PAN');
+    if (GSTNumber   && GSTNumber   !== oldRow.GSTNumber)   changed.push('GST');
+    if (BMWRegNo    && BMWRegNo    !== oldRow.BMWRegNo)     changed.push('BMW Reg No');
+    if (ContactPerson && ContactPerson !== oldRow.ContactPerson) changed.push('Contact Person');
+    if (NumberOfBeds) changed.push('Beds');
+    if (req.file)   changed.push('Attachment');
+
+    await pool.request()
+      .input('rid',   sql.Int,      rid)
+      .input('by',    sql.NVarChar, oldRow.InstitutionName || 'Customer')
+      .input('field', sql.NVarChar, changed.length ? changed.join(', ') : 'Profile')
+      .input('rem',   sql.NVarChar, remarks || 'Profile updated by customer')
+      .input('ap',    sql.NVarChar, attPath)
+      .input('an',    sql.NVarChar, attName)
+      .query(`INSERT INTO ProfileUpdateHistory
+                (RegistrationID,UpdatedBy,FieldChanged,Remarks,AttachmentPath,AttachmentName,CreatedAt)
+              VALUES(@rid,@by,@field,@rem,@ap,@an,GETDATE())`);
+
+    res.json({ success: true, message: 'Profile updated' });
+  } catch (err) {
+    console.error('Portal profile update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portal/profile-history/:registrationId
+app.get('/api/portal/profile-history/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('rid', sql.Int, parseInt(req.params.registrationId))
+      .query(`SELECT * FROM ProfileUpdateHistory WHERE RegistrationID=@rid ORDER BY CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/portal/contacts/:registrationId
+app.get('/api/portal/contacts/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('rid', sql.Int, parseInt(req.params.registrationId))
+      .query(`SELECT * FROM HCFContacts WHERE RegistrationID=@rid ORDER BY IsPrimary DESC, CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/portal/contacts
+app.post('/api/portal/contacts', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, contactName, designation, mobile, email, isPrimary } = req.body;
+    const result = await pool.request()
+      .input('rid',  sql.Int,      parseInt(registrationId))
+      .input('name', sql.NVarChar, contactName  || null)
+      .input('des',  sql.NVarChar, designation  || null)
+      .input('mob',  sql.NVarChar, mobile       || null)
+      .input('em',   sql.NVarChar, email        || null)
+      .input('pri',  sql.Bit,      isPrimary ? 1 : 0)
+      .query(`INSERT INTO HCFContacts (RegistrationID,ContactName,Designation,Mobile,Email,IsPrimary,CreatedAt)
+              VALUES(@rid,@name,@des,@mob,@em,@pri,GETDATE());
+              SELECT SCOPE_IDENTITY() AS ContactID`);
+    res.json({ success: true, contactId: result.recordset[0].ContactID });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/portal/contacts/:id
+app.delete('/api/portal/contacts/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, parseInt(req.params.id))
+      .query(`DELETE FROM HCFContacts WHERE ContactID=@id`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/portal/complaints/:registrationId  (alias for tickets)
+app.get('/api/portal/complaints/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('rid', sql.Int, parseInt(req.params.registrationId))
+      .query(`SELECT * FROM HCFSupportTickets WHERE RegistrationID=@rid ORDER BY CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // 404 handler
