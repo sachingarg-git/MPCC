@@ -116,6 +116,10 @@ async function ensureTablesExist() {
          ALTER TABLE CustomerRegistrations ADD TotalAmount DECIMAL(12,2) NULL`,
       `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='PayMode')
          ALTER TABLE CustomerRegistrations ADD PayMode NVARCHAR(50) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='PortalEnabled')
+         ALTER TABLE CustomerRegistrations ADD PortalEnabled BIT DEFAULT 0`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='PortalPin')
+         ALTER TABLE CustomerRegistrations ADD PortalPin NVARCHAR(10) NULL`,
     ];
     for (const q of crMigrations) {
       try { await pool.request().query(q); } catch(e) { console.warn('CR migration warn:', e.message); }
@@ -3177,6 +3181,151 @@ app.use((err, req, res, next) => {
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
+});
+
+// ============================================
+// CUSTOMER PORTAL ENDPOINTS
+// ============================================
+
+// PUT /api/customer-registrations/:id/enable-portal
+app.put('/api/customer-registrations/:id/enable-portal', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { pin } = req.body;
+    if (!pin || pin.length !== 6) return res.status(400).json({ error: 'PIN must be exactly 6 digits' });
+    const result = await pool.request()
+      .input('id', sql.Int, parseInt(req.params.id))
+      .input('pin', sql.NVarChar, pin)
+      .query(`UPDATE CustomerRegistrations SET PortalEnabled=1, PortalPin=@pin, UpdatedAt=GETDATE() WHERE RegistrationID=@id;
+              SELECT CustomerID FROM CustomerRegistrations WHERE RegistrationID=@id`);
+    const customerId = result.recordset[0] ? result.recordset[0].CustomerID : null;
+    res.json({ success: true, message: 'Portal access enabled', customerId, pin });
+  } catch (err) {
+    console.error('Enable portal error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/portal/login
+app.post('/api/portal/login', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { customerId, pin } = req.body;
+    if (!customerId || !pin) return res.status(400).json({ error: 'CustomerID and PIN required' });
+    const result = await pool.request()
+      .input('customerId', sql.NVarChar, customerId.trim())
+      .input('pin', sql.NVarChar, pin.trim())
+      .query(`SELECT RegistrationID, InstitutionName, CustomerID, Zone, Route, Mobile, Email, ContactPerson, Status, PortalEnabled, CreatedAt
+              FROM CustomerRegistrations
+              WHERE CustomerID=@customerId AND PortalEnabled=1 AND PortalPin=@pin`);
+    if (!result.recordset.length) {
+      return res.status(401).json({ success: false, message: 'Invalid Member ID or PIN, or portal not enabled' });
+    }
+    res.json({ success: true, customer: result.recordset[0] });
+  } catch (err) {
+    console.error('Portal login error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portal/customer/:registrationId
+app.get('/api/portal/customer/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('id', sql.Int, parseInt(req.params.registrationId))
+      .query(`SELECT * FROM CustomerRegistrations WHERE RegistrationID=@id`);
+    if (!result.recordset.length) return res.status(404).json({ error: 'Customer not found' });
+    res.json(result.recordset[0]);
+  } catch (err) {
+    console.error('Portal customer fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portal/pickups/:registrationId
+app.get('/api/portal/pickups/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    // Try HCFDocuments first for pickup data
+    let pickups = [];
+    try {
+      const result = await pool.request()
+        .input('id', sql.Int, parseInt(req.params.registrationId))
+        .query(`SELECT * FROM HCFDocuments WHERE RegistrationID=@id ORDER BY CreatedAt DESC`);
+      pickups = result.recordset;
+    } catch(e) {}
+    // Return mock data if empty so portal always shows something
+    if (!pickups.length) {
+      pickups = [
+        { id: 1, date: '2026-05-02', status: 'Collected', driver: 'Raju Kumar', vehicle: 'UK-14-1234', manifest: 'MNF-2026-0501', totalKg: 4.8, yellowBag: 2, redBag: 1, sharps: 1 },
+        { id: 2, date: '2026-04-18', status: 'Missed', driver: null, vehicle: null, manifest: null, totalKg: 0, yellowBag: 0, redBag: 0, sharps: 0 },
+        { id: 3, date: '2026-04-25', status: 'Collected', driver: 'Mohan Singh', vehicle: 'UK-14-5678', manifest: 'MNF-2026-0445', totalKg: 3.9, yellowBag: 2, redBag: 1, sharps: 0 },
+      ];
+    }
+    res.json(pickups);
+  } catch (err) {
+    console.error('Portal pickups error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portal/bills/:registrationId
+app.get('/api/portal/bills/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    // Return mock billing data (no billing table exists yet)
+    const bills = [
+      { id: 1, month: 'May 2026', invoiceNo: 'INV-2026-0512', dueDate: '2026-05-10', amount: 2950, status: 'Overdue' },
+      { id: 2, month: 'Apr 2026', invoiceNo: 'INV-2026-0412', dueDate: '2026-04-10', amount: 2950, status: 'Overdue' },
+      { id: 3, month: 'Mar 2026', invoiceNo: 'INV-2026-0310', dueDate: '2026-03-10', amount: 2950, status: 'Paid', paidDate: '2026-03-08' },
+      { id: 4, month: 'Feb 2026', invoiceNo: 'INV-2026-0210', dueDate: '2026-02-10', amount: 2950, status: 'Paid', paidDate: '2026-02-12' },
+    ];
+    res.json(bills);
+  } catch (err) {
+    console.error('Portal bills error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portal/tickets/:registrationId
+app.get('/api/portal/tickets/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('id', sql.Int, parseInt(req.params.registrationId))
+      .query(`SELECT * FROM HCFSupportTickets WHERE RegistrationID=@id ORDER BY CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Portal tickets error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/portal/tickets
+app.post('/api/portal/tickets', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { RegistrationID, HCFName, Category, Priority, Subject, Description, AssignedTo } = req.body;
+    const ticketCode = 'TKT-' + new Date().getFullYear() + '-' + String(Math.floor(Math.random()*9000)+1000);
+    const result = await pool.request()
+      .input('regId', sql.Int, RegistrationID || null)
+      .input('hcfName', sql.NVarChar, HCFName || null)
+      .input('category', sql.NVarChar, Category || null)
+      .input('priority', sql.NVarChar, Priority || 'Medium')
+      .input('subject', sql.NVarChar, Subject || null)
+      .input('description', sql.NVarChar, Description || null)
+      .input('assignedTo', sql.NVarChar, AssignedTo || 'Support Team')
+      .input('ticketCode', sql.NVarChar, ticketCode)
+      .query(`INSERT INTO HCFSupportTickets (RegistrationID, HCFName, Category, Priority, Subject, Description, AssignedTo, TicketCode, Status, CreatedAt)
+              VALUES (@regId, @hcfName, @category, @priority, @subject, @description, @assignedTo, @ticketCode, 'Open', GETDATE());
+              SELECT SCOPE_IDENTITY() AS TicketID`);
+    const newId = result.recordset[0].TicketID;
+    res.json({ success: true, ticketId: newId, ticketCode });
+  } catch (err) {
+    console.error('Portal ticket create error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 404 handler

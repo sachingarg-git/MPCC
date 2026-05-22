@@ -250,9 +250,9 @@ export default function LandingPage(){
               <button onClick={()=>setNavModal('contact')} className="text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors" style={{background:'none',border:'none',cursor:'pointer',padding:0}}>Contact</button>
             </div>
             <div className="flex items-center gap-2">
-              <a href="/admin" style={{display:'inline-flex',alignItems:'center',gap:'5px',background:'linear-gradient(135deg,#7c3aed,#5b21b6)',color:'#fff',fontSize:'12px',fontWeight:'700',padding:'7px 14px',borderRadius:'10px',textDecoration:'none',boxShadow:'0 2px 8px rgba(91,33,182,.25)'}}>
+              <a href="/portal" style={{display:'inline-flex',alignItems:'center',gap:'5px',background:'transparent',color:'#5b21b6',fontSize:'12px',fontWeight:'700',padding:'7px 14px',borderRadius:'10px',textDecoration:'none',border:'1.5px solid #7c3aed'}}>
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                Customer Portal
+                Member Portal
               </a>
               <a href="/admin" className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-xl hover:shadow-lg transition-all cursor-pointer">Admin Login</a>
             </div>

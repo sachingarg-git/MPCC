@@ -657,6 +657,44 @@ const CustomerModule = () => {
     }
   };
 
+  // ── Enable Portal Modal State ──────────────────────────────────────────────
+  const [showEnablePortalModal, setShowEnablePortalModal] = React.useState(false);
+  const [portalTargetReg, setPortalTargetReg] = React.useState(null);
+  const [portalPinInput, setPortalPinInput] = React.useState('');
+  const [portalEnableMsg, setPortalEnableMsg] = React.useState('');
+  const [portalEnableLoading, setPortalEnableLoading] = React.useState(false);
+
+  const handleEnablePortal = (reg) => {
+    setPortalTargetReg(reg);
+    setPortalPinInput('');
+    setPortalEnableMsg('');
+    setShowEnablePortalModal(true);
+  };
+
+  const submitEnablePortal = async () => {
+    if (!portalPinInput || portalPinInput.length !== 6) {
+      setPortalEnableMsg('PIN must be exactly 6 digits.');
+      return;
+    }
+    setPortalEnableLoading(true);
+    try {
+      const res = await fetch(`/api/customer-registrations/${portalTargetReg.RegistrationID}/enable-portal`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: portalPinInput })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPortalEnableMsg(`✅ Portal enabled! Member ID: ${data.customerId || portalTargetReg.CustomerID} · PIN: ${data.pin}`);
+      } else {
+        setPortalEnableMsg('❌ ' + (data.error || 'Failed to enable portal.'));
+      }
+    } catch (err) {
+      setPortalEnableMsg('❌ Error: ' + err.message);
+    }
+    setPortalEnableLoading(false);
+  };
+
   // Service Request Handlers
   const handleServiceReqInputChange = (e) => {
     const { name, value } = e.target;
@@ -1847,6 +1885,7 @@ const CustomerModule = () => {
                     <td style={{textAlign: 'center', whiteSpace:'nowrap'}}>
                       <button onClick={() => handleViewRegistration(reg)} style={{background:'#ede9fe', border:'none', color:'#7c3aed', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px', marginRight:'4px'}}>👁 View</button>
                       <button onClick={() => handleEditRegistration(reg)} style={{background:'#dbeafe', border:'none', color:'#1d4ed8', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px', marginRight:'4px'}}>✏️ Edit</button>
+                      <button onClick={() => handleEnablePortal(reg)} style={{background: reg.PortalEnabled ? '#d1fae5' : '#f5f3ff', border:'none', color: reg.PortalEnabled ? '#065f46' : '#5b21b6', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px', marginRight:'4px'}}>🔐 {reg.PortalEnabled ? 'Portal ✓' : 'Portal'}</button>
                       <button onClick={() => handleDeleteRegistration(reg.RegistrationID)} style={{background:'#fee2e2', border:'none', color:'#dc2626', cursor:'pointer', fontSize:'11px', fontWeight:'600', padding:'4px 8px', borderRadius:'4px'}}>🗑 Del</button>
                     </td>
                   </tr>
@@ -2816,6 +2855,49 @@ const CustomerModule = () => {
             <div style={{borderTop:'1px solid #e2e8f0',padding:'12px 20px',background:'#f8fafc',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
               <span style={{fontSize:'12px',color:'#94a3b8'}}>Click any row in the table to open follow-up panel</span>
               <button onClick={() => setShowFollowupModal(false)} style={{background:'#e2e8f0',border:'none',borderRadius:'8px',padding:'8px 20px',fontSize:'13px',fontWeight:'600',cursor:'pointer',color:'#475569'}}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enable Portal Modal */}
+      {showEnablePortalModal && portalTargetReg && (
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:3000}} onClick={() => setShowEnablePortalModal(false)}>
+          <div style={{background:'white',borderRadius:'16px',width:'96vw',maxWidth:'420px',boxShadow:'0 25px 50px rgba(0,0,0,0.2)',overflow:'hidden'}} onClick={e => e.stopPropagation()}>
+            <div style={{background:'linear-gradient(135deg,#5b21b6,#7c3aed)',padding:'20px 24px',color:'#fff'}}>
+              <div style={{fontSize:'16px',fontWeight:'800',marginBottom:'4px'}}>🔐 Enable Member Portal</div>
+              <div style={{fontSize:'12px',opacity:.8}}>{portalTargetReg.InstitutionName}</div>
+            </div>
+            <div style={{padding:'20px 24px'}}>
+              <div style={{background:'#f5f3ff',borderRadius:'10px',padding:'12px 14px',marginBottom:'16px',fontSize:'12px',color:'#5b21b6',fontWeight:'600'}}>
+                Member ID: <strong>{portalTargetReg.CustomerID || `REG-${portalTargetReg.RegistrationID}`}</strong>
+              </div>
+              <label style={{fontSize:'12px',fontWeight:'700',color:'#374151',display:'block',marginBottom:'6px'}}>Set 6-Digit Portal PIN</label>
+              <input
+                type="text"
+                maxLength={6}
+                value={portalPinInput}
+                onChange={e => setPortalPinInput(e.target.value.replace(/\D/g,''))}
+                placeholder="e.g. 123456"
+                style={{width:'100%',border:'1.5px solid #e2e8f0',borderRadius:'10px',padding:'11px 14px',fontSize:'18px',letterSpacing:'8px',textAlign:'center',outline:'none',boxSizing:'border-box',fontFamily:'monospace'}}
+              />
+              <div style={{fontSize:'11px',color:'#94a3b8',marginTop:'6px',marginBottom:'16px'}}>Customer will use this PIN to login at /portal</div>
+              {portalEnableMsg && (
+                <div style={{
+                  background: portalEnableMsg.startsWith('✅') ? '#dcfce7' : '#fee2e2',
+                  border: `1px solid ${portalEnableMsg.startsWith('✅') ? '#86efac' : '#fca5a5'}`,
+                  color: portalEnableMsg.startsWith('✅') ? '#15803d' : '#dc2626',
+                  borderRadius:'10px',padding:'10px 14px',fontSize:'12px',fontWeight:'600',marginBottom:'14px'
+                }}>{portalEnableMsg}</div>
+              )}
+              <div style={{display:'flex',gap:'8px'}}>
+                <button onClick={() => setShowEnablePortalModal(false)} style={{flex:1,padding:'10px',fontSize:'13px',fontWeight:'700',background:'#f1f5f9',border:'none',borderRadius:'10px',cursor:'pointer',color:'#475569'}}>Close</button>
+                {!portalEnableMsg.startsWith('✅') && (
+                  <button onClick={submitEnablePortal} disabled={portalEnableLoading} style={{flex:2,padding:'10px',fontSize:'13px',fontWeight:'700',background:'linear-gradient(135deg,#5b21b6,#7c3aed)',color:'#fff',border:'none',borderRadius:'10px',cursor:'pointer',opacity:portalEnableLoading?.7:1}}>
+                    {portalEnableLoading ? 'Enabling...' : '🔐 Enable Portal Access'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

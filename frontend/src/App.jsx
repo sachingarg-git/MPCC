@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
 import AdminPanel from './pages/AdminPanel'
 import LoginPage from './pages/LoginPage'
+import CustomerPortal from './pages/CustomerPortal'
 
 function ProtectedRoute({ children, isAuthenticated }) {
   return isAuthenticated ? children : <Navigate to="/login" replace />
@@ -57,6 +58,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/portal" element={<CustomerPortal />} />
     </Routes>
   )
 }
