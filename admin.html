@@ -69,11 +69,11 @@ body{font-family:'Inter',sans-serif;background:#f4f6fb;color:#1e293b;min-height:
 .flyout-item:hover{background:#f3eeff;color:#5b21b6;font-weight:600;}.flyout-item.active{background:#ede9fe;color:#5b21b6;font-weight:700;border-left:3px solid #7c3aed;padding-left:11px;}
 .flyout-item svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0;}
 /* MAIN */
-.main{margin-top:60px;margin-left:64px;transition:margin-left .25s cubic-bezier(.4,0,.2,1);min-height:calc(100vh - 60px);padding:24px;}
-.main.flyout-open{margin-left:328px;}
-.sidebar:hover ~ .main.flyout-open{margin-left:484px;}
+.main{margin-top:60px;margin-left:64px;transition:margin-left .25s cubic-bezier(.4,0,.2,1);min-height:calc(100vh - 60px);padding:24px;width:calc(100% - 64px);max-width:calc(100vw - 64px);overflow-x:hidden;}
+.main.flyout-open{margin-left:328px;width:calc(100% - 328px);max-width:calc(100vw - 328px);}
+.sidebar:hover ~ .main.flyout-open{margin-left:484px;width:calc(100% - 484px);max-width:calc(100vw - 484px);}
 /* SECTION */
-.section{display:none;}
+.section{display:none;max-width:100%;overflow-x:hidden;}
 .section.active{display:block;}
 /* PAGE HEADER */
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
@@ -98,8 +98,8 @@ body{font-family:'Inter',sans-serif;background:#f4f6fb;color:#1e293b;min-height:
 .kpi-sub{font-size:12px;color:#10b981;font-weight:500;}
 .kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:4px;}
 /* TABLE */
-.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid #e2e8f0;background:#fff;}
-table{width:100%;border-collapse:collapse;font-size:13px;}
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid #e2e8f0;background:#fff;max-width:100%;}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:800px;}
 thead tr:first-child th{background:#f8fafc;font-weight:600;color:#374151;padding:11px 12px;text-align:left;border-bottom:1px solid #e2e8f0;white-space:nowrap;}
 thead .filter-row th{background:#f8fafc;padding:6px 8px;border-bottom:2px solid #e2e8f0;}
 .filter-row input,.filter-row select{width:100%;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#374151;background:#fff;outline:none;}

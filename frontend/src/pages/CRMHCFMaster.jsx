@@ -28,30 +28,49 @@ const modalBox = (w = 700) => ({
 });
 
 const badgeStyle = (color) => ({
-  display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11,
-  fontWeight: 700, background: color.bg, color: color.text,
+  display: 'inline-flex', 
+  alignItems: 'center',
+  gap: 5,
+  padding: '6px 14px', 
+  borderRadius: 20, 
+  fontSize: 11,
+  fontWeight: 700, 
+  background: `linear-gradient(145deg, ${color.bg}, ${color.bgDark || color.bg})`, 
+  color: color.text,
+  border: `1px solid ${color.border || color.text}20`,
+  boxShadow: `0 2px 4px ${color.text}15`,
+  letterSpacing: '0.02em',
+  textTransform: 'capitalize',
 });
 
 const STATUS_COLORS = {
-  Active:     { bg: '#d1fae5', text: '#065f46' },
-  Pending:    { bg: '#fef3c7', text: '#92400e' },
-  Approved:   { bg: '#d1fae5', text: '#065f46' },
-  Rejected:   { bg: '#fee2e2', text: '#991b1b' },
-  Suspended:  { bg: '#fee2e2', text: '#991b1b' },
-  Closed:     { bg: '#f1f5f9', text: '#475569' },
-  Defaulter:  { bg: '#fee2e2', text: '#991b1b' },
-  Open:       { bg: '#dbeafe', text: '#1e40af' },
-  'In Progress': { bg: '#fef3c7', text: '#92400e' },
-  Resolved:   { bg: '#d1fae5', text: '#065f46' },
-  Critical:   { bg: '#fee2e2', text: '#991b1b' },
-  High:       { bg: '#ffedd5', text: '#9a3412' },
-  Medium:     { bg: '#fef9c3', text: '#713f12' },
-  Low:        { bg: '#d1fae5', text: '#065f46' },
+  Active:        { bg: '#d1fae5', bgDark: '#a7f3d0', text: '#065f46', border: '#34d399', icon: '✓' },
+  Pending:       { bg: '#fef3c7', bgDark: '#fde68a', text: '#92400e', border: '#fbbf24', icon: '⏳' },
+  Approved:      { bg: '#d1fae5', bgDark: '#a7f3d0', text: '#065f46', border: '#34d399', icon: '✓' },
+  Rejected:      { bg: '#fee2e2', bgDark: '#fecaca', text: '#991b1b', border: '#f87171', icon: '✗' },
+  Suspended:     { bg: '#fce7f3', bgDark: '#fbcfe8', text: '#9d174d', border: '#f472b6', icon: '⏸' },
+  Closed:        { bg: '#f1f5f9', bgDark: '#e2e8f0', text: '#475569', border: '#94a3b8', icon: '●' },
+  Defaulter:     { bg: '#fee2e2', bgDark: '#fecaca', text: '#991b1b', border: '#f87171', icon: '!' },
+  Deregistered:  { bg: '#e5e7eb', bgDark: '#d1d5db', text: '#374151', border: '#6b7280', icon: '○' },
+  'Slow Payer':  { bg: '#fef3c7', bgDark: '#fde68a', text: '#92400e', border: '#fbbf24', icon: '⏳' },
+  'Late Payer':  { bg: '#ffedd5', bgDark: '#fed7aa', text: '#9a3412', border: '#fb923c', icon: '⚠' },
+  Open:          { bg: '#dbeafe', bgDark: '#bfdbfe', text: '#1e40af', border: '#60a5fa', icon: '○' },
+  'In Progress': { bg: '#fef3c7', bgDark: '#fde68a', text: '#92400e', border: '#fbbf24', icon: '◐' },
+  Resolved:      { bg: '#d1fae5', bgDark: '#a7f3d0', text: '#065f46', border: '#34d399', icon: '✓' },
+  Critical:      { bg: '#fee2e2', bgDark: '#fecaca', text: '#991b1b', border: '#f87171', icon: '!!' },
+  High:          { bg: '#ffedd5', bgDark: '#fed7aa', text: '#9a3412', border: '#fb923c', icon: '!' },
+  Medium:        { bg: '#fef9c3', bgDark: '#fef08a', text: '#713f12', border: '#facc15', icon: '●' },
+  Low:           { bg: '#d1fae5', bgDark: '#a7f3d0', text: '#065f46', border: '#34d399', icon: '○' },
 };
 
 function StatusBadge({ value }) {
-  const c = STATUS_COLORS[value] || { bg: '#f1f5f9', text: '#475569' };
-  return <span style={badgeStyle(c)}>{value}</span>;
+  const c = STATUS_COLORS[value] || { bg: '#f1f5f9', bgDark: '#e2e8f0', text: '#475569', border: '#94a3b8', icon: '●' };
+  return (
+    <span style={badgeStyle(c)}>
+      <span style={{ fontSize: 10, opacity: 0.8 }}>{c.icon}</span>
+      {value}
+    </span>
+  );
 }
 
 function ActionBtn({ label, color, onClick }) {
@@ -129,15 +148,25 @@ function Textarea({ label, value, onChange, required }) {
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
-  const diff = new Date(dateStr) - new Date();
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null; // Invalid date
+  const diff = d - new Date();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-const CRMHCFMaster = () => {
+const CRMHCFMaster = ({ user }) => {
   const [activeSubModule, setActiveSubModule] = useState('crm-hcf-master');
   const [toast, setToast] = useState({ msg: '', type: 'success' });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Shared dropdown data
   const [zones, setZones] = useState([]);
@@ -187,7 +216,7 @@ const CRMHCFMaster = () => {
   ];
 
   const renderSubModule = () => {
-    const props = { zones, routes, categories, servicePlans, hcfMaster, refreshHcfMaster, showToast };
+    const props = { zones, routes, categories, servicePlans, hcfMaster, refreshHcfMaster, showToast, user };
     switch (activeSubModule) {
       case 'crm-hcf-master':  return <HCFMasterModule {...props} />;
       case 'crm-approval':    return <ApprovalPipelineModule {...props} />;
@@ -199,20 +228,58 @@ const CRMHCFMaster = () => {
   };
 
   return (
-    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+    <div className="crm-hcf-wrapper">
       <Toast toast={toast} />
 
       {/* Sidebar */}
-      <div className="submenu-sidebar">
-        <div className="submenu-header">CRM / HCF</div>
+      <div className={`submenu-sidebar${sidebarCollapsed ? ' collapsed' : ''}`} style={{
+        width: sidebarCollapsed ? 60 : 240,
+        minWidth: sidebarCollapsed ? 60 : 240,
+        transition: 'all 0.3s ease',
+      }}>
+        <div className="submenu-header" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+          padding: sidebarCollapsed ? '16px 8px' : '16px 18px',
+        }}>
+          {!sidebarCollapsed && <span>CRM / HCF</span>}
+          <button 
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: 6,
+              padding: '6px 8px',
+              cursor: 'pointer',
+              color: '#a5b4fc',
+              fontSize: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease',
+            }}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {sidebarCollapsed ? '»' : '«'}
+          </button>
+        </div>
         {subMenuItems.map(item => (
           <button
             key={item.id}
             className={`submenu-item${activeSubModule === item.id ? ' active' : ''}`}
             onClick={() => setActiveSubModule(item.id)}
+            style={{
+              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+              padding: sidebarCollapsed ? '12px 8px' : '12px 18px',
+            }}
+            title={sidebarCollapsed ? item.label : ''}
           >
-            <span className="submenu-icon">{item.icon}</span>
-            <span className="submenu-label">{item.label}</span>
+            <span className="submenu-icon" style={{ 
+              marginRight: sidebarCollapsed ? 0 : 12,
+              fontSize: sidebarCollapsed ? 20 : 18,
+            }}>{item.icon}</span>
+            {!sidebarCollapsed && <span className="submenu-label">{item.label}</span>}
           </button>
         ))}
       </div>
@@ -244,6 +311,22 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
   const [show360Modal, setShow360Modal] = useState(false);
   const [view360Row, setView360Row] = useState(null);
 
+  // Re-registration Modal
+  const [showReregModal, setShowReregModal] = useState(false);
+  const [reregRow, setReregRow] = useState(null);
+  const [reregForm, setReregForm] = useState({
+    ContractStartDate: new Date().toISOString().split('T')[0],
+    ContractDuration: '12',
+    BillingCycle: 'Monthly',
+    PaymentMode: 'Online',
+    RegFee: '',
+    SvcFee: '',
+    MoUReSigned: true,
+    GenerateCertificate: true,
+    Remarks: ''
+  });
+  const [savingRereg, setSavingRereg] = useState(false);
+
   const blankForm = {
     InstitutionName: '', Category: '', NumberOfBeds: '', BmwRegNo: '',
     FullAddress: '', Zone: '', Route: '', Pincode: '',
@@ -253,6 +336,12 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
   };
   const [form, setForm] = useState(blankForm);
   const [saving, setSaving] = useState(false);
+
+  // Documents Modal State
+  const [showDocsModal, setShowDocsModal] = useState(false);
+  const [docsRow, setDocsRow] = useState(null);
+  const [docsData, setDocsData] = useState([]);
+  const [loadingDocsData, setLoadingDocsData] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -265,6 +354,19 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
   };
 
   useEffect(() => { load(); }, []);
+
+  // Open Documents Modal
+  const openDocsModal = async (row) => {
+    setDocsRow(row);
+    setShowDocsModal(true);
+    setLoadingDocsData(true);
+    try {
+      const res = await fetch(`/api/hcf-documents?registrationId=${row.RegistrationID}`);
+      const json = await res.json();
+      setDocsData(Array.isArray(json) ? json : []);
+    } catch { showToast('Failed to load documents', 'error'); }
+    finally { setLoadingDocsData(false); }
+  };
 
   const filtered = data.filter(r => {
     const q = search.toLowerCase();
@@ -279,13 +381,15 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
   elevenMonthsAgo.setMonth(elevenMonthsAgo.getMonth() - 11);
 
   const stats = {
-    total:      data.length,
-    active:     data.filter(r => r.Status === 'Active').length,
-    latePayer:  data.filter(r => r.Status === 'Late Payer').length,
-    defaulter:  data.filter(r => r.Status === 'Defaulter').length,
-    suspended:  data.filter(r => r.Status === 'Suspended').length,
-    renewal:    data.filter(r => r.CreatedAt && new Date(r.CreatedAt) < elevenMonthsAgo).length,
-    closed:     data.filter(r => r.Status === 'Closed').length,
+    total:        data.length,
+    active:       data.filter(r => r.Status === 'Active').length,
+    latePayer:    data.filter(r => r.Status === 'Late Payer').length,
+    slowPayer:    data.filter(r => r.Status === 'Slow Payer').length,
+    defaulter:    data.filter(r => r.Status === 'Defaulter').length,
+    suspended:    data.filter(r => r.Status === 'Suspended').length,
+    renewal:      data.filter(r => r.CreatedAt && new Date(r.CreatedAt) < elevenMonthsAgo).length,
+    closed:       data.filter(r => r.Status === 'Closed').length,
+    deregistered: data.filter(r => r.Status === 'Deregistered').length,
   };
 
   const f = (field) => (e) => setForm(p => ({ ...p, [field]: e.target.value }));
@@ -334,6 +438,43 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
     } catch { showToast('Delete failed', 'error'); }
   };
 
+  const openReregModal = (row) => {
+    setReregRow(row);
+    setReregForm({
+      ContractStartDate: new Date().toISOString().split('T')[0],
+      ContractDuration: '12',
+      BillingCycle: row.BillingCycle || 'Monthly',
+      PaymentMode: row.PaymentModePreference || 'Online',
+      RegFee: '',
+      SvcFee: row.SvcFee || '',
+      MoUReSigned: true,
+      GenerateCertificate: true,
+      Remarks: ''
+    });
+    setShowReregModal(true);
+  };
+
+  const handleReregSubmit = async (e) => {
+    e.preventDefault();
+    if (!reregRow) return;
+    setSavingRereg(true);
+    try {
+      const res = await fetch(`/api/hcf-master/${reregRow.RegistrationID}/reactivate`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reregForm)
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      showToast('HCF re-registered successfully!', 'success');
+      setShowReregModal(false);
+      setReregRow(null);
+      load();
+      refreshHcfMaster();
+    } catch { showToast('Re-registration failed', 'error'); }
+    finally { setSavingRereg(false); }
+  };
+
   const HCFForm = () => (
     <form onSubmit={handleSave}>
       <div style={formGrid}>
@@ -373,191 +514,429 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
   );
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1>HCF Master — 360° View</h1>
-          <p>Complete healthcare facility overview &amp; master data management</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button style={{ background: '#fef3c7', border: '1.5px solid #fbbf24', color: '#92400e', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🔍 Duplicate Check</button>
-          <button style={{ background: '#f0fdf4', border: '1.5px solid #86efac', color: '#15803d', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>📥 Export</button>
-          <button className="btn btn-primary" onClick={() => { setForm(blankForm); setShowNewModal(true); }}>＋ New HCF</button>
+    <div style={{ background:'#f8fafc', minHeight:'100%', padding:'0 0 24px' }}>
+      {/* Premium Header */}
+      <div style={{ 
+        background:'linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#4c1d95 100%)',
+        borderRadius:20, padding:'24px 28px', marginBottom:24,
+        boxShadow:'0 10px 40px rgba(49,46,129,0.3)',
+        position:'relative', overflow:'hidden'
+      }}>
+        <div style={{ position:'absolute', top:0, right:0, width:200, height:200, background:'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)', transform:'translate(30%,-30%)' }} />
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', position:'relative', zIndex:1 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+            <div style={{ 
+              width:56, height:56, borderRadius:16, 
+              background:'linear-gradient(135deg,#a855f7,#7c3aed)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              boxShadow:'0 8px 24px rgba(168,85,247,0.4)'
+            }}>
+              <span style={{ fontSize:28 }}>🏥</span>
+            </div>
+            <div>
+              <h1 style={{ margin:0, fontSize:26, fontWeight:900, color:'#fff', letterSpacing:'-0.5px' }}>HCF Master — 360° View</h1>
+              <p style={{ margin:'6px 0 0', fontSize:14, color:'rgba(255,255,255,0.7)', fontWeight:500 }}>Complete healthcare facility overview & master data management</p>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+            <button style={{ 
+              background:'rgba(255,255,255,0.1)', backdropFilter:'blur(10px)',
+              border:'1.5px solid rgba(255,255,255,0.2)', color:'#fff', 
+              borderRadius:10, padding:'10px 18px', fontSize:13, fontWeight:700, cursor:'pointer',
+              display:'flex', alignItems:'center', gap:8, transition:'all 0.2s'
+            }}>
+              <span>🔍</span> Duplicate Check
+            </button>
+            <button style={{ 
+              background:'rgba(255,255,255,0.1)', backdropFilter:'blur(10px)',
+              border:'1.5px solid rgba(255,255,255,0.2)', color:'#fff', 
+              borderRadius:10, padding:'10px 18px', fontSize:13, fontWeight:700, cursor:'pointer',
+              display:'flex', alignItems:'center', gap:8, transition:'all 0.2s'
+            }}>
+              <span>📥</span> Export
+            </button>
+            <button onClick={() => { setForm(blankForm); setShowNewModal(true); }} style={{ 
+              background:'linear-gradient(135deg,#22c55e,#16a34a)',
+              border:'none', color:'#fff', 
+              borderRadius:10, padding:'10px 20px', fontSize:13, fontWeight:800, cursor:'pointer',
+              display:'flex', alignItems:'center', gap:8, 
+              boxShadow:'0 4px 15px rgba(34,197,94,0.4)', transition:'all 0.2s'
+            }}>
+              <span style={{ fontSize:16 }}>＋</span> New HCF
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 7 Gradient KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 10, marginBottom: 18 }}>
+      {/* Premium KPI Cards - Glass Morphism Design */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:14, marginBottom:28 }}>
         {[
-          { bg: 'linear-gradient(135deg,#7c3aed,#5b21b6)', val: stats.total,     lbl: 'Total HCFs' },
-          { bg: 'linear-gradient(135deg,#16a34a,#15803d)', val: stats.active,    lbl: 'Active' },
-          { bg: 'linear-gradient(135deg,#f59e0b,#d97706)', val: stats.latePayer, lbl: 'Late Payer' },
-          { bg: 'linear-gradient(135deg,#ef4444,#dc2626)', val: stats.defaulter, lbl: 'Defaulter' },
-          { bg: 'linear-gradient(135deg,#6366f1,#4338ca)', val: stats.suspended, lbl: 'Suspended' },
-          { bg: 'linear-gradient(135deg,#0891b2,#0e7490)', val: stats.renewal,   lbl: 'Renewal Due' },
-          { bg: 'linear-gradient(135deg,#64748b,#475569)', val: stats.closed,    lbl: 'Closed' },
-        ].map(k => (
-          <div key={k.lbl} style={{ background: k.bg, borderRadius: 12, padding: '14px 10px', textAlign: 'center', color: '#fff' }}>
-            <div style={{ fontSize: 22, fontWeight: 800 }}>{k.val}</div>
-            <div style={{ fontSize: 10, opacity: 0.85, marginTop: 2 }}>{k.lbl}</div>
+          { bg:'linear-gradient(145deg,#667eea,#764ba2)', icon:'📊', val:stats.total, lbl:'Total HCFs', accent:'#a78bfa' },
+          { bg:'linear-gradient(145deg,#11998e,#38ef7d)', icon:'✅', val:stats.active, lbl:'Active', accent:'#6ee7b7' },
+          { bg:'linear-gradient(145deg,#f2994a,#f2c94c)', icon:'⏳', val:stats.slowPayer, lbl:'Slow Payer', accent:'#fcd34d' },
+          { bg:'linear-gradient(145deg,#eb5757,#f2994a)', icon:'⚠️', val:stats.latePayer, lbl:'Late Payer', accent:'#fca5a5' },
+          { bg:'linear-gradient(145deg,#c62828,#ef5350)', icon:'🚫', val:stats.defaulter, lbl:'Defaulter', accent:'#f87171' },
+          { bg:'linear-gradient(145deg,#7c3aed,#a855f7)', icon:'⏸️', val:stats.suspended, lbl:'Suspended', accent:'#c4b5fd' },
+          { bg:'linear-gradient(145deg,#0891b2,#22d3ee)', icon:'🔄', val:stats.renewal, lbl:'Renewal Due', accent:'#67e8f9' },
+          { bg:'linear-gradient(145deg,#374151,#6b7280)', icon:'📴', val:stats.deregistered, lbl:'Deregistered', accent:'#9ca3af' },
+        ].map((k, i) => (
+          <div key={k.lbl} style={{ 
+            background: k.bg, 
+            borderRadius: 20, 
+            padding: '20px 16px', 
+            textAlign: 'center', 
+            color: '#fff',
+            boxShadow: '0 10px 40px -10px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)',
+            cursor: 'pointer', 
+            transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            position: 'relative', 
+            overflow: 'hidden',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.18)',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateY(-8px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 20px 60px -15px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 10px 40px -10px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)';
+          }}>
+            {/* Decorative elements */}
+            <div style={{ 
+              position:'absolute', top:-30, right:-30, 
+              width:100, height:100, 
+              background:`radial-gradient(circle, ${k.accent}40 0%, transparent 70%)`,
+              borderRadius:'50%'
+            }} />
+            <div style={{ 
+              position:'absolute', bottom:-20, left:-20, 
+              width:60, height:60, 
+              background:`radial-gradient(circle, ${k.accent}30 0%, transparent 70%)`,
+              borderRadius:'50%'
+            }} />
+            
+            {/* Icon */}
+            <div style={{ 
+              fontSize: 24, 
+              marginBottom: 8,
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+              position: 'relative', zIndex: 1
+            }}>{k.icon}</div>
+            
+            {/* Value */}
+            <div style={{ 
+              fontSize: 32, 
+              fontWeight: 900, 
+              lineHeight: 1,
+              textShadow: '0 2px 10px rgba(0,0,0,0.2)',
+              position: 'relative', zIndex: 1,
+              fontFamily: "'Inter', system-ui, sans-serif"
+            }}>{k.val}</div>
+            
+            {/* Label */}
+            <div style={{ 
+              fontSize: 11, 
+              opacity: 0.95, 
+              marginTop: 8, 
+              fontWeight: 700, 
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              position: 'relative', zIndex: 1
+            }}>{k.lbl}</div>
           </div>
         ))}
       </div>
 
-      {/* Filter Bar — single horizontal row */}
+      {/* Premium Filter Bar */}
       <div style={{
-        display:'flex', gap:8, marginBottom:14, alignItems:'center', flexWrap:'nowrap',
-        background:'linear-gradient(135deg,#f8fafc,#f1f5f9)', border:'1.5px solid #cbd5e1',
-        borderRadius:10, padding:'8px 12px'
+        display:'flex', gap:12, marginBottom:20, alignItems:'center',
+        background:'#fff', border:'1px solid #e2e8f0',
+        borderRadius:16, padding:'14px 20px',
+        boxShadow:'0 4px 12px rgba(0,0,0,0.04)'
       }}>
-        <span style={{ fontSize:16, flexShrink:0 }}>🔍</span>
-        <input placeholder="Search HCF name / mobile / ID..." value={search} onChange={e => setSearch(e.target.value)}
-          style={{ border:'1.5px solid #c4b5fd', borderRadius:7, padding:'7px 10px', fontSize:13, fontWeight:500, color:'#111827', flex:2, minWidth:180, fontFamily:'inherit', outline:'none', background:'#fff' }} />
+        <div style={{ 
+          display:'flex', alignItems:'center', gap:10, flex:2, 
+          background:'#f8fafc', borderRadius:10, padding:'10px 14px', border:'1.5px solid #e2e8f0'
+        }}>
+          <span style={{ fontSize:18, opacity:0.5 }}>🔍</span>
+          <input placeholder="Search HCF name / mobile / ID..." value={search} onChange={e => setSearch(e.target.value)}
+            style={{ border:'none', background:'transparent', fontSize:14, fontWeight:500, color:'#1e293b', flex:1, outline:'none', fontFamily:'inherit' }} />
+        </div>
         <select value={filterZone} onChange={e => setFilterZone(e.target.value)}
-          style={{ border:'1.5px solid #a78bfa', borderRadius:7, padding:'7px 10px', fontSize:12, fontWeight:700, color:'#5b21b6', flex:1, minWidth:110, fontFamily:'inherit', background:'#fff', cursor:'pointer' }}>
-          <option value="">All Zones</option>
+          style={{ 
+            border:'1.5px solid #e2e8f0', borderRadius:10, padding:'12px 16px', fontSize:13, fontWeight:600, 
+            color:'#4c1d95', background:'#f5f3ff', cursor:'pointer', minWidth:130
+          }}>
+          <option value="">🌐 All Zones</option>
           {zones.map(z => <option key={z.ZoneName || z} value={z.ZoneName || z}>{z.ZoneName || z}</option>)}
         </select>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-          style={{ border:'1.5px solid #cbd5e1', borderRadius:7, padding:'7px 10px', fontSize:12, fontWeight:600, color:'#374151', flex:1, minWidth:120, fontFamily:'inherit', background:'#fff', cursor:'pointer' }}>
-          <option value="">All Status</option>
-          {['Active','Late Payer','Slow Payer','Disputed','Defaulter','Suspended','Closed'].map(s => <option key={s} value={s}>{s}</option>)}
+          style={{ 
+            border:'1.5px solid #e2e8f0', borderRadius:10, padding:'12px 16px', fontSize:13, fontWeight:600, 
+            color:'#374151', background:'#fff', cursor:'pointer', minWidth:130
+          }}>
+          <option value="">📋 All Status</option>
+          {['Active','Late Payer','Slow Payer','Disputed','Defaulter','Suspended','Closed','Deregistered'].map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
-          style={{ border:'1.5px solid #cbd5e1', borderRadius:7, padding:'7px 10px', fontSize:12, fontWeight:600, color:'#374151', flex:1, minWidth:130, fontFamily:'inherit', background:'#fff', cursor:'pointer' }}>
-          <option value="">All Categories</option>
+          style={{ 
+            border:'1.5px solid #e2e8f0', borderRadius:10, padding:'12px 16px', fontSize:13, fontWeight:600, 
+            color:'#374151', background:'#fff', cursor:'pointer', minWidth:150
+          }}>
+          <option value="">🏥 All Categories</option>
           {['Hospital (Nursing Home)','Hospital','Clinic','Nursing Home','Diagnostic','Pharmacy'].map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         {(search || filterZone || filterStatus || filterCategory) && (
           <button onClick={() => { setSearch(''); setFilterZone(''); setFilterStatus(''); setFilterCategory(''); }}
-            style={{ background:'#fee2e2', color:'#dc2626', border:'1.5px solid #fca5a5', borderRadius:7, padding:'7px 12px', fontSize:11, fontWeight:800, cursor:'pointer', flexShrink:0, whiteSpace:'nowrap' }}>
+            style={{ 
+              background:'linear-gradient(135deg,#fee2e2,#fecaca)', color:'#dc2626', 
+              border:'1.5px solid #fca5a5', borderRadius:10, padding:'12px 18px', 
+              fontSize:12, fontWeight:800, cursor:'pointer', whiteSpace:'nowrap'
+            }}>
             ✕ Clear
           </button>
         )}
       </div>
 
       {/* Table info bar */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6, padding:'0 2px' }}>
-        <span style={{ fontSize:12, color:'#64748b', fontWeight:600 }}>
-          Showing <strong style={{ color:'#1e293b' }}>{filtered.length}</strong> of <strong style={{ color:'#1e293b' }}>{data.length}</strong> HCFs
+      <div style={{ 
+        display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, padding:'0 4px'
+      }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <span style={{ 
+            fontSize:13, color:'#64748b', fontWeight:600,
+            background:'#f8fafc', padding:'8px 16px', borderRadius:10, border:'1px solid #e2e8f0'
+          }}>
+            Showing <strong style={{ color:'#6366f1', fontSize:15 }}>{filtered.length}</strong> of <strong style={{ color:'#6366f1', fontSize:15 }}>{data.length}</strong> HCFs
+          </span>
+        </div>
+        <span style={{ fontSize:12, color:'#94a3b8', fontStyle:'italic', fontWeight:500 }}>
+          💡 Click row header to sort · Hover row to highlight
         </span>
-        <span style={{ fontSize:11, color:'#94a3b8' }}>Click row header to sort · Hover row to highlight</span>
       </div>
 
-      <div className="table-wrap">
-        {loading ? <div className="no-data">Loading...</div> : (
-          <table style={{ minWidth: 1400 }}>
-            <colgroup>
-              <col style={{ width:70 }} />
-              <col style={{ width:200 }} />
-              <col style={{ width:160 }} />
-              <col style={{ width:100 }} />
-              <col style={{ width:110 }} />
-              <col style={{ width:140 }} />
-              <col style={{ width:120 }} />
-              <col style={{ width:110 }} />
-              <col style={{ width:100 }} />
-              <col style={{ width:110 }} />
-              <col style={{ width:100 }} />
-              <col style={{ width:90 }} />
-              <col style={{ width:160 }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>#</th><th>Institution Name</th><th>Category</th><th>Zone</th><th>Route</th>
-                <th>Contact Person</th><th>Mobile</th><th>Status</th><th>Reg. Date</th>
-                <th>Renewal Date</th><th>Outstanding</th><th>Docs</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={13} className="no-data">No records found</td></tr>
-              ) : filtered.map(row => (
-                <tr key={row.RegistrationID}>
-                  <td>
-                    <span style={{
-                      display:'inline-block', background:'linear-gradient(135deg,#5b21b6,#7c3aed)',
-                      color:'#fff', fontWeight:800, fontSize:12, borderRadius:6,
-                      padding:'3px 9px', letterSpacing:'0.02em'
-                    }}>{row.RegistrationID}</span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight:800, fontSize:14, color:'#0f172a', letterSpacing:'-0.01em' }}>{row.InstitutionName}</div>
-                    {row.FullAddress && <div style={{ fontSize:11, color:'#64748b', marginTop:3, maxWidth:180, fontWeight:500 }}>{row.FullAddress.substring(0, 48)}</div>}
-                  </td>
-                  <td>
-                    <span style={{ background:'#e2e8f0', color:'#1e293b', fontSize:12, fontWeight:700, borderRadius:6, padding:'4px 10px', whiteSpace:'nowrap', display:'inline-block' }}>
-                      {row.Category || '—'}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ background:'#ede9fe', color:'#4c1d95', fontSize:12, fontWeight:800, borderRadius:6, padding:'4px 10px', display:'inline-block' }}>
-                      {row.Zone || '—'}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ background:'#dbeafe', color:'#1e40af', fontSize:12, fontWeight:800, borderRadius:6, padding:'4px 10px', display:'inline-block' }}>
-                      {row.Route || '—'}
-                    </span>
-                  </td>
-                  <td style={{ color:'#0f172a', fontWeight:700, fontSize:14 }}>{row.ContactPerson || '—'}</td>
-                  <td>
-                    <a href={`tel:${row.Mobile}`} style={{ color:'#1d4ed8', fontWeight:800, textDecoration:'none', fontSize:14, letterSpacing:'0.01em' }}>
-                      {row.Mobile || '—'}
-                    </a>
-                  </td>
-                  <td><StatusBadge value={row.Status || 'Pending'} /></td>
-                  <td style={{ color:'#1e293b', fontWeight:700, fontSize:13 }}>{row.CreatedAt ? new Date(row.CreatedAt).toLocaleDateString('en-IN') : <span style={{color:'#94a3b8'}}>—</span>}</td>
-                  <td style={{ color:'#1e293b', fontWeight:700, fontSize:13 }}>{row.RenewalDate ? new Date(row.RenewalDate).toLocaleDateString('en-IN') : <span style={{color:'#94a3b8'}}>—</span>}</td>
-                  <td>
-                    {row.Outstanding
-                      ? <span style={{ color:'#b91c1c', fontWeight:900, fontSize:14 }}>₹{Number(row.Outstanding).toLocaleString('en-IN')}</span>
-                      : <span style={{ color:'#94a3b8', fontSize:14, fontWeight:700 }}>—</span>
-                    }
-                  </td>
-                  <td>
-                    <button style={{
-                      background:'linear-gradient(135deg,#ede9fe,#ddd6fe)', border:'1.5px solid #c4b5fd',
-                      borderRadius:7, padding:'5px 11px', fontSize:11, color:'#5b21b6', cursor:'pointer', fontWeight:700
-                    }}>📁 Docs</button>
-                  </td>
-                  <td>
-                    <div style={{ display:'flex', gap:4, flexWrap:'nowrap' }}>
-                      <button onClick={() => { setView360Row(row); setShow360Modal(true); }}
-                        style={{
-                          background:'linear-gradient(135deg,#5b21b6,#7c3aed)', color:'#fff', border:'none',
-                          borderRadius:7, padding:'5px 11px', fontSize:11, fontWeight:800, cursor:'pointer', whiteSpace:'nowrap',
-                          boxShadow:'0 2px 6px rgba(91,33,182,0.3)'
-                        }}>● 360°</button>
-                      <button onClick={() => handleEdit(row)} style={{
-                        background:'linear-gradient(135deg,#0369a1,#0ea5e9)', color:'#fff', border:'none',
-                        borderRadius:7, padding:'5px 9px', fontSize:12, fontWeight:700, cursor:'pointer'
-                      }}>✏</button>
-                      <button onClick={() => handleDelete(row)} style={{
-                        background:'linear-gradient(135deg,#dc2626,#ef4444)', color:'#fff', border:'none',
-                        borderRadius:7, padding:'5px 9px', fontSize:12, fontWeight:700, cursor:'pointer'
-                      }}>🗑</button>
-                    </div>
-                  </td>
+      {/* Premium Table - Enterprise Design */}
+      <div style={{ 
+        background:'#fff', 
+        borderRadius:20, 
+        border:'1px solid #e2e8f0', 
+        overflow:'hidden', 
+        boxShadow:'0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)'
+      }}>
+        {loading ? <div style={{ padding:80, textAlign:'center', color:'#94a3b8', fontSize:14 }}>
+          <div style={{ fontSize:40, marginBottom:16 }}>⏳</div>
+          Loading data...
+        </div> : (
+          <div style={{ overflowX:'auto', scrollbarWidth:'none', msOverflowStyle:'none' }} className="hide-scrollbar">
+            <table style={{ width:'100%', minWidth:1400, borderCollapse:'separate', borderSpacing:0 }}>
+              <colgroup>
+                <col style={{ width:60 }} />
+                <col style={{ width:200 }} />
+                <col style={{ width:150 }} />
+                <col style={{ width:90 }} />
+                <col style={{ width:100 }} />
+                <col style={{ width:130 }} />
+                <col style={{ width:130 }} />
+                <col style={{ width:110 }} />
+                <col style={{ width:100 }} />
+                <col style={{ width:105 }} />
+                <col style={{ width:100 }} />
+                <col style={{ width:60 }} />
+                <col style={{ width:160 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  {['#','Institution Name','Category','Zone','Route','Contact Person','Mobile','Status','Reg. Date','Renewal Date','Outstanding','Docs','Actions'].map((h, i) => (
+                    <th key={h} style={{ 
+                      padding:'18px 14px', 
+                      textAlign:'left', 
+                      fontWeight:700, 
+                      color:'#475569', 
+                      fontSize:11, 
+                      textTransform:'uppercase', 
+                      letterSpacing:'0.08em',
+                      borderBottom:'2px solid #e2e8f0',
+                      background:'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+                      position:'sticky',
+                      top:0,
+                      zIndex:10
+                    }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-            {/* Excel-style footer total row */}
-            {filtered.length > 0 && (
-              <tfoot>
-                <tr style={{ background:'linear-gradient(135deg,#1e293b,#334155)' }}>
-                  <td colSpan={2} style={{ padding:'12px 16px', fontWeight:900, fontSize:13, color:'#f1f5f9', borderRight:'2px solid rgba(255,255,255,0.15)', borderBottom:'none' }}>
-                    📊 Total: {filtered.length} HCFs
-                  </td>
-                  <td colSpan={8} style={{ borderBottom:'none', borderRight:'2px solid rgba(255,255,255,0.1)' }} />
-                  <td style={{ padding:'12px 16px', fontWeight:900, fontSize:14, color:'#fca5a5', borderBottom:'none', borderRight:'2px solid rgba(255,255,255,0.1)' }}>
-                    {filtered.some(r => r.Outstanding) ? `₹${filtered.reduce((s,r) => s + (Number(r.Outstanding)||0), 0).toLocaleString('en-IN')}` : '—'}
-                  </td>
-                  <td colSpan={2} style={{ borderBottom:'none' }} />
-                </tr>
-              </tfoot>
-            )}
-          </table>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={13} style={{ padding:80, textAlign:'center', color:'#94a3b8' }}>
+                    <div style={{ fontSize:48, marginBottom:16, opacity:0.5 }}>📋</div>
+                    <div style={{ fontSize:15, fontWeight:600 }}>No records found</div>
+                    <div style={{ fontSize:13, marginTop:4 }}>Try adjusting your search or filters</div>
+                  </td></tr>
+                ) : filtered.map((row, idx) => (
+                  <tr key={row.RegistrationID} style={{ 
+                    background: idx % 2 === 0 ? '#fff' : '#fafbfc',
+                    borderBottom:'1px solid #f1f5f9',
+                    transition:'all 0.25s ease'
+                  }} 
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background='linear-gradient(90deg, #f0f9ff 0%, #eff6ff 50%, #f0f9ff 100%)';
+                    e.currentTarget.style.boxShadow='inset 4px 0 0 #6366f1';
+                  }} 
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background=idx % 2 === 0 ? '#fff' : '#fafbfc';
+                    e.currentTarget.style.boxShadow='none';
+                  }}>
+                    {/* ID */}
+                    <td style={{ padding:'16px 14px' }}>
+                      <span style={{
+                        display:'inline-flex', alignItems:'center', justifyContent:'center',
+                        background:'linear-gradient(145deg,#6366f1,#8b5cf6)',
+                        color:'#fff', fontWeight:800, fontSize:12, borderRadius:10,
+                        width:38, height:38, boxShadow:'0 4px 12px rgba(99,102,241,0.35)'
+                      }}>{row.RegistrationID}</span>
+                    </td>
+                    
+                    {/* Institution Name */}
+                    <td style={{ padding:'16px 14px' }}>
+                      <div style={{ fontWeight:700, fontSize:14, color:'#0f172a', marginBottom:3 }}>{row.InstitutionName}</div>
+                      {row.FullAddress && <div style={{ fontSize:11, color:'#64748b', maxWidth:180, lineHeight:1.4 }}>
+                        📍 {row.FullAddress.substring(0, 35)}...
+                      </div>}
+                    </td>
+                    
+                    {/* Category */}
+                    <td style={{ padding:'16px 14px' }}>
+                      <span style={{ 
+                        background:'linear-gradient(145deg,#f1f5f9,#e2e8f0)', 
+                        color:'#374151', fontSize:11, fontWeight:700, 
+                        borderRadius:8, padding:'7px 12px', display:'inline-block',
+                        border:'1px solid #e2e8f0'
+                      }}>{row.Category || '—'}</span>
+                    </td>
+                    
+                    {/* Zone */}
+                    <td style={{ padding:'16px 14px' }}>
+                      <span style={{ 
+                        background:'linear-gradient(145deg,#ede9fe,#ddd6fe)', 
+                        color:'#5b21b6', 
+                        fontSize:11, fontWeight:800, borderRadius:8, padding:'7px 12px', display:'inline-block',
+                        border:'1px solid #c4b5fd'
+                      }}>{row.Zone || '—'}</span>
+                    </td>
+                    
+                    {/* Route */}
+                    <td style={{ padding:'16px 14px' }}>
+                      <span style={{ 
+                        background:'linear-gradient(145deg,#dbeafe,#bfdbfe)', 
+                        color:'#1e40af', 
+                        fontSize:11, fontWeight:800, borderRadius:8, padding:'7px 12px', display:'inline-block',
+                        border:'1px solid #93c5fd'
+                      }}>{row.Route || '—'}</span>
+                    </td>
+                    
+                    {/* Contact Person */}
+                    <td style={{ padding:'16px 14px', color:'#1e293b', fontWeight:600, fontSize:13 }}>
+                      {row.ContactPerson || <span style={{ color:'#cbd5e1' }}>—</span>}
+                    </td>
+                    
+                    {/* Mobile */}
+                    <td style={{ padding:'16px 14px' }}>
+                      {row.Mobile ? (
+                        <a href={`tel:${row.Mobile}`} style={{ 
+                          color:'#2563eb', fontWeight:700, textDecoration:'none', fontSize:13,
+                          display:'inline-flex', alignItems:'center', gap:4
+                        }}>
+                          <span style={{ fontSize:12 }}>📞</span> {row.Mobile}
+                        </a>
+                      ) : <span style={{ color:'#cbd5e1' }}>—</span>}
+                    </td>
+                    
+                    {/* Status */}
+                    <td style={{ padding:'16px 14px' }}><StatusBadge value={row.Status || 'Pending'} /></td>
+                    
+                    {/* Reg Date */}
+                    <td style={{ padding:'16px 14px', color:'#475569', fontWeight:600, fontSize:12 }}>
+                      {formatDate(row.CreatedAt) || <span style={{ color:'#cbd5e1' }}>—</span>}
+                    </td>
+                    
+                    {/* Renewal Date */}
+                    <td style={{ padding:'16px 14px', color:'#475569', fontWeight:600, fontSize:12 }}>
+                      {formatDate(row.RenewalDate) || <span style={{ color:'#cbd5e1' }}>—</span>}
+                    </td>
+                    
+                    {/* Outstanding */}
+                    <td style={{ padding:'16px 14px' }}>
+                      {row.Outstanding ? (
+                        <span style={{ 
+                          color:'#dc2626', fontWeight:800, fontSize:13,
+                          background:'#fef2f2', padding:'6px 10px', borderRadius:8,
+                          border:'1px solid #fecaca', display:'inline-block'
+                        }}>₹{Number(row.Outstanding).toLocaleString('en-IN')}</span>
+                      ) : <span style={{ color:'#cbd5e1', fontSize:13 }}>—</span>}
+                    </td>
+                    
+                    {/* Docs */}
+                    <td style={{ padding:'16px 14px' }}>
+                      <button 
+                      onClick={() => openDocsModal(row)}
+                      style={{
+                        background:'linear-gradient(145deg,#f5f3ff,#ede9fe)', border:'1px solid #c4b5fd',
+                        borderRadius:8, padding:'8px 10px', fontSize:13, color:'#6d28d9', cursor:'pointer', fontWeight:700,
+                        transition:'all 0.2s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.transform='scale(1.1)'}
+                      onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}
+                      title="View Documents"
+                      >📁</button>
+                    </td>
+                    
+                    {/* Actions */}
+                    <td style={{ padding:'16px 14px' }}>
+                      <div style={{ display:'flex', gap:6, flexWrap:'nowrap' }}>
+                        <button onClick={() => { setView360Row(row); setShow360Modal(true); }}
+                          style={{
+                            background:'linear-gradient(145deg,#6366f1,#4f46e5)', color:'#fff', border:'none',
+                            borderRadius:10, padding:'9px 14px', fontSize:11, fontWeight:700, cursor:'pointer',
+                            boxShadow:'0 2px 8px rgba(99,102,241,0.3)'
+                          }}>360°</button>
+                        {row.Status === 'Deregistered' ? (
+                          <button onClick={() => openReregModal(row)} style={{
+                            background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none',
+                            borderRadius:8, padding:'8px 10px', fontSize:10, fontWeight:700, cursor:'pointer'
+                          }}>🔄 Re-reg</button>
+                        ) : (
+                          <>
+                            <button onClick={() => handleEdit(row)} style={{
+                              background:'#f0f9ff', color:'#0284c7', border:'1px solid #bae6fd',
+                              borderRadius:8, padding:'8px 10px', fontSize:12, fontWeight:700, cursor:'pointer'
+                            }}>✏️</button>
+                            <button onClick={() => handleDelete(row)} style={{
+                              background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca',
+                              borderRadius:8, padding:'8px 10px', fontSize:12, fontWeight:700, cursor:'pointer'
+                            }}>🗑️</button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              {filtered.length > 0 && (
+                <tfoot>
+                  <tr style={{ background:'linear-gradient(135deg,#1e293b,#0f172a)' }}>
+                    <td colSpan={2} style={{ padding:'16px', fontWeight:900, fontSize:14, color:'#fff', borderBottom:'none' }}>
+                      📊 Total: {filtered.length} HCFs
+                    </td>
+                    <td colSpan={8} style={{ borderBottom:'none' }} />
+                    <td style={{ padding:'16px', fontWeight:900, fontSize:15, color:'#f87171', borderBottom:'none' }}>
+                      {filtered.some(r => r.Outstanding) ? `₹${filtered.reduce((s,r) => s + (Number(r.Outstanding)||0), 0).toLocaleString('en-IN')}` : '—'}
+                    </td>
+                    <td colSpan={2} style={{ borderBottom:'none' }} />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
         )}
       </div>
 
@@ -581,9 +960,229 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
         </div>
       )}
 
+      {/* Re-registration Modal */}
+      {showReregModal && reregRow && (
+        <div style={modalOverlay}>
+          <div style={modalBox(600)}>
+            <div style={{ background:'linear-gradient(135deg,#16a34a,#22c55e)', padding:'18px 24px', borderRadius:'16px 16px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div>
+                <h2 style={{ margin:0, color:'#fff', fontSize:18, fontWeight:800 }}>🔄 Re-register HCF</h2>
+                <div style={{ color:'rgba(255,255,255,0.8)', fontSize:12, marginTop:4 }}>{reregRow.InstitutionName}</div>
+              </div>
+              <button onClick={() => setShowReregModal(false)} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:8, width:32, height:32, fontSize:18, cursor:'pointer', color:'#fff' }}>×</button>
+            </div>
+            <form onSubmit={handleReregSubmit} style={{ padding:24 }}>
+              <div style={{ background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:10, padding:14, marginBottom:20, fontSize:13 }}>
+                <strong>⚠️ Re-registration Notice:</strong> This HCF was previously deregistered. Complete this form to reactivate the account with a new contract.
+              </div>
+              
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+                <div>
+                  <label style={{ display:'block', fontSize:12, fontWeight:600, marginBottom:4, color:'#374151' }}>Contract Start Date *</label>
+                  <input type="date" value={reregForm.ContractStartDate} onChange={e => setReregForm(p => ({ ...p, ContractStartDate: e.target.value }))} required
+                    style={{ width:'100%', padding:'10px 12px', border:'1.5px solid #d1d5db', borderRadius:8, fontSize:13 }} />
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:12, fontWeight:600, marginBottom:4, color:'#374151' }}>Contract Duration *</label>
+                  <select value={reregForm.ContractDuration} onChange={e => setReregForm(p => ({ ...p, ContractDuration: e.target.value }))} required
+                    style={{ width:'100%', padding:'10px 12px', border:'1.5px solid #d1d5db', borderRadius:8, fontSize:13 }}>
+                    <option value="12">12 Months</option>
+                    <option value="24">24 Months</option>
+                    <option value="36">36 Months</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:12, fontWeight:600, marginBottom:4, color:'#374151' }}>Billing Cycle</label>
+                  <select value={reregForm.BillingCycle} onChange={e => setReregForm(p => ({ ...p, BillingCycle: e.target.value }))}
+                    style={{ width:'100%', padding:'10px 12px', border:'1.5px solid #d1d5db', borderRadius:8, fontSize:13 }}>
+                    <option value="Monthly">Monthly</option>
+                    <option value="Quarterly">Quarterly</option>
+                    <option value="Half-Yearly">Half-Yearly</option>
+                    <option value="Yearly">Yearly</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:12, fontWeight:600, marginBottom:4, color:'#374151' }}>Payment Mode</label>
+                  <select value={reregForm.PaymentMode} onChange={e => setReregForm(p => ({ ...p, PaymentMode: e.target.value }))}
+                    style={{ width:'100%', padding:'10px 12px', border:'1.5px solid #d1d5db', borderRadius:8, fontSize:13 }}>
+                    <option value="Online">Online</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:12, fontWeight:600, marginBottom:4, color:'#374151' }}>Re-registration Fee (₹)</label>
+                  <input type="number" value={reregForm.RegFee} onChange={e => setReregForm(p => ({ ...p, RegFee: e.target.value }))} placeholder="0"
+                    style={{ width:'100%', padding:'10px 12px', border:'1.5px solid #d1d5db', borderRadius:8, fontSize:13 }} />
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:12, fontWeight:600, marginBottom:4, color:'#374151' }}>Service Fee (₹)</label>
+                  <input type="number" value={reregForm.SvcFee} onChange={e => setReregForm(p => ({ ...p, SvcFee: e.target.value }))} placeholder="0"
+                    style={{ width:'100%', padding:'10px 12px', border:'1.5px solid #d1d5db', borderRadius:8, fontSize:13 }} />
+                </div>
+              </div>
+
+              <div style={{ marginTop:20, display:'flex', flexDirection:'column', gap:12 }}>
+                <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+                  <input type="checkbox" checked={reregForm.MoUReSigned} onChange={e => setReregForm(p => ({ ...p, MoUReSigned: e.target.checked }))}
+                    style={{ width:18, height:18, accentColor:'#16a34a' }} />
+                  <span style={{ fontSize:13, fontWeight:600 }}>✍️ MoU Re-signed</span>
+                </label>
+                <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+                  <input type="checkbox" checked={reregForm.GenerateCertificate} onChange={e => setReregForm(p => ({ ...p, GenerateCertificate: e.target.checked }))}
+                    style={{ width:18, height:18, accentColor:'#16a34a' }} />
+                  <span style={{ fontSize:13, fontWeight:600 }}>📜 Generate New Certificate</span>
+                </label>
+              </div>
+
+              <div style={{ marginTop:20 }}>
+                <label style={{ display:'block', fontSize:12, fontWeight:600, marginBottom:4, color:'#374151' }}>Remarks / Notes</label>
+                <textarea value={reregForm.Remarks} onChange={e => setReregForm(p => ({ ...p, Remarks: e.target.value }))} rows={3} placeholder="Any additional notes about re-registration..."
+                  style={{ width:'100%', padding:'10px 12px', border:'1.5px solid #d1d5db', borderRadius:8, fontSize:13, resize:'vertical' }} />
+              </div>
+
+              <div style={{ display:'flex', gap:12, marginTop:24, justifyContent:'flex-end' }}>
+                <button type="button" onClick={() => setShowReregModal(false)} style={{ padding:'10px 20px', border:'1.5px solid #d1d5db', borderRadius:8, background:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={savingRereg} style={{ padding:'10px 24px', border:'none', borderRadius:8, background:'linear-gradient(135deg,#16a34a,#22c55e)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', opacity: savingRereg ? 0.6 : 1 }}>
+                  {savingRereg ? 'Processing...' : '🔄 Re-register & Activate'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* 360° Modal */}
       {show360Modal && view360Row && (
         <HCF360Modal row={view360Row} zones={zones} onClose={() => setShow360Modal(false)} showToast={showToast} />
+      )}
+
+      {/* Documents Modal */}
+      {showDocsModal && docsRow && (
+        <div style={{
+          position:'fixed', top:0, left:0, right:0, bottom:0, 
+          background:'rgba(15,23,42,0.7)', backdropFilter:'blur(4px)',
+          display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000
+        }} onClick={() => setShowDocsModal(false)}>
+          <div style={{
+            background:'#fff', borderRadius:16, width:'90%', maxWidth:700, maxHeight:'85vh',
+            overflow:'hidden', boxShadow:'0 25px 50px rgba(0,0,0,0.25)'
+          }} onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{
+              background:'linear-gradient(135deg,#1e1b4b,#312e81)', padding:'20px 24px',
+              display:'flex', justifyContent:'space-between', alignItems:'center'
+            }}>
+              <div>
+                <h2 style={{ margin:0, color:'#fff', fontSize:18, fontWeight:700, display:'flex', alignItems:'center', gap:10 }}>
+                  📁 Documents
+                </h2>
+                <p style={{ margin:'4px 0 0', color:'rgba(255,255,255,0.7)', fontSize:13 }}>
+                  {docsRow.InstitutionName} (ID: {docsRow.RegistrationID})
+                </p>
+              </div>
+              <button onClick={() => setShowDocsModal(false)} style={{
+                background:'rgba(255,255,255,0.1)', border:'none', color:'#fff', width:36, height:36,
+                borderRadius:8, fontSize:18, cursor:'pointer'
+              }}>×</button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding:24, maxHeight:'calc(85vh - 80px)', overflowY:'auto' }}>
+              {loadingDocsData ? (
+                <div style={{ padding:40, textAlign:'center', color:'#64748b' }}>
+                  <div style={{ fontSize:32, marginBottom:12 }}>⏳</div>
+                  Loading documents...
+                </div>
+              ) : (() => {
+                const ALL_DOC_TYPES = [
+                  { key: 'Aadhaar Card',                   icon: '🪪', color: '#2563eb', bg: '#dbeafe' },
+                  { key: 'PAN Card',                       icon: '💳', color: '#7c3aed', bg: '#ede9fe' },
+                  { key: 'GST Certificate',                icon: '📋', color: '#0891b2', bg: '#e0f2fe' },
+                  { key: 'BMW Authorization',              icon: '🏥', color: '#16a34a', bg: '#dcfce7' },
+                  { key: 'PCB Authorization',              icon: '🏭', color: '#d97706', bg: '#fef3c7' },
+                  { key: 'Cancelled Cheque',               icon: '🏦', color: '#64748b', bg: '#f1f5f9' },
+                  { key: 'Facility Photo (Display Board)', icon: '📷', color: '#0891b2', bg: '#e0f2fe' },
+                  { key: 'Letterhead',                     icon: '📄', color: '#7c3aed', bg: '#ede9fe' },
+                  { key: 'MoU Copy',                       icon: '📝', color: '#dc2626', bg: '#fee2e2' },
+                  { key: 'Agreement Copy',                 icon: '📃', color: '#16a34a', bg: '#dcfce7' },
+                  { key: 'NOC (CMO/RO Consent)',           icon: '✅', color: '#2563eb', bg: '#dbeafe' },
+                ];
+                const docMap = {};
+                docsData.forEach(d => { docMap[d.DocumentType] = d; });
+                const uploadedCount = docsData.filter(d => d.FilePath).length;
+
+                return (
+                  <div>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+                      <div style={{ fontSize:13, color:'#64748b' }}>
+                        <span style={{ fontWeight:700, color:'#1e293b' }}>{uploadedCount}</span> of {ALL_DOC_TYPES.length} documents uploaded
+                      </div>
+                      <button onClick={() => { setShowDocsModal(false); setView360Row(docsRow); setShow360Modal(true); }}
+                        style={{ background:'#5b21b6', color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                        📤 Upload Documents
+                      </button>
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
+                      {ALL_DOC_TYPES.map(dt => {
+                        const d = docMap[dt.key];
+                        const isUploaded = d && d.FilePath;
+                        const statusInfo = !isUploaded 
+                          ? { label: 'Not Uploaded', color: '#dc2626', bg: '#fee2e2' }
+                          : (d.DocStatus || '').toLowerCase() === 'expired'
+                            ? { label: 'Expired', color: '#dc2626', bg: '#fee2e2' }
+                            : (d.DocStatus || '').toLowerCase() === 'expiring'
+                              ? { label: 'Expiring', color: '#d97706', bg: '#fef3c7' }
+                              : { label: 'Valid', color: '#15803d', bg: '#dcfce7' };
+                        return (
+                          <div key={dt.key} style={{
+                            background: isUploaded ? `linear-gradient(135deg,${dt.bg},#fff)` : '#fff',
+                            border: isUploaded ? `1.5px solid ${dt.color}44` : '1.5px dashed #e2e8f0',
+                            borderRadius:12, padding:14
+                          }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
+                              <div style={{ 
+                                width:36, height:36, borderRadius:8, 
+                                background: isUploaded ? `linear-gradient(135deg,${dt.color},${dt.color}bb)` : '#f1f5f9',
+                                display:'flex', alignItems:'center', justifyContent:'center', fontSize:16
+                              }}>{dt.icon}</div>
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontSize:12, fontWeight:700, color:'#1e293b', lineHeight:1.3 }}>{dt.key}</div>
+                              </div>
+                            </div>
+                            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                              <span style={{ 
+                                fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:20, 
+                                background:statusInfo.bg, color:statusInfo.color 
+                              }}>
+                                {statusInfo.label === 'Valid' ? '✓ ' : ''}{statusInfo.label}
+                              </span>
+                              {isUploaded && (
+                                <button onClick={() => window.open(d.FilePath, '_blank')}
+                                  style={{
+                                    background:'linear-gradient(135deg,#6366f1,#4f46e5)', color:'#fff', border:'none',
+                                    borderRadius:6, padding:'4px 10px', fontSize:10, fontWeight:600, cursor:'pointer'
+                                  }}>👁️ View</button>
+                              )}
+                            </div>
+                            {isUploaded && d.ExpiryDate && (
+                              <div style={{ fontSize:10, color:'#d97706', fontWeight:600, marginTop:6 }}>
+                                Expiry: {new Date(d.ExpiryDate).toLocaleDateString('en-IN')}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -595,32 +1194,168 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [lifecycleState, setLifecycleState] = useState(row.LifecycleState || 'Active');
   const [savingState, setSavingState] = useState(false);
+  const [notes, setNotes] = useState(row.Notes || '');
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const [docs, setDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [uploadingDocType, setUploadingDocType] = useState(null);
-  const [docForm, setDocForm] = useState({ DocumentType: '', Version: '', ExpiryDate: '', UploadedBy: '', Remarks: '' });
-  const [savingDoc, setSavingDoc] = useState(false);
 
   const [contacts, setContacts] = useState([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [contactForm, setContactForm] = useState({ ContactName: '', Designation: '', Mobile: '', Email: '', IsPrimary: false });
   const [savingContact, setSavingContact] = useState(false);
+  const [showAddContact, setShowAddContact] = useState(false);
+
   const [complaints360, setComplaints360] = useState([]);
   const [loadingComplaints360, setLoadingComplaints360] = useState(false);
-  const [showAddContact, setShowAddContact] = useState(false);
+  const [showAddComplaint, setShowAddComplaint] = useState(false);
+  const [complaintForm, setComplaintForm] = useState({ Type: '', Description: '', Priority: 'Medium', AssignedTo: '' });
+  const [savingComplaint, setSavingComplaint] = useState(false);
+
+  // Payment History state
+  const [payments, setPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [paymentSummary, setPaymentSummary] = useState({});
+  const [showAddPayment, setShowAddPayment] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ InvoiceNo: '', InvoiceDate: '', InvoiceAmount: '', PaidAmount: '', PaymentDate: '', PaymentMode: '', TransactionRef: '', BankName: '', Status: 'Paid', Remarks: '' });
+  const [savingPayment, setSavingPayment] = useState(false);
+
+  // Pickups state
+  const [pickups, setPickups] = useState([]);
+  const [loadingPickups, setLoadingPickups] = useState(false);
+  const [pickupSummary, setPickupSummary] = useState({});
+
+  // Certificates state
+  const [certificates, setCertificates] = useState([]);
+  const [loadingCerts, setLoadingCerts] = useState(false);
+  const [generatingCert, setGeneratingCert] = useState(false);
+
+  useEffect(() => {
+    // Load payment summary, pickup summary, and contacts on mount for overview
+    loadPaymentSummary();
+    loadPickupSummary();
+    loadContacts();
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'documents') loadDocs();
     if (activeTab === 'contacts') loadContacts();
-    if (activeTab === 'complaints') {
-      setLoadingComplaints360(true);
-      fetch(`/api/portal/complaints/${row.RegistrationID}`).then(r => r.json())
-        .then(d => setComplaints360(Array.isArray(d) ? d : []))
-        .catch(() => {})
-        .finally(() => setLoadingComplaints360(false));
-    }
+    if (activeTab === 'complaints') loadComplaints();
+    if (activeTab === 'payments') { loadPayments(); loadPaymentSummary(); }
+    if (activeTab === 'pickups') { loadPickups(); loadPickupSummary(); }
+    if (activeTab === 'certificates') loadCertificates();
   }, [activeTab]);
+
+  const loadCertificates = async () => {
+    setLoadingCerts(true);
+    try {
+      const res = await fetch(`/api/hcf-certificates/${row.RegistrationID}`);
+      const json = await res.json();
+      setCertificates(Array.isArray(json) ? json : []);
+    } catch { showToast('Failed to load certificates', 'error'); }
+    finally { setLoadingCerts(false); }
+  };
+
+  const generateCertificate = async () => {
+    setGeneratingCert(true);
+    try {
+      const res = await fetch('/api/hcf-certificates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationId: row.RegistrationID })
+      });
+      if (!res.ok) throw new Error('Failed');
+      showToast('Certificate generated successfully!');
+      loadCertificates();
+    } catch { showToast('Failed to generate certificate', 'error'); }
+    finally { setGeneratingCert(false); }
+  };
+
+  const revokeCertificate = async (certId) => {
+    if (!window.confirm('Revoke this certificate?')) return;
+    try {
+      await fetch(`/api/hcf-certificates/${certId}/revoke`, { method: 'PUT' });
+      showToast('Certificate revoked');
+      loadCertificates();
+    } catch { showToast('Failed to revoke certificate', 'error'); }
+  };
+
+  const loadPayments = async () => {
+    setLoadingPayments(true);
+    try {
+      const res = await fetch(`/api/hcf-payments/${row.RegistrationID}`);
+      const json = await res.json();
+      setPayments(Array.isArray(json) ? json : []);
+    } catch { showToast('Failed to load payments', 'error'); }
+    finally { setLoadingPayments(false); }
+  };
+
+  const loadPaymentSummary = async () => {
+    try {
+      const res = await fetch(`/api/hcf-payments-summary/${row.RegistrationID}`);
+      const json = await res.json();
+      setPaymentSummary(json || {});
+    } catch {}
+  };
+
+  const loadPickups = async () => {
+    setLoadingPickups(true);
+    try {
+      const res = await fetch(`/api/hcf-pickups/${row.RegistrationID}`);
+      const json = await res.json();
+      setPickups(Array.isArray(json) ? json : []);
+    } catch { showToast('Failed to load pickups', 'error'); }
+    finally { setLoadingPickups(false); }
+  };
+
+  const loadPickupSummary = async () => {
+    try {
+      const res = await fetch(`/api/hcf-pickups-summary/${row.RegistrationID}`);
+      const json = await res.json();
+      setPickupSummary(json || {});
+    } catch {}
+  };
+
+  const loadComplaints = async () => {
+    setLoadingComplaints360(true);
+    try {
+      const res = await fetch(`/api/portal/complaints/${row.RegistrationID}`);
+      const json = await res.json();
+      setComplaints360(Array.isArray(json) ? json : []);
+    } catch {}
+    finally { setLoadingComplaints360(false); }
+  };
+
+  const addPayment = async () => {
+    if (!paymentForm.PaidAmount || !paymentForm.PaymentDate) {
+      showToast('Paid Amount and Payment Date are required', 'error');
+      return;
+    }
+    setSavingPayment(true);
+    try {
+      await fetch('/api/hcf-payments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...paymentForm, RegistrationID: row.RegistrationID }),
+      });
+      showToast('Payment recorded');
+      setPaymentForm({ InvoiceNo: '', InvoiceDate: '', InvoiceAmount: '', PaidAmount: '', PaymentDate: '', PaymentMode: '', TransactionRef: '', BankName: '', Status: 'Paid', Remarks: '' });
+      setShowAddPayment(false);
+      loadPayments();
+      loadPaymentSummary();
+    } catch { showToast('Save failed', 'error'); }
+    finally { setSavingPayment(false); }
+  };
+
+  const deletePayment = async (id) => {
+    if (!window.confirm('Delete this payment record?')) return;
+    try {
+      await fetch(`/api/hcf-payments/${id}`, { method: 'DELETE' });
+      showToast('Payment deleted');
+      loadPayments();
+      loadPaymentSummary();
+    } catch { showToast('Delete failed', 'error'); }
+  };
 
   const loadDocs = async () => {
     setLoadingDocs(true);
@@ -722,110 +1457,363 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
     } catch { showToast('Delete failed', 'error'); }
   };
 
+  const addComplaint = async () => {
+    if (!complaintForm.Type || !complaintForm.Description) {
+      showToast('Type and Description are required', 'error');
+      return;
+    }
+    setSavingComplaint(true);
+    try {
+      const payload = {
+        ...complaintForm,
+        RegistrationID: row.RegistrationID,
+        Status: 'Pending',
+        CreatedAt: new Date().toISOString()
+      };
+      await fetch('/api/portal/complaints', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      showToast('Complaint submitted');
+      setComplaintForm({ Type: '', Description: '', Priority: 'Medium', AssignedTo: '' });
+      setShowAddComplaint(false);
+      loadComplaints();
+    } catch { showToast('Save failed', 'error'); }
+    finally { setSavingComplaint(false); }
+  };
+
+  const saveNotes = async () => {
+    setSavingNotes(true);
+    try {
+      await fetch(`/api/hcf-master/${row.RegistrationID}/notes`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      });
+      showToast('Notes saved');
+    } catch { showToast('Save failed', 'error'); }
+    finally { setSavingNotes(false); }
+  };
+
   const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'documents', label: 'Documents' },
-    { id: 'contacts', label: 'Contacts' },
-    { id: 'timeline', label: 'Timeline' },
-    { id: 'complaints', label: 'Complaints' },
+    { id: 'overview', label: 'Overview', icon: '📊' },
+    { id: 'payments', label: 'Payments', icon: '💰' },
+    { id: 'pickups', label: 'Pickups', icon: '🚛' },
+    { id: 'documents', label: 'Documents', icon: '📁' },
+    { id: 'certificates', label: 'Certificates', icon: '📜' },
+    { id: 'complaints', label: 'Complaints', icon: '⚠️' },
+    { id: 'contacts', label: 'Contacts', icon: '👤' },
+    { id: 'timeline', label: 'Timeline', icon: '📅' },
   ];
 
-  const overviewFields = [
-    ['Registration ID', row.RegistrationID], ['Customer ID', row.CustomerID],
-    ['Institution Name', row.InstitutionName], ['Category', row.Category],
-    ['Zone', row.Zone], ['Route', row.Route],
-    ['Mobile', row.Mobile], ['Email', row.Email],
-    ['Contact Person', row.ContactPerson], ['Number of Beds', row.NumberOfBeds],
-    ['Selected Plan', row.SelectedPlan], ['Total Amount', row.TotalAmount],
-    ['Status', row.Status], ['Created At', row.CreatedAt ? new Date(row.CreatedAt).toLocaleDateString() : '—'],
-    ['Registration Date', row.RegistrationDate ? new Date(row.RegistrationDate).toLocaleDateString() : '—'],
-  ];
+  const docTypes = ['Aadhaar Card', 'PAN Card', 'GST Certificate', 'BMW Authorization', 'PCB Authorization', 'Cancelled Cheque', 'Facility Photo (Display Board)', 'Letterhead', 'MoU Copy', 'Agreement Copy', 'NOC (CMO/RO Consent)'];
 
-  const docTypes = ['Aadhaar', 'PAN', 'GST', 'BMW Auth', 'PCB Auth', 'Cancelled Cheque', 'Facility Photo', 'MoU Copy', 'Agreement Copy'];
+  // Calculate overdue days
+  const calculateOverdueDays = () => {
+    const lastPaymentDate = paymentSummary.LastPaymentDate;
+    if (!lastPaymentDate) return 0;
+    const daysSince = Math.floor((new Date() - new Date(lastPaymentDate)) / (1000 * 60 * 60 * 24));
+    return daysSince > 30 ? daysSince - 30 : 0;
+  };
 
   return (
     <div style={modalOverlay}>
-      <div style={{ ...modalBox(960), padding:0, overflow:'hidden', borderRadius:16, boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+      <div style={{ ...modalBox(1100), padding:0, overflow:'hidden', borderRadius:16, boxShadow:'0 20px 60px rgba(0,0,0,0.25)', display:'flex', flexDirection:'column', maxHeight:'90vh' }}>
 
-        {/* ── Modal Header with gradient ── */}
+        {/* ── Modal Header ── */}
         <div style={{
-          background:'linear-gradient(135deg,#1e293b 0%,#312e81 50%,#5b21b6 100%)',
-          padding:'22px 28px 18px', position:'relative'
+          background:'linear-gradient(135deg,#312e81 0%,#5b21b6 100%)',
+          padding:'16px 24px', position:'relative', flexShrink:0
         }}>
-          <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:14 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:14 }}>
             <div style={{
               width:48, height:48, borderRadius:12, background:'rgba(255,255,255,0.15)',
               display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0
             }}>🏥</div>
-            <div>
-              <div style={{ fontSize:11, color:'rgba(255,255,255,0.6)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em' }}>360° View</div>
-              <div style={{ fontSize:20, fontWeight:800, color:'#fff', lineHeight:1.2 }}>{row.InstitutionName}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:18, fontWeight:800, color:'#fff', lineHeight:1.2 }}>{row.InstitutionName}</div>
               <div style={{ fontSize:12, color:'rgba(255,255,255,0.7)', marginTop:2 }}>
-                ID: {row.RegistrationID} &nbsp;·&nbsp; {row.CustomerID || '—'} &nbsp;·&nbsp;
-                <span style={{ background:'rgba(255,255,255,0.15)', padding:'1px 8px', borderRadius:10 }}>{row.Status || 'Pending'}</span>
+                {row.CustomerID || row.RegistrationID} &nbsp;·&nbsp; {row.Zone || '—'} Zone &nbsp;·&nbsp;
+                <span style={{ 
+                  background: row.Status === 'Active' ? '#22c55e' 
+                    : row.Status === 'Deregistered' ? '#64748b'
+                    : row.Status === 'Late Payer' ? '#ea580c'
+                    : row.Status === 'Slow Payer' ? '#ca8a04'
+                    : row.Status === 'Defaulter' ? '#dc2626'
+                    : row.Status === 'Suspended' ? '#dc2626'
+                    : '#fbbf24', 
+                  padding:'2px 10px', borderRadius:20, fontSize:11, fontWeight:700, color:'#fff' 
+                }}>{row.Status || 'Pending'}</span>
+              </div>
+            </div>
+            <button onClick={onClose} style={{
+              background:'rgba(255,255,255,0.15)', border:'none', borderRadius:8, width:36, height:36,
+              fontSize:20, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center'
+            }}>×</button>
+          </div>
+        </div>
+
+        {/* Tabs Bar */}
+        <div style={{ display:'flex', gap:0, borderBottom:'1px solid #e2e8f0', background:'#fff', flexShrink:0, overflowX:'auto' }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+              padding:'12px 18px', border:'none', borderBottom: activeTab === t.id ? '3px solid #5b21b6' : '3px solid transparent',
+              cursor:'pointer', fontWeight:600, fontSize:13, background:'transparent',
+              color: activeTab === t.id ? '#5b21b6' : '#64748b', transition:'all 0.15s', whiteSpace:'nowrap',
+              display:'flex', alignItems:'center', gap:6
+            }}><span>{t.icon}</span> {t.label}</button>
+          ))}
+        </div>
+
+        {/* ── Tab body ── */}
+        <div style={{ padding:20, flex:1, overflowY:'auto' }}>
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+            {/* Left Column - Registration Details */}
+            <div style={{ background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:12, padding:16 }}>
+              <div style={{ fontSize:13, fontWeight:800, color:'#1e293b', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
+                📋 REGISTRATION DETAILS
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px 20px' }}>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>HCF ID:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.CustomerID || row.RegistrationID}</div></div>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Reg. Date:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.RegistrationDate ? new Date(row.RegistrationDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</div></div>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Category:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.Category || '—'}</div></div>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Sub-Category:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.SubCategory || '—'}</div></div>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Beds:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.NumberOfBeds || '—'}</div></div>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Service Plan:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.SelectedPlan || '—'} — ₹{row.TotalAmount?.toLocaleString('en-IN') || '0'}/mo</div></div>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Zone:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.Zone || '—'}</div></div>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Route:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.Route || '—'}</div></div>
+              </div>
+              <div style={{ marginTop:14, paddingTop:12, borderTop:'1px solid #e2e8f0' }}>
+                <div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Full Address:</div>
+                <div style={{ fontSize:13, fontWeight:600, color:'#1e293b' }}>{row.Address || '—'}, {row.City || ''} — {row.Pincode || ''}, {row.State || ''}</div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px 20px', marginTop:14, paddingTop:12, borderTop:'1px solid #e2e8f0' }}>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>PAN:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.PAN || '—'}</div></div>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>GST:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.GST || '—'}</div></div>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Aadhar No.:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.Aadhaar || '—'}</div></div>
+                <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>BMW Reg.:</div><div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{row.BMWAuth || '—'}</div></div>
+              </div>
+            </div>
+
+            {/* Right Column - Snapshots */}
+            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              {/* Financial Snapshot */}
+              <div style={{ background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:12, padding:16 }}>
+                <div style={{ fontSize:13, fontWeight:800, color:'#16a34a', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
+                  💰 FINANCIAL SNAPSHOT
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px 20px' }}>
+                  <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Total Billed (YTD)</div><div style={{ fontSize:18, fontWeight:800, color:'#16a34a' }}>₹{(paymentSummary.TotalInvoiced || 0).toLocaleString('en-IN')}</div></div>
+                  <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Outstanding</div><div style={{ fontSize:18, fontWeight:800, color:'#dc2626' }}>₹{(paymentSummary.Outstanding || 0).toLocaleString('en-IN')}</div></div>
+                  <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Last Payment</div><div style={{ fontSize:14, fontWeight:700, color:'#16a34a' }}>₹{(paymentSummary.TotalPaid ? Math.round(paymentSummary.TotalPaid / (paymentSummary.TotalPayments || 1)) : 0).toLocaleString('en-IN')} — {paymentSummary.LastPaymentDate ? new Date(paymentSummary.LastPaymentDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) : '—'}</div></div>
+                  <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Payment Mode</div><div style={{ fontSize:14, fontWeight:700, color:'#1e293b' }}>{row.PaymentModePref || 'NEFT/Online'}</div></div>
+                  <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Advance Balance</div><div style={{ fontSize:14, fontWeight:700, color:'#16a34a' }}>₹{(row.AdvanceBalance || 0).toLocaleString('en-IN')}</div></div>
+                  <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Overdue Days</div><div style={{ fontSize:14, fontWeight:800, color: calculateOverdueDays() > 0 ? '#dc2626' : '#16a34a' }}>{calculateOverdueDays()} days</div></div>
+                </div>
+              </div>
+
+              {/* Collection Snapshot */}
+              <div style={{ background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:12, padding:16 }}>
+                <div style={{ fontSize:13, fontWeight:800, color:'#0891b2', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
+                  🚛 COLLECTION SNAPSHOT
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px 20px' }}>
+                  <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Total Pickups (YTD)</div><div style={{ fontSize:22, fontWeight:800, color:'#0891b2' }}>{pickupSummary.TotalPickups || 0}</div></div>
+                  <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Missed Pickups</div><div style={{ fontSize:22, fontWeight:800, color:'#dc2626' }}>{pickupSummary.MissedPickups || 0}</div></div>
+                  <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Last Pickup</div><div style={{ fontSize:14, fontWeight:700, color:'#1e293b' }}>{pickupSummary.LastPickupDate ? new Date(pickupSummary.LastPickupDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</div></div>
+                  <div><div style={{ fontSize:11, color:'#64748b', marginBottom:2 }}>Avg Waste/Visit</div><div style={{ fontSize:14, fontWeight:700, color:'#1e293b' }}>{pickupSummary.AvgWasteKg?.toFixed(1) || '0'} kg</div></div>
+                </div>
+              </div>
+
+              {/* Lifecycle State */}
+              <div style={{ background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:12, padding:16 }}>
+                <div style={{ fontSize:13, fontWeight:800, color:'#5b21b6', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
+                  🔄 LIFECYCLE STATE
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                  <select value={lifecycleState} onChange={e => setLifecycleState(e.target.value)}
+                    style={{ flex:1, border:'1.5px solid #e2e8f0', borderRadius:8, padding:'10px 12px', fontSize:13, fontWeight:600 }}>
+                    {['Active', 'Late Payer', 'Slow Payer', 'Disputed', 'Defaulter', 'Suspended', 'Closed'].map(s =>
+                      <option key={s} value={s}>{s === lifecycleState ? '✓ ' : ''}{s}</option>)}
+                  </select>
+                  <button onClick={saveLifecycleState} disabled={savingState} style={{
+                    background:'#5b21b6', color:'#fff', border:'none', borderRadius:8, padding:'10px 20px', fontSize:13, fontWeight:700, cursor:'pointer'
+                  }}>{savingState ? '...' : 'Save'}</button>
+                </div>
+                <div style={{ fontSize:11, color:'#64748b', marginTop:8 }}>⚡ Auto-recomputed nightly from outstanding + overdue days</div>
               </div>
             </div>
           </div>
 
-          {/* Tabs inside header */}
-          <div style={{ display:'flex', gap:2 }}>
-            {tabs.map(t => (
-              <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
-                padding:'7px 16px', border:'none', borderRadius:'8px 8px 0 0', cursor:'pointer',
-                fontWeight:700, fontSize:12,
-                background: activeTab === t.id ? '#fff' : 'rgba(255,255,255,0.12)',
-                color: activeTab === t.id ? '#5b21b6' : 'rgba(255,255,255,0.75)',
-                transition:'all 0.15s',
-              }}>{t.label}</button>
-            ))}
+          {/* Contact Persons Table - Full Width */}
+          <div style={{ background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:12, padding:16, marginTop:20 }}>
+            <div style={{ fontSize:13, fontWeight:800, color:'#1e293b', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
+              👤 Contact Persons
+            </div>
+            {loadingContacts ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:20 }}>Loading contacts...</div>
+            ) : contacts.length === 0 ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:20 }}>No contact persons added yet</div>
+            ) : (
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                <thead>
+                  <tr style={{ borderBottom:'1.5px solid #e2e8f0' }}>
+                    <th style={{ padding:'12px 10px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:11, textTransform:'uppercase' }}>Name</th>
+                    <th style={{ padding:'12px 10px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:11, textTransform:'uppercase' }}>Designation</th>
+                    <th style={{ padding:'12px 10px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:11, textTransform:'uppercase' }}>Mobile</th>
+                    <th style={{ padding:'12px 10px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:11, textTransform:'uppercase' }}>Email</th>
+                    <th style={{ padding:'12px 10px', textAlign:'center', fontWeight:700, color:'#64748b', fontSize:11, textTransform:'uppercase' }}>Primary</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contacts.map(c => (
+                    <tr key={c.ContactID} style={{ borderBottom:'1px solid #f1f5f9' }}>
+                      <td style={{ padding:'12px 10px', fontWeight:600, color:'#3b82f6' }}>{c.ContactName || '—'}</td>
+                      <td style={{ padding:'12px 10px', color:'#374151' }}>{c.Designation || '—'}</td>
+                      <td style={{ padding:'12px 10px', color:'#374151' }}>{c.Mobile || '—'}</td>
+                      <td style={{ padding:'12px 10px', color:'#374151' }}>{c.Email || '—'}</td>
+                      <td style={{ padding:'12px 10px', textAlign:'center' }}>
+                        {c.IsPrimary && <span style={{ background:'#dcfce7', color:'#15803d', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20 }}>Primary</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
+          </>
+        )}
 
-          {/* Close btn */}
-          <button onClick={onClose} style={{
-            position:'absolute', top:16, right:16, background:'rgba(255,255,255,0.15)',
-            border:'none', borderRadius:8, width:32, height:32, fontSize:18, cursor:'pointer',
-            color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1
-          }}>×</button>
-        </div>
-
-        {/* ── Tab body ── */}
-        <div style={{ padding:24, maxHeight:'65vh', overflowY:'auto' }}>
-
-        {/* Overview */}
-        {activeTab === 'overview' && (
+        {/* Payments Tab */}
+        {activeTab === 'payments' && (
           <div>
-            {/* Info cards grid */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 16px', marginBottom:20 }}>
-              {overviewFields.map(([lbl, val]) => (
-                <div key={lbl} style={{
-                  background:'#f8fafc', borderRadius:10, padding:'10px 14px',
-                  border:'1px solid #e2e8f0'
-                }}>
-                  <div style={{ fontSize:10, color:'#7c3aed', fontWeight:800, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:4 }}>{lbl}</div>
-                  <div style={{ fontSize:14, color:'#111827', fontWeight:700 }}>{val || <span style={{ color:'#cbd5e1' }}>—</span>}</div>
-                </div>
-              ))}
+            {/* Header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+              <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>Payment History</h3>
+              <button onClick={() => setShowAddPayment(true)} style={{
+                background:'#5b21b6', color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:12, fontWeight:700, cursor:'pointer'
+              }}>+ Record Payment</button>
             </div>
 
-            {/* Lifecycle state */}
-            <div style={{ background:'linear-gradient(135deg,#f5f3ff,#ede9fe)', border:'1.5px solid #c4b5fd', borderRadius:12, padding:'14px 18px', display:'flex', alignItems:'center', gap:16 }}>
-              <span style={{ fontSize:16 }}>🔄</span>
-              <label style={{ fontWeight:800, fontSize:13, color:'#5b21b6', flex:1 }}>Lifecycle State</label>
-              <select value={lifecycleState} onChange={e => setLifecycleState(e.target.value)}
-                style={{ ...inputStyle, maxWidth:200, border:'1.5px solid #a78bfa', borderRadius:8, fontWeight:700, color:'#3730a3' }}>
-                {['Active', 'Late Payer', 'Slow Payer', 'Disputed', 'Defaulter', 'Suspended', 'Closed'].map(s =>
-                  <option key={s} value={s}>{s}</option>)}
-              </select>
-              <button onClick={saveLifecycleState} disabled={savingState} style={{
-                background:'linear-gradient(135deg,#5b21b6,#7c3aed)', color:'#fff', border:'none',
-                borderRadius:8, padding:'8px 20px', fontSize:13, fontWeight:700, cursor:'pointer',
-                boxShadow:'0 2px 8px rgba(91,33,182,0.3)'
-              }}>{savingState ? 'Saving...' : '💾 Save'}</button>
-            </div>
+            {/* Add Payment Form */}
+            {showAddPayment && (
+              <div style={{ background:'#f5f3ff', border:'1.5px solid #c4b5fd', borderRadius:12, padding:16, marginBottom:20 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:10, marginBottom:12 }}>
+                  <div><label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Invoice No</label>
+                    <input value={paymentForm.InvoiceNo} onChange={e => setPaymentForm(p=>({...p,InvoiceNo:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }} /></div>
+                  <div><label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Amount *</label>
+                    <input type="number" value={paymentForm.PaidAmount} onChange={e => setPaymentForm(p=>({...p,PaidAmount:e.target.value,InvoiceAmount:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }} /></div>
+                  <div><label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Mode</label>
+                    <select value={paymentForm.PaymentMode} onChange={e => setPaymentForm(p=>({...p,PaymentMode:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }}>
+                      <option value="">Select</option><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="NEFT">NEFT</option><option value="Cheque">Cheque</option>
+                    </select></div>
+                  <div><label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Ref/Cheque No</label>
+                    <input value={paymentForm.TransactionRef} onChange={e => setPaymentForm(p=>({...p,TransactionRef:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }} /></div>
+                </div>
+                <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                  <button onClick={() => setShowAddPayment(false)} style={{ background:'#fff', color:'#64748b', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'7px 16px', fontSize:12, fontWeight:600, cursor:'pointer' }}>Cancel</button>
+                  <button onClick={addPayment} disabled={savingPayment} style={{ background:'#5b21b6', color:'#fff', border:'none', borderRadius:8, padding:'7px 16px', fontSize:12, fontWeight:700, cursor:'pointer' }}>{savingPayment ? '...' : 'Save'}</button>
+                </div>
+              </div>
+            )}
+
+            {/* Payments Table */}
+            {loadingPayments ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40 }}>Loading...</div>
+            ) : payments.length === 0 ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40, background:'#f8fafc', borderRadius:12, border:'1.5px dashed #e2e8f0' }}>No payment records found</div>
+            ) : (
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:12, overflow:'hidden' }}>
+                <thead><tr style={{ background:'#f8fafc', borderBottom:'1.5px solid #e2e8f0' }}>
+                  <th style={{ padding:'14px 12px', textAlign:'left', fontWeight:700, color:'#374151', fontSize:12 }}>Date</th>
+                  <th style={{ padding:'14px 12px', textAlign:'left', fontWeight:700, color:'#374151', fontSize:12 }}>Invoice No.</th>
+                  <th style={{ padding:'14px 12px', textAlign:'left', fontWeight:700, color:'#374151', fontSize:12 }}>Amount</th>
+                  <th style={{ padding:'14px 12px', textAlign:'left', fontWeight:700, color:'#374151', fontSize:12 }}>Mode</th>
+                  <th style={{ padding:'14px 12px', textAlign:'left', fontWeight:700, color:'#374151', fontSize:12 }}>Ref/Cheque No.</th>
+                  <th style={{ padding:'14px 12px', textAlign:'center', fontWeight:700, color:'#374151', fontSize:12 }}>Status</th>
+                  <th style={{ padding:'14px 12px', textAlign:'left', fontWeight:700, color:'#374151', fontSize:12 }}>Recorded By</th>
+                </tr></thead>
+                <tbody>
+                  {payments.map(p => {
+                    const statusColors = { Paid:{bg:'#dcfce7',c:'#15803d',label:'Cleared'}, Partial:{bg:'#fef3c7',c:'#92400e',label:'Partial'}, Pending:{bg:'#fee2e2',c:'#dc2626',label:'Overdue'}, Bounced:{bg:'#fee2e2',c:'#dc2626',label:'Bounced'} };
+                    const sc = statusColors[p.Status] || statusColors.Pending;
+                    return (
+                      <tr key={p.PaymentID} style={{ borderBottom:'1px solid #f1f5f9' }}>
+                        <td style={{ padding:'14px 12px', fontWeight:600, color:'#1e293b' }}>{p.PaymentDate ? new Date(p.PaymentDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</td>
+                        <td style={{ padding:'14px 12px', color:'#374151', fontWeight:500 }}>{p.InvoiceNo || '—'}</td>
+                        <td style={{ padding:'14px 12px', fontWeight:700, color:'#16a34a' }}>₹{(p.PaidAmount || 0).toLocaleString('en-IN')}</td>
+                        <td style={{ padding:'14px 12px', color:'#374151' }}>{p.PaymentMode || '—'}</td>
+                        <td style={{ padding:'14px 12px' }}>
+                          {p.TransactionRef ? (
+                            <span style={{ background:'#d0f5f5', color:'#0891b2', padding:'4px 10px', borderRadius:6, fontWeight:600, fontSize:12 }}>{p.TransactionRef}</span>
+                          ) : '—'}
+                        </td>
+                        <td style={{ padding:'14px 12px', textAlign:'center' }}><span style={{ fontSize:11, fontWeight:700, padding:'4px 12px', borderRadius:20, background:sc.bg, color:sc.c }}>{sc.label}</span></td>
+                        <td style={{ padding:'14px 12px', color:'#374151' }}>{p.RecordedBy || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 
-        {/* Documents */}
+        {/* Pickups Tab */}
+        {activeTab === 'pickups' && (
+          <div>
+            {/* Header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+              <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>Pickup / Collection History</h3>
+              <span style={{ fontSize:12, color:'#64748b' }}>Showing last 30 visits</span>
+            </div>
+
+            {/* Pickups Table */}
+            {loadingPickups ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40 }}>Loading...</div>
+            ) : pickups.length === 0 ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40, background:'#f8fafc', borderRadius:12, border:'1.5px dashed #e2e8f0' }}>No pickup records found</div>
+            ) : (
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, background:'#fff' }}>
+                <thead><tr style={{ background:'#f8fafc', borderBottom:'1.5px solid #e2e8f0' }}>
+                  <th style={{ padding:'12px 10px', textAlign:'left', fontWeight:700, color:'#64748b' }}>DATE</th>
+                  <th style={{ padding:'12px 10px', textAlign:'left', fontWeight:700, color:'#64748b' }}>DRIVER</th>
+                  <th style={{ padding:'12px 10px', textAlign:'left', fontWeight:700, color:'#64748b' }}>VEHICLE</th>
+                  <th style={{ padding:'12px 10px', textAlign:'left', fontWeight:700, color:'#64748b' }}>WASTE (KG)</th>
+                  <th style={{ padding:'12px 10px', textAlign:'center', fontWeight:700, color:'#64748b' }}>YELLOW BAG</th>
+                  <th style={{ padding:'12px 10px', textAlign:'center', fontWeight:700, color:'#64748b' }}>RED BAG</th>
+                  <th style={{ padding:'12px 10px', textAlign:'center', fontWeight:700, color:'#64748b' }}>SHARP</th>
+                  <th style={{ padding:'12px 10px', textAlign:'center', fontWeight:700, color:'#64748b' }}>STATUS</th>
+                  <th style={{ padding:'12px 10px', textAlign:'center', fontWeight:700, color:'#64748b' }}>GPS</th>
+                </tr></thead>
+                <tbody>
+                  {pickups.map(p => {
+                    const statusColors = { Collected:{bg:'#dcfce7',c:'#15803d'}, Missed:{bg:'#fee2e2',c:'#dc2626'}, Scheduled:{bg:'#dbeafe',c:'#1d4ed8'} };
+                    const sc = statusColors[p.Status] || statusColors.Collected;
+                    return (
+                      <tr key={p.PickupID} style={{ borderBottom:'1px solid #f1f5f9' }}>
+                        <td style={{ padding:'12px 10px', fontWeight:600, color:'#1e293b' }}>{p.PickupDate ? new Date(p.PickupDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</td>
+                        <td style={{ padding:'12px 10px', color:'#64748b' }}>{p.DriverName || '—'}</td>
+                        <td style={{ padding:'12px 10px', color:'#64748b' }}>{p.VehicleNo || '—'}</td>
+                        <td style={{ padding:'12px 10px', fontWeight:700, color:'#1e293b' }}>{p.WasteKg ? `${p.WasteKg} kg` : '—'}</td>
+                        <td style={{ padding:'12px 10px', textAlign:'center', color:'#64748b' }}>{p.YellowBag || '—'}</td>
+                        <td style={{ padding:'12px 10px', textAlign:'center', color:'#64748b' }}>{p.RedBag || '—'}</td>
+                        <td style={{ padding:'12px 10px', textAlign:'center', color:'#64748b' }}>{p.SharpContainer || '—'}</td>
+                        <td style={{ padding:'12px 10px', textAlign:'center' }}><span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:sc.bg, color:sc.c }}>{p.Status}</span></td>
+                        <td style={{ padding:'12px 10px', textAlign:'center' }}>{p.GPSLat ? '📍' : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Documents Tab */}
         {activeTab === 'documents' && (() => {
           const ALL_DOC_TYPES = [
             { key: 'Aadhaar Card',                   icon: '🪪', color: '#2563eb', bg: '#dbeafe' },
@@ -844,32 +1832,25 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
           docs.forEach(d => { docMap[d.DocumentType] = d; });
 
           function docStatus(d) {
-            if (!d || !d.FilePath) return { label: 'Not Uploaded', color: '#94a3b8', bg: '#f1f5f9' };
+            if (!d || !d.FilePath) return { label: 'Not Uploaded', color: '#dc2626', bg: '#fee2e2' };
             const st = (d.DocStatus || 'Valid').toLowerCase();
             if (st === 'expired')  return { label: 'Expired',  color: '#dc2626', bg: '#fee2e2' };
-            if (st === 'expiring') return { label: 'Expiring', color: '#92400e', bg: '#fef3c7' };
+            if (st === 'expiring') return { label: 'Expiring', color: '#d97706', bg: '#fef3c7' };
             return { label: 'Valid', color: '#15803d', bg: '#dcfce7' };
           }
-
-          const uploadedCount = ALL_DOC_TYPES.filter(dt => docMap[dt.key]?.FilePath).length;
 
           return (
             <div>
               {/* Header */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:8 }}>
-                <div>
-                  <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>📁 Document Repository</h3>
-                  <p style={{ margin:'2px 0 0', fontSize:11, color:'#64748b' }}>{uploadedCount}/{ALL_DOC_TYPES.length} documents uploaded · Updates by customer visible here in real-time</p>
-                </div>
-                <span style={{ fontSize:12, fontWeight:700, color:'#5b21b6', background:'#ede9fe', padding:'4px 12px', borderRadius:20 }}>
-                  {loadingDocs ? 'Loading...' : `${uploadedCount} uploaded`}
-                </span>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+                <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>📁 Document Repository</h3>
+                <button style={{ background:'#5b21b6', color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:12, fontWeight:700, cursor:'pointer' }}>📤 Upload Document</button>
               </div>
 
               {loadingDocs ? (
-                <div className="no-data">Loading documents...</div>
+                <div style={{ textAlign:'center', color:'#94a3b8', padding:40 }}>Loading...</div>
               ) : (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:12 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12 }}>
                   {ALL_DOC_TYPES.map(dt => {
                     const d = docMap[dt.key];
                     const sb = docStatus(d);
@@ -879,63 +1860,34 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
                       <div key={dt.key} style={{
                         background: d?.FilePath ? `linear-gradient(135deg,${dt.bg},#fff)` : '#fff',
                         border: d?.FilePath ? `1.5px solid ${dt.color}44` : '1.5px dashed #e2e8f0',
-                        borderRadius:12, padding:12
+                        borderRadius:12, padding:14
                       }}>
-                        {/* Icon + Name + Badge */}
-                        <div style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
-                          <div style={{
-                            width:36, height:36, borderRadius:8, flexShrink:0,
-                            background: d?.FilePath ? `linear-gradient(135deg,${dt.color},${dt.color}bb)` : '#f1f5f9',
-                            display:'flex', alignItems:'center', justifyContent:'center', fontSize:16
-                          }}>{dt.icon}</div>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:11, fontWeight:700, color:'#1e293b', lineHeight:1.3, marginBottom:4 }}>{dt.key}</div>
-                            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20, background:sb.bg, color:sb.color }}>
-                              {sb.label}
-                            </span>
+                        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
+                          <div style={{ width:36, height:36, borderRadius:8, background: d?.FilePath ? `linear-gradient(135deg,${dt.color},${dt.color}bb)` : '#f1f5f9', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>{dt.icon}</div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:12, fontWeight:700, color:'#1e293b', lineHeight:1.3 }}>{dt.key}</div>
+                            {d?.FilePath && <div style={{ fontSize:10, color:'#64748b' }}>Version: {d.Version || 'v1'}</div>}
                           </div>
                         </div>
-
-                        {/* Meta */}
-                        {d?.FileName && (
-                          <div style={{ fontSize:10, color:'#64748b', background:'#f1f5f9', borderRadius:5, padding:'3px 7px', marginBottom:6, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            📎 {d.FileName}
-                          </div>
+                        {d?.FilePath && (
+                          <>
+                            <div style={{ fontSize:10, color:'#64748b', marginBottom:4 }}>Uploaded: {d.CreatedAt ? new Date(d.CreatedAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'} by {d.UploadedBy || 'Admin'}</div>
+                            {d.ExpiryDate && <div style={{ fontSize:10, color:'#d97706', fontWeight:600, marginBottom:4 }}>Expiry: {new Date(d.ExpiryDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'})}</div>}
+                          </>
                         )}
-                        {d && (
-                          <div style={{ fontSize:10, color:'#94a3b8', marginBottom:6 }}>
-                            {d.Version || 'v1'} · {d.UploadSource === 'Customer' ? '👤 Customer' : '🏢 Admin'}
-                            {d.ExpiryDate ? ` · Exp: ${new Date(d.ExpiryDate).toLocaleDateString('en-IN')}` : ''}
-                          </div>
-                        )}
-
-                        {/* Buttons */}
-                        <div style={{ display:'flex', gap:5, marginTop:4 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+                          <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:sb.bg, color:sb.color }}>
+                            {sb.label === 'Valid' ? '✓ ' : ''}{sb.label}
+                          </span>
+                        </div>
+                        <div style={{ display:'flex', gap:6 }}>
                           {d?.FilePath && (
-                            <a href={d.FilePath} target="_blank" rel="noreferrer" style={{
-                              flex:1, textAlign:'center', padding:'5px 0', fontSize:10, fontWeight:700,
-                              background:'#fff', color:dt.color, border:`1.5px solid ${dt.color}`,
-                              borderRadius:6, textDecoration:'none', cursor:'pointer'
-                            }}>👁 View</a>
+                            <a href={d.FilePath} target="_blank" rel="noreferrer" style={{ flex:1, textAlign:'center', padding:'6px 0', fontSize:11, fontWeight:700, background:'#fff', color:dt.color, border:`1.5px solid ${dt.color}`, borderRadius:6, textDecoration:'none' }}>👁 View</a>
                           )}
-                          <label htmlFor={inputId} style={{
-                            flex:1, textAlign:'center', padding:'5px 0', fontSize:10, fontWeight:700,
-                            background: isUp ? '#f1f5f9' : `linear-gradient(135deg,${dt.color},${dt.color}bb)`,
-                            color: isUp ? '#94a3b8' : '#fff',
-                            borderRadius:6, cursor: isUp ? 'not-allowed' : 'pointer', display:'block'
-                          }}>
-                            {isUp ? '⏳' : d?.FilePath ? '🔄 Update' : '⬆ Upload'}
-                            <input id={inputId} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                              style={{ display:'none' }} disabled={isUp}
-                              onChange={e => { if (e.target.files[0]) uploadDocFile(dt.key, e.target.files[0]); e.target.value = ''; }}
-                            />
+                          <label htmlFor={inputId} style={{ flex:1, textAlign:'center', padding:'6px 0', fontSize:11, fontWeight:700, background: d?.FilePath ? '#f1f5f9' : `linear-gradient(135deg,${dt.color},${dt.color}bb)`, color: d?.FilePath ? '#64748b' : '#fff', borderRadius:6, cursor:'pointer', display:'block' }}>
+                            {isUp ? '⏳' : d?.FilePath ? '🔄 Update' : '📤 Click to Upload'}
+                            <input id={inputId} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }} disabled={isUp} onChange={e => { if (e.target.files[0]) uploadDocFile(dt.key, e.target.files[0]); e.target.value = ''; }} />
                           </label>
-                          {d && (
-                            <button onClick={() => deleteDoc(d.DocID)} style={{
-                              width:28, padding:'5px 0', fontSize:12, fontWeight:700,
-                              background:'#fee2e2', color:'#dc2626', border:'none', borderRadius:6, cursor:'pointer'
-                            }}>🗑</button>
-                          )}
                         </div>
                       </div>
                     );
@@ -946,122 +1898,262 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
           );
         })()}
 
-        {/* Contacts */}
+        {/* Certificates Tab */}
+        {activeTab === 'certificates' && (
+          <div>
+            {/* Header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+              <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>📜 Certificates & Authorizations</h3>
+              <button onClick={generateCertificate} disabled={generatingCert} style={{ background:'linear-gradient(135deg,#7c3aed,#5b21b6)', color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:12, fontWeight:700, cursor:'pointer', opacity: generatingCert ? 0.6 : 1 }}>
+                {generatingCert ? '⏳ Generating...' : '📜 Generate New Certificate'}
+              </button>
+            </div>
+
+            {loadingCerts ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40 }}>Loading certificates...</div>
+            ) : certificates.length === 0 ? (
+              <div style={{ textAlign:'center', padding:40, color:'#94a3b8' }}>
+                <div style={{ fontSize:48, marginBottom:12 }}>📜</div>
+                <div style={{ fontSize:14, fontWeight:600 }}>No certificates generated yet</div>
+                <div style={{ fontSize:12, marginTop:4 }}>Click "Generate New Certificate" to create one</div>
+              </div>
+            ) : (
+              <div style={{ display:'grid', gap:12 }}>
+                {certificates.map(cert => {
+                  const isActive = cert.Status === 'Active';
+                  const isExpired = cert.ValidTill && new Date(cert.ValidTill) < new Date();
+                  const daysLeft = cert.ValidTill ? Math.ceil((new Date(cert.ValidTill) - new Date()) / (1000*60*60*24)) : null;
+                  
+                  return (
+                    <div key={cert.CertificateID} style={{ 
+                      background: isActive ? (isExpired ? '#fef2f2' : '#f0fdf4') : '#f8fafc',
+                      border: `1.5px solid ${isActive ? (isExpired ? '#fca5a5' : '#86efac') : '#e2e8f0'}`,
+                      borderRadius:12, padding:16, display:'flex', alignItems:'center', gap:16
+                    }}>
+                      <div style={{ 
+                        width:56, height:56, borderRadius:12, 
+                        background: isActive ? (isExpired ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'linear-gradient(135deg,#22c55e,#16a34a)') : '#94a3b8',
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, color:'#fff'
+                      }}>📜</div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:14, fontWeight:800, color:'#1e293b' }}>{cert.CertificateCode}</div>
+                        <div style={{ display:'flex', gap:16, marginTop:6, fontSize:12, color:'#64748b' }}>
+                          <span>📅 Issued: {cert.IssueDate ? new Date(cert.IssueDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</span>
+                          <span>⏰ Valid Till: {cert.ValidTill ? new Date(cert.ValidTill).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</span>
+                        </div>
+                        <div style={{ marginTop:8 }}>
+                          <span style={{ 
+                            padding:'4px 12px', borderRadius:20, fontSize:11, fontWeight:700,
+                            background: isActive ? (isExpired ? '#fee2e2' : '#dcfce7') : '#f1f5f9',
+                            color: isActive ? (isExpired ? '#dc2626' : '#15803d') : '#64748b',
+                            border: `1px solid ${isActive ? (isExpired ? '#fca5a5' : '#86efac') : '#e2e8f0'}`
+                          }}>
+                            {cert.Status === 'Revoked' ? '❌ Revoked' : isExpired ? '⚠️ Expired' : `✅ Active ${daysLeft !== null ? `(${daysLeft} days left)` : ''}`}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                        <button style={{ background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', border:'none', borderRadius:8, padding:'8px 14px', fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                          📥 Download
+                        </button>
+                        {isActive && !isExpired && (
+                          <button onClick={() => revokeCertificate(cert.CertificateID)} style={{ background:'#fff', color:'#dc2626', border:'1.5px solid #fca5a5', borderRadius:8, padding:'7px 14px', fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                            ❌ Revoke
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MoU Section */}
+            <div style={{ marginTop:24, paddingTop:20, borderTop:'1.5px solid #e2e8f0' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+                <h4 style={{ margin:0, fontSize:14, fontWeight:700, color:'#1e293b' }}>✍️ Memorandum of Understanding (MoU)</h4>
+              </div>
+              <div style={{ 
+                background: row.MoUReSigned ? '#f0fdf4' : '#fef3c7',
+                border: `1.5px solid ${row.MoUReSigned ? '#86efac' : '#fcd34d'}`,
+                borderRadius:12, padding:16, display:'flex', alignItems:'center', gap:16
+              }}>
+                <div style={{ 
+                  width:48, height:48, borderRadius:10, 
+                  background: row.MoUReSigned ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#f59e0b,#d97706)',
+                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, color:'#fff'
+                }}>✍️</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>
+                    {row.MoUReSigned ? '✅ MoU Signed & Active' : '⚠️ MoU Signature Required'}
+                  </div>
+                  <div style={{ fontSize:12, color:'#64748b', marginTop:4 }}>
+                    {row.MoUReSigned 
+                      ? 'The Memorandum of Understanding has been signed and is currently active.' 
+                      : 'Please ensure the MoU is signed during the next renewal or re-registration.'}
+                  </div>
+                </div>
+                <button style={{ background:'linear-gradient(135deg,#7c3aed,#5b21b6)', color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                  📤 Upload MoU Copy
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Complaints Tab */}
+        {activeTab === 'complaints' && (
+          <div>
+            {/* Header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+              <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>Complaint & Service Request Log</h3>
+              <button onClick={() => setShowAddComplaint(true)} style={{ background:'#5b21b6', color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:12, fontWeight:700, cursor:'pointer' }}>+ New Complaint</button>
+            </div>
+
+            {/* Add Complaint Form */}
+            {showAddComplaint && (
+              <div style={{ background:'#f8fafc', border:'1.5px solid #e2e8f0', borderRadius:12, padding:20, marginBottom:20 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr 1fr 1fr', gap:14, marginBottom:16 }}>
+                  <div>
+                    <label style={{ fontSize:12, fontWeight:700, color:'#374151', display:'block', marginBottom:6 }}>Type *</label>
+                    <select value={complaintForm.Type} onChange={e => setComplaintForm(p=>({...p,Type:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'10px 12px', fontSize:13, boxSizing:'border-box', background:'#fff' }}>
+                      <option value="">Select</option>
+                      <option value="Missed Pickup">Missed Pickup</option>
+                      <option value="Invoice Dispute">Invoice Dispute</option>
+                      <option value="Service Issue">Service Issue</option>
+                      <option value="Billing Query">Billing Query</option>
+                      <option value="Document Request">Document Request</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:12, fontWeight:700, color:'#374151', display:'block', marginBottom:6 }}>Description *</label>
+                    <input value={complaintForm.Description} onChange={e => setComplaintForm(p=>({...p,Description:e.target.value}))} placeholder="Enter complaint details..." style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'10px 12px', fontSize:13, boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:12, fontWeight:700, color:'#374151', display:'block', marginBottom:6 }}>Priority</label>
+                    <select value={complaintForm.Priority} onChange={e => setComplaintForm(p=>({...p,Priority:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'10px 12px', fontSize:13, boxSizing:'border-box', background:'#fff' }}>
+                      <option value="Low">Low</option>
+                      <option value="Medium">Medium</option>
+                      <option value="High">High</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:12, fontWeight:700, color:'#374151', display:'block', marginBottom:6 }}>Assign To</label>
+                    <select value={complaintForm.AssignedTo || ''} onChange={e => setComplaintForm(p=>({...p,AssignedTo:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'10px 12px', fontSize:13, boxSizing:'border-box', background:'#fff' }}>
+                      <option value="">Select</option>
+                      <option value="Transport">Transport</option>
+                      <option value="Accounts">Accounts</option>
+                      <option value="Operations">Operations</option>
+                      <option value="Customer Support">Customer Support</option>
+                      <option value="Management">Management</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+                  <button onClick={() => setShowAddComplaint(false)} style={{ background:'#fff', color:'#374151', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'10px 20px', fontSize:13, fontWeight:600, cursor:'pointer' }}>Cancel</button>
+                  <button onClick={addComplaint} disabled={savingComplaint} style={{ background:'#5b21b6', color:'#fff', border:'none', borderRadius:8, padding:'10px 20px', fontSize:13, fontWeight:700, cursor:'pointer' }}>{savingComplaint ? '...' : 'Submit'}</button>
+                </div>
+              </div>
+            )}
+
+            {/* Complaints Table - only show when has complaints */}
+            {loadingComplaints360 ? (
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40 }}>Loading...</div>
+            ) : complaints360.length > 0 && (
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, background:'#fff' }}>
+                <thead><tr style={{ borderBottom:'2px solid #e2e8f0' }}>
+                  <th style={{ padding:'14px 16px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:12, textTransform:'uppercase', letterSpacing:'0.5px' }}>Date</th>
+                  <th style={{ padding:'14px 16px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:12, textTransform:'uppercase', letterSpacing:'0.5px' }}>Type</th>
+                  <th style={{ padding:'14px 16px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:12, textTransform:'uppercase', letterSpacing:'0.5px' }}>Description</th>
+                  <th style={{ padding:'14px 16px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:12, textTransform:'uppercase', letterSpacing:'0.5px' }}>Priority</th>
+                  <th style={{ padding:'14px 16px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:12, textTransform:'uppercase', letterSpacing:'0.5px' }}>Assigned To</th>
+                  <th style={{ padding:'14px 16px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:12, textTransform:'uppercase', letterSpacing:'0.5px' }}>Status</th>
+                  <th style={{ padding:'14px 16px', textAlign:'left', fontWeight:700, color:'#64748b', fontSize:12, textTransform:'uppercase', letterSpacing:'0.5px' }}>Resolved On</th>
+                </tr></thead>
+                <tbody>
+                  {complaints360.map(c => {
+                    const statusColors = { Open:{bg:'#dbeafe',c:'#1d4ed8'}, 'In Progress':{bg:'#fef3c7',c:'#92400e'}, Resolved:{bg:'#dcfce7',c:'#15803d'}, Closed:{bg:'#f1f5f9',c:'#64748b'}, Pending:{bg:'#fef3c7',c:'#d97706'} };
+                    const sc = statusColors[c.Status] || statusColors.Pending;
+                    const priColors = { High:{bg:'#fee2e2',c:'#dc2626'}, Medium:{bg:'#fef3c7',c:'#d97706'}, Low:{bg:'#dcfce7',c:'#15803d'} };
+                    const pc = priColors[c.Priority] || priColors.Medium;
+                    return (
+                      <tr key={c.TicketID || c.id} style={{ borderBottom:'1px solid #f1f5f9' }}>
+                        <td style={{ padding:'16px', color:'#374151', fontWeight:500 }}>{c.CreatedAt ? new Date(c.CreatedAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</td>
+                        <td style={{ padding:'16px', color:'#374151', fontWeight:500 }}>{c.Category || c.Type || '—'}</td>
+                        <td style={{ padding:'16px', color:'#374151' }}>{c.Description || c.Subject || '—'}</td>
+                        <td style={{ padding:'16px' }}><span style={{ fontSize:12, fontWeight:600, padding:'4px 14px', borderRadius:20, background:pc.bg, color:pc.c }}>{c.Priority}</span></td>
+                        <td style={{ padding:'16px', color:'#374151' }}>{c.AssignedTo || '—'}</td>
+                        <td style={{ padding:'16px' }}><span style={{ fontSize:12, fontWeight:600, padding:'4px 14px', borderRadius:20, background:sc.bg, color:sc.c }}>{c.Status}</span></td>
+                        <td style={{ padding:'16px', color:'#374151' }}>{c.ResolvedAt ? new Date(c.ResolvedAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Contacts Tab */}
         {activeTab === 'contacts' && (
           <div>
             {/* Header */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
-              <div>
-                <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>👤 Contact Persons</h3>
-                <p style={{ margin:'3px 0 0', fontSize:11, color:'#64748b' }}>Manage authorized contacts for this HCF</p>
-              </div>
-              <button onClick={() => setShowAddContact(true)} style={{
-                background:'linear-gradient(135deg,#5b21b6,#7c3aed)', color:'#fff', border:'none',
-                borderRadius:10, padding:'8px 16px', fontSize:12, fontWeight:700, cursor:'pointer'
-              }}>+ Add Contact</button>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+              <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>Contact Persons</h3>
+              <button onClick={() => setShowAddContact(true)} style={{ background:'#5b21b6', color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:12, fontWeight:700, cursor:'pointer' }}>+ Add Contact</button>
             </div>
 
-            {/* Add Contact inline form (toggle) */}
+            {/* Add Contact Form */}
             {showAddContact && (
               <div style={{ background:'#f5f3ff', border:'1.5px solid #c4b5fd', borderRadius:12, padding:16, marginBottom:20 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:'#5b21b6', marginBottom:12 }}>New Contact Person</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
-                  <div>
-                    <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Name *</label>
-                    <input value={contactForm.ContactName} onChange={e => setContactForm(p=>({...p,ContactName:e.target.value}))}
-                      style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }}
-                      placeholder="Dr. Ramesh Kumar" />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Designation</label>
-                    <input value={contactForm.Designation} onChange={e => setContactForm(p=>({...p,Designation:e.target.value}))}
-                      style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }}
-                      placeholder="Director" />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Mobile *</label>
-                    <input value={contactForm.Mobile} onChange={e => setContactForm(p=>({...p,Mobile:e.target.value}))}
-                      style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }}
-                      placeholder="98765-43210" />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Email</label>
-                    <input value={contactForm.Email} type="email" onChange={e => setContactForm(p=>({...p,Email:e.target.value}))}
-                      style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }}
-                      placeholder="dr@hospital.com" />
-                  </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:10, marginBottom:12 }}>
+                  <div><label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Name *</label>
+                    <input value={contactForm.ContactName} onChange={e => setContactForm(p=>({...p,ContactName:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }} /></div>
+                  <div><label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Designation</label>
+                    <input value={contactForm.Designation} onChange={e => setContactForm(p=>({...p,Designation:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }} /></div>
+                  <div><label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Mobile *</label>
+                    <input value={contactForm.Mobile} onChange={e => setContactForm(p=>({...p,Mobile:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }} /></div>
+                  <div><label style={{ fontSize:11, fontWeight:700, color:'#374151', display:'block', marginBottom:4 }}>Email</label>
+                    <input type="email" value={contactForm.Email} onChange={e => setContactForm(p=>({...p,Email:e.target.value}))} style={{ width:'100%', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'8px 10px', fontSize:13, boxSizing:'border-box' }} /></div>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
-                  <input type="checkbox" id="admIsPrimary" checked={contactForm.IsPrimary}
-                    onChange={e => setContactForm(p=>({...p,IsPrimary:e.target.checked}))} />
-                  <label htmlFor="admIsPrimary" style={{ fontSize:12, fontWeight:600, color:'#374151' }}>Mark as Primary Contact</label>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+                  <input type="checkbox" id="isPrimaryContact" checked={contactForm.IsPrimary} onChange={e => setContactForm(p=>({...p,IsPrimary:e.target.checked}))} />
+                  <label htmlFor="isPrimaryContact" style={{ fontSize:12, color:'#374151' }}>Mark as Primary Contact</label>
                 </div>
                 <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-                  <button onClick={() => { setShowAddContact(false); setContactForm({ ContactName:'', Designation:'', Mobile:'', Email:'', IsPrimary:false }); }}
-                    style={{ background:'#fff', color:'#64748b', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'7px 16px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                    Cancel
-                  </button>
-                  <button onClick={addContact} disabled={savingContact} style={{
-                    background:'linear-gradient(135deg,#5b21b6,#7c3aed)', color:'#fff', border:'none',
-                    borderRadius:8, padding:'7px 16px', fontSize:12, fontWeight:700, cursor:'pointer'
-                  }}>{savingContact ? 'Saving...' : 'Save Contact'}</button>
+                  <button onClick={() => { setShowAddContact(false); setContactForm({ ContactName:'', Designation:'', Mobile:'', Email:'', IsPrimary:false }); }} style={{ background:'#fff', color:'#64748b', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'7px 16px', fontSize:12, fontWeight:600, cursor:'pointer' }}>Cancel</button>
+                  <button onClick={addContact} disabled={savingContact} style={{ background:'#5b21b6', color:'#fff', border:'none', borderRadius:8, padding:'7px 16px', fontSize:12, fontWeight:700, cursor:'pointer' }}>{savingContact ? '...' : 'Save'}</button>
                 </div>
               </div>
             )}
 
             {/* Contact Cards */}
             {loadingContacts ? (
-              <div style={{ textAlign:'center', color:'#94a3b8', padding:40 }}>Loading contacts...</div>
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40 }}>Loading...</div>
             ) : contacts.length === 0 ? (
-              <div style={{ textAlign:'center', color:'#94a3b8', padding:40, background:'#f8fafc', borderRadius:12, border:'1.5px dashed #e2e8f0' }}>
-                No contact persons added yet
-              </div>
+              <div style={{ textAlign:'center', color:'#94a3b8', padding:40, background:'#f8fafc', borderRadius:12, border:'1.5px dashed #e2e8f0' }}>No contact persons added</div>
             ) : (
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:14 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:14 }}>
                 {contacts.map(c => {
                   const initials = (c.ContactName || '?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-                  const colors = ['#7c3aed','#2563eb','#0891b2','#16a34a','#d97706','#dc2626'];
+                  const colors = ['#7c3aed','#0891b2','#16a34a','#d97706','#dc2626'];
                   const col = colors[c.ContactID % colors.length];
                   return (
-                    <div key={c.ContactID} style={{
-                      background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:14, padding:16,
-                      position:'relative', transition:'box-shadow .2s',
-                      boxShadow: c.IsPrimary ? '0 0 0 2px #7c3aed22' : 'none'
-                    }}>
-                      <button onClick={() => deleteContact(c.ContactID)} style={{
-                        position:'absolute', top:10, right:10, background:'#fee2e2', color:'#dc2626',
-                        border:'none', borderRadius:6, width:26, height:26, fontSize:12, cursor:'pointer', fontWeight:700
-                      }}>✕</button>
-                      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
-                        <div style={{
-                          width:44, height:44, borderRadius:12,
-                          background:`linear-gradient(135deg,${col},${col}cc)`,
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                          color:'#fff', fontWeight:800, fontSize:16, flexShrink:0
-                        }}>{initials}</div>
-                        <div>
+                    <div key={c.ContactID} style={{ background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:14, padding:16, position:'relative' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
+                        <div style={{ width:44, height:44, borderRadius:12, background:col, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:800, fontSize:16 }}>{initials}</div>
+                        <div style={{ flex:1 }}>
                           <div style={{ fontWeight:800, fontSize:14, color:'#1e293b' }}>{c.ContactName}</div>
-                          <div style={{ fontSize:12, color:'#64748b', marginTop:1 }}>{c.Designation || '—'}</div>
-                          {c.IsPrimary && (
-                            <span style={{ fontSize:10, fontWeight:700, background:'#dbeafe', color:'#1d4ed8', padding:'2px 8px', borderRadius:20, display:'inline-block', marginTop:4 }}>Primary</span>
-                          )}
+                          <div style={{ fontSize:12, color:'#64748b' }}>{c.Designation || '—'}</div>
                         </div>
+                        {c.IsPrimary && <span style={{ fontSize:10, fontWeight:700, background:'#0891b2', color:'#fff', padding:'3px 10px', borderRadius:20 }}>Primary</span>}
                       </div>
                       <div style={{ fontSize:12, color:'#475569', marginBottom:4 }}>📱 {c.Mobile || '—'}</div>
                       <div style={{ fontSize:12, color:'#475569', marginBottom:12 }}>✉️ {c.Email || '—'}</div>
                       <div style={{ display:'flex', gap:8 }}>
-                        {c.Mobile && (
-                          <a href={`https://wa.me/91${c.Mobile.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" style={{
-                            flex:1, textAlign:'center', padding:'6px 0', fontSize:11, fontWeight:700,
-                            background:'#dcfce7', color:'#15803d', borderRadius:8, textDecoration:'none'
-                          }}>💬 WhatsApp</a>
-                        )}
-                        {c.Email && (
-                          <a href={`mailto:${c.Email}`} style={{
-                            flex:1, textAlign:'center', padding:'6px 0', fontSize:11, fontWeight:700,
-                            background:'#dbeafe', color:'#1d4ed8', borderRadius:8, textDecoration:'none'
-                          }}>✉ Email</a>
-                        )}
+                        {c.Mobile && <a href={`https://wa.me/91${c.Mobile.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" style={{ flex:1, textAlign:'center', padding:'8px 0', fontSize:11, fontWeight:700, background:'#dcfce7', color:'#15803d', borderRadius:8, textDecoration:'none' }}>💬 WhatsApp</a>}
+                        {c.Email && <a href={`mailto:${c.Email}`} style={{ flex:1, textAlign:'center', padding:'8px 0', fontSize:11, fontWeight:700, background:'#dbeafe', color:'#1d4ed8', borderRadius:8, textDecoration:'none' }}>📧 Email</a>}
                       </div>
                     </div>
                   );
@@ -1071,76 +2163,44 @@ const HCF360Modal = ({ row, onClose, showToast }) => {
           </div>
         )}
 
-        {/* Timeline */}
+        {/* Timeline Tab */}
         {activeTab === 'timeline' && (
-          <div style={{ padding: '8px 0' }}>
+          <div style={{ padding:'8px 0' }}>
             {[
-              { date: row.CreatedAt, label: 'HCF Registered', desc: `Registration ID: ${row.RegistrationID}` },
-              { date: row.RegistrationDate, label: 'Registration Confirmed', desc: 'Registration date recorded' },
-              row.Zone && { date: row.CreatedAt, label: 'Zone Assigned', desc: `Zone: ${row.Zone}` },
-              row.SelectedPlan && { date: row.CreatedAt, label: 'Service Plan Selected', desc: `Plan: ${row.SelectedPlan}` },
-              { date: row.CreatedAt, label: 'Status Set', desc: `Current status: ${row.Status || 'Pending'}` },
-            ].filter(Boolean).map((item, i) => (
-              <div key={i} style={{ display: 'flex', gap: 14, marginBottom: 18 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ width: 12, height: 12, background: '#7c3aed', borderRadius: '50%', flexShrink: 0, marginTop: 2 }} />
-                  {i < 4 && <div style={{ width: 2, flex: 1, background: '#e2e8f0', margin: '4px 0' }} />}
+              { date: row.CreatedAt, label: 'HCF Registered', desc: `Registration ID: ${row.RegistrationID}`, icon:'📝' },
+              { date: row.RegistrationDate, label: 'Registration Confirmed', desc: 'Official registration date recorded', icon:'✅' },
+              row.Zone && { date: row.CreatedAt, label: 'Zone Assigned', desc: `Zone: ${row.Zone}`, icon:'📍' },
+              row.Route && { date: row.CreatedAt, label: 'Route Assigned', desc: `Route: ${row.Route}`, icon:'🛣️' },
+              row.SelectedPlan && { date: row.CreatedAt, label: 'Service Plan Selected', desc: `Plan: ${row.SelectedPlan}`, icon:'📋' },
+            ].filter(Boolean).map((item, i, arr) => (
+              <div key={i} style={{ display:'flex', gap:14, marginBottom:i < arr.length-1 ? 0 : 0 }}>
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', width:24 }}>
+                  <div style={{ width:24, height:24, background:'#5b21b6', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, flexShrink:0 }}>{item.icon}</div>
+                  {i < arr.length-1 && <div style={{ width:2, flex:1, background:'#e2e8f0', minHeight:40 }} />}
                 </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{item.label}</div>
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 2 }}>{item.date ? new Date(item.date).toLocaleDateString() : '—'}</div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>{item.desc}</div>
+                <div style={{ paddingBottom:20 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>{item.label}</div>
+                  <div style={{ fontSize:11, color:'#94a3b8', marginBottom:2 }}>{item.date ? new Date(item.date).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</div>
+                  <div style={{ fontSize:12, color:'#64748b' }}>{item.desc}</div>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Complaints */}
-        {activeTab === 'complaints' && (
-          <div>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-              <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1e293b' }}>📣 Support Tickets</h3>
-              <span style={{ fontSize:11, color:'#64748b' }}>{complaints360.length} total</span>
-            </div>
-            {loadingComplaints360 ? (
-              <div style={{ textAlign:'center', color:'#94a3b8', padding:40 }}>Loading...</div>
-            ) : complaints360.length === 0 ? (
-              <div style={{ textAlign:'center', color:'#94a3b8', padding:40, background:'#f8fafc', borderRadius:12, border:'1.5px dashed #e2e8f0' }}>
-                No complaints/tickets raised by this HCF
-              </div>
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {complaints360.map(t => {
-                  const statusMap = { Open:{bg:'#dbeafe',c:'#1d4ed8'}, Closed:{bg:'#dcfce7',c:'#15803d'}, 'In Progress':{bg:'#fef3c7',c:'#92400e'} };
-                  const s = statusMap[t.Status] || statusMap.Open;
-                  const priMap = { High:{bg:'#fee2e2',c:'#dc2626'}, Medium:{bg:'#fef3c7',c:'#92400e'}, Low:{bg:'#f1f5f9',c:'#64748b'} };
-                  const p = priMap[t.Priority] || priMap.Medium;
-                  return (
-                    <div key={t.TicketID} style={{ background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:12, padding:14 }}>
-                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:8 }}>
-                        <div>
-                          <span style={{ fontSize:10, fontFamily:'monospace', color:'#7c3aed', fontWeight:700 }}>{t.TicketCode || `TKT-${t.TicketID}`}</span>
-                          <div style={{ fontSize:13, fontWeight:700, color:'#1e293b', marginTop:2 }}>{t.Subject || t.Category}</div>
-                        </div>
-                        <div style={{ display:'flex', gap:6 }}>
-                          <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:s.bg, color:s.c }}>{t.Status}</span>
-                          <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:p.bg, color:p.c }}>{t.Priority}</span>
-                        </div>
-                      </div>
-                      <div style={{ fontSize:12, color:'#374151', fontWeight:500, marginBottom:6 }}>{t.Description}</div>
-                      <div style={{ fontSize:11, color:'#64748b' }}>
-                        Raised: {t.CreatedAt ? new Date(t.CreatedAt).toLocaleDateString('en-IN') : '—'} · Assigned: {t.AssignedTo || 'Unassigned'}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
         </div>{/* end tab body */}
+
+        {/* Footer */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 20px', borderTop:'1.5px solid #e2e8f0', background:'#f8fafc', flexShrink:0 }}>
+          <div style={{ display:'flex', gap:10 }}>
+            <button onClick={onClose} style={{ background:'#fff', color:'#374151', border:'1.5px solid #e2e8f0', borderRadius:8, padding:'10px 20px', fontSize:13, fontWeight:600, cursor:'pointer' }}>Close</button>
+            <button style={{ background:'#fee2e2', color:'#dc2626', border:'none', borderRadius:8, padding:'10px 20px', fontSize:13, fontWeight:700, cursor:'pointer' }}>🚫 De-register</button>
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <a href={`https://wa.me/91${row.Mobile?.replace(/\D/g,'') || ''}`} target="_blank" rel="noreferrer" style={{ background:'#dcfce7', color:'#15803d', border:'none', borderRadius:8, padding:'10px 20px', fontSize:13, fontWeight:700, cursor:'pointer', textDecoration:'none', display:'flex', alignItems:'center', gap:6 }}>💬 WhatsApp</a>
+            <button onClick={saveNotes} disabled={savingNotes} style={{ background:'#5b21b6', color:'#fff', border:'none', borderRadius:8, padding:'10px 20px', fontSize:13, fontWeight:700, cursor:'pointer' }}>💾 Save Notes</button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1254,7 +2314,7 @@ const ApprovalPipelineModule = ({ zones, categories, hcfMaster, showToast }) => 
           { icon:'🎉', bg:'#dcfce7', border:'#4ade80', color:'#15803d' },
         ];
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 8, marginBottom: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, marginBottom: 18 }}>
             {APPROVAL_STAGES.map((stage, i) => (
               <div key={stage} style={{ textAlign: 'center' }}>
                 <div style={{ background: STAGE_META[i].bg, borderRadius: 10, padding: '10px 6px', border: `2px solid ${STAGE_META[i].border}` }}>
@@ -1389,29 +2449,36 @@ const ApprovalPipelineModule = ({ zones, categories, hcfMaster, showToast }) => 
 // 3. RENEWAL MANAGEMENT MODULE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const RenewalModule = ({ hcfMaster, showToast }) => {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
+const RenewalModule = ({ hcfMaster, refreshHcfMaster, showToast }) => {
+  const data = hcfMaster || [];  // Use hcfMaster data directly
   const [bucketTab, setBucketTab] = useState('all');
   const [showNewModal, setShowNewModal] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyHCF, setHistoryHCF] = useState(null);
+  const [renewalHistory, setRenewalHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [selectedHCF, setSelectedHCF] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [renewalForm, setRenewalForm] = useState({ 
+    newRenewalDate: '', 
+    mouSigned: false, 
+    autoRenew: false,
+    renewalNotes: '',
+    renewalPeriod: '12', // months
+    generateCertificate: true
+  });
 
-  const blankForm = { RegistrationID: '', FacilityName: '', Zone: '', RenewalDate: '' };
+  const blankForm = { RegistrationID: '', FacilityName: '', Zone: '', RenewalDate: '', Location: '' };
   const [form, setForm] = useState(blankForm);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/hcf-renewals');
-      const json = await res.json();
-      setData(Array.isArray(json) ? json : []);
-    } catch { showToast('Failed to load renewals', 'error'); }
-    finally { setLoading(false); }
+  // Generate HCF ID in MPCC-ZONE-0001 format
+  const formatHcfId = (row) => {
+    const zone = (row.Zone || 'XX').substring(0, 3).toUpperCase();
+    const num = String(row.RegistrationID || 1).padStart(4, '0');
+    return `MPCC-${zone}-${num}`;
   };
-
-  useEffect(() => { load(); }, []);
-
-  const today = new Date();
 
   const filtered = data.filter(r => {
     if (bucketTab === 'all') return true;
@@ -1424,16 +2491,24 @@ const RenewalModule = ({ hcfMaster, showToast }) => {
     return true;
   });
 
-  const stats = {
-    total:   data.length,
-    due30:   data.filter(r => { const d = daysUntil(r.RenewalDate); return d !== null && d <= 30 && d >= 0; }).length,
-    overdue: data.filter(r => { const d = daysUntil(r.RenewalDate); return d !== null && d < 0; }).length,
-    renewed: data.filter(r => r.Status === 'Renewed').length,
+  // State determination based on payment/renewal behavior
+  const getState = (row) => {
+    const days = daysUntil(row.RenewalDate);
+    if (row.Status === 'Renewed') return { label: 'Renewed', bg: '#dcfce7', color: '#15803d' };
+    if (row.LatePayer || (days !== null && days < -30)) return { label: 'Late Payer', bg: '#fef3c7', color: '#92400e' };
+    if (row.Status === 'Inactive' || row.Status === 'Deregistered') return { label: 'Inactive', bg: '#fee2e2', color: '#dc2626' };
+    return { label: 'Active', bg: '#dcfce7', color: '#15803d' };
   };
 
   const handleHCFSelect = (regId) => {
     const hcf = hcfMaster.find(h => String(h.RegistrationID) === String(regId));
-    setForm(p => ({ ...p, RegistrationID: regId, FacilityName: hcf?.InstitutionName || '', Zone: hcf?.Zone || '' }));
+    setForm(p => ({ 
+      ...p, 
+      RegistrationID: regId, 
+      FacilityName: hcf?.InstitutionName || '', 
+      Zone: hcf?.Zone || '',
+      Location: hcf?.Area || hcf?.City || ''
+    }));
   };
 
   const handleSave = async (e) => {
@@ -1447,144 +2522,332 @@ const RenewalModule = ({ hcfMaster, showToast }) => {
       showToast('Renewal added');
       setShowNewModal(false);
       setForm(blankForm);
-      load();
+      refreshHcfMaster();
     } catch { showToast('Save failed', 'error'); }
     finally { setSaving(false); }
   };
 
   const handleRemind = async (row) => {
     try {
-      await fetch(`/api/hcf-renewals/${row.RenewalID}/remind`, { method: 'PUT' });
-      showToast('Reminder sent');
-      load();
+      const res = await fetch(`/api/hcf-master/${row.RegistrationID}/remind`, { method: 'PUT' });
+      const data = await res.json();
+      if (data.emailSent) {
+        showToast(`✅ Reminder sent to ${data.facilityName} via email`);
+      } else {
+        showToast(`⚠️ Reminder logged for ${data.facilityName}${data.emailError ? ' (email: ' + data.emailError + ')' : ''}`);
+      }
+      refreshHcfMaster();
     } catch { showToast('Failed to send reminder', 'error'); }
   };
 
-  const handleRenew = async (row) => {
-    if (!window.confirm(`Mark ${row.FacilityName} as Renewed?`)) return;
+  const handleSendAllReminders = async () => {
+    if (!window.confirm(`Send reminders to ${filtered.length} HCFs with upcoming renewals?`)) return;
     try {
-      await fetch(`/api/hcf-renewals/${row.RenewalID}/renew`, { method: 'PUT' });
-      showToast('Marked as Renewed');
-      load();
-    } catch { showToast('Failed', 'error'); }
+      let sent = 0, failed = 0;
+      for (const row of filtered) {
+        try {
+          const res = await fetch(`/api/hcf-master/${row.RegistrationID}/remind`, { method: 'PUT' });
+          const data = await res.json();
+          if (data.emailSent) sent++;
+          else failed++;
+        } catch { failed++; }
+      }
+      showToast(`📧 Reminders: ${sent} sent, ${failed} pending email config`);
+      refreshHcfMaster();
+    } catch { showToast('Failed to send reminders', 'error'); }
+  };
+
+  const openHistory = async (row) => {
+    setHistoryHCF(row);
+    setRenewalHistory([]);
+    setShowHistoryModal(true);
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/hcf-renewal-history/${row.RegistrationID}`);
+      const json = await res.json();
+      setRenewalHistory(Array.isArray(json) ? json : []);
+    } catch { setRenewalHistory([]); }
+    finally { setLoadingHistory(false); }
+  };
+
+  const handleRenew = async (row) => {
+    // Open renewal modal with HCF details
+    setSelectedHCF(row);
+    const currentDate = row.RenewalDate ? new Date(row.RenewalDate) : new Date();
+    const newDate = new Date(currentDate);
+    newDate.setFullYear(newDate.getFullYear() + 1);
+    setRenewalForm({
+      newRenewalDate: newDate.toISOString().split('T')[0],
+      mouSigned: false,
+      autoRenew: row.AutoRenew || false,
+      renewalNotes: '',
+      renewalPeriod: '12',
+      generateCertificate: true
+    });
+    setShowRenewModal(true);
+  };
+
+  const processRenewal = async () => {
+    if (!selectedHCF) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/hcf-master/${selectedHCF.RegistrationID}/renew`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newRenewalDate: renewalForm.newRenewalDate,
+          mouSigned: renewalForm.mouSigned,
+          autoRenew: renewalForm.autoRenew,
+          renewalNotes: renewalForm.renewalNotes,
+          generateCertificate: renewalForm.generateCertificate
+        })
+      });
+      const data = await res.json();
+      showToast(`Renewal processed successfully!${data.certificateId ? ' Certificate generated.' : ''}`);
+      setShowRenewModal(false);
+      setSelectedHCF(null);
+      refreshHcfMaster();
+    } catch { showToast('Renewal failed', 'error'); }
+    finally { setSaving(false); }
   };
 
   const handleToggleAuto = async (row) => {
     try {
-      await fetch(`/api/hcf-renewals/${row.RenewalID}`, {
+      await fetch(`/api/hcf-master/${row.RegistrationID}/auto-renew`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ AutoRenew: !row.AutoRenew }),
       });
       showToast('Auto-renew updated');
-      load();
+      refreshHcfMaster();
     } catch { showToast('Failed', 'error'); }
   };
 
-  const handleDelete = async (row) => {
-    if (!window.confirm(`Delete renewal for ${row.FacilityName}?`)) return;
-    try {
-      await fetch(`/api/hcf-renewals/${row.RenewalID}`, { method: 'DELETE' });
-      showToast('Deleted');
-      load();
-    } catch { showToast('Delete failed', 'error'); }
+  const handleNextStep = () => {
+    if (selectedRows.length === 0) {
+      showToast('Please select at least one renewal to proceed', 'error');
+      return;
+    }
+    showToast(`Processing ${selectedRows.length} selected renewals...`);
+    // Add workflow logic here
   };
 
-  const BUCKETS = [
-    { id: 'all', label: 'All' },
-    { id: '60', label: '60 Days' },
-    { id: '30', label: '30 Days' },
-    { id: '15', label: '15 Days' },
-    { id: '7', label: '7 Days' },
-  ];
-
   return (
-    <div>
-      <div className="page-header">
-        <div><h1>🔄 Renewal Management</h1><p>Auto-renewal tracking — 60 / 30 / 15 / 7 day reminders, MoU re-sign, one-click extension</p></div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button style={{ background: '#ede9fe', border: '1.5px solid #c4b5fd', color: '#5b21b6', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>📤 Send All Reminders</button>
-          <button className="btn btn-primary" onClick={() => { setForm(blankForm); setShowNewModal(true); }}>＋ Add Renewal</button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 40, height: 40, background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🔄</div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>Renewal Management</h1>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>Auto-renewal tracking — 60 / 30 / 15 / 7 day reminders, MoU re-sign, one-click extension</p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={handleSendAllReminders} style={{ 
+            background: '#fff', border: '2px solid #e2e8f0', color: '#374151', 
+            borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 700, 
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+          }}>
+            <span style={{ fontSize: 16 }}>📤</span> Send All Reminders
+          </button>
+          <button onClick={() => { setForm(blankForm); setShowNewModal(true); }} style={{ 
+            background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', color: '#fff', 
+            border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 13, 
+            fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)'
+          }}>
+            + Add Renewal
+          </button>
         </div>
       </div>
 
-      {/* 4 Gradient Bucket Cards */}
+      {/* 5 Gradient Bucket Cards - All + 4 time-based */}
       {(() => {
+        const cntAll = data.length;
         const cnt60 = data.filter(r => { const d = daysUntil(r.RenewalDate); return d !== null && d <= 60 && d > 30; }).length;
         const cnt30 = data.filter(r => { const d = daysUntil(r.RenewalDate); return d !== null && d <= 30 && d > 15; }).length;
         const cnt15 = data.filter(r => { const d = daysUntil(r.RenewalDate); return d !== null && d <= 15 && d > 7; }).length;
         const cnt7  = data.filter(r => { const d = daysUntil(r.RenewalDate); return d !== null && d <= 7; }).length;
         const buckets = [
+          { id:'all', cnt: cntAll, label:'All HCFs', sub:'Total Registered', bg:'linear-gradient(135deg,#f0f9ff,#e0f2fe)', border:'#7dd3fc', numColor:'#0284c7', textColor:'#0284c7', subColor:'#0369a1' },
           { id:'60', cnt: cnt60, label:'Expiring in 60 days', sub:'Early Reminder', bg:'linear-gradient(135deg,#f0fdf4,#dcfce7)', border:'#86efac', numColor:'#15803d', textColor:'#15803d', subColor:'#16a34a' },
           { id:'30', cnt: cnt30, label:'Expiring in 30 days', sub:'Action Needed',  bg:'linear-gradient(135deg,#fefce8,#fef9c3)', border:'#fde047', numColor:'#ca8a04', textColor:'#ca8a04', subColor:'#a16207' },
           { id:'15', cnt: cnt15, label:'Expiring in 15 days', sub:'Urgent',         bg:'linear-gradient(135deg,#fff7ed,#ffedd5)', border:'#fdba74', numColor:'#ea580c', textColor:'#ea580c', subColor:'#c2410c' },
           { id:'7',  cnt: cnt7,  label:'Expiring in 7 days',  sub:'Critical',       bg:'linear-gradient(135deg,#fef2f2,#fee2e2)', border:'#fca5a5', numColor:'#dc2626', textColor:'#dc2626', subColor:'#b91c1c' },
         ];
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 24 }}>
             {buckets.map(b => (
               <div key={b.id} onClick={() => setBucketTab(bucketTab === b.id ? 'all' : b.id)}
-                style={{ background: b.bg, borderRadius: 12, padding: 14, border: `2px solid ${bucketTab === b.id ? b.numColor : b.border}`, cursor: 'pointer', textAlign: 'center', boxShadow: bucketTab === b.id ? `0 0 0 3px ${b.border}` : 'none' }}>
-                <div style={{ fontSize: 26, fontWeight: 800, color: b.numColor }}>{b.cnt}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: b.textColor }}>{b.label}</div>
-                <div style={{ fontSize: 10, color: b.subColor, marginTop: 4 }}>{b.sub}</div>
+                style={{ 
+                  background: b.bg, borderRadius: 14, padding: '18px 16px', 
+                  border: `2.5px solid ${bucketTab === b.id ? b.numColor : b.border}`, 
+                  cursor: 'pointer', textAlign: 'center', 
+                  boxShadow: bucketTab === b.id ? `0 0 0 3px ${b.border}44` : '0 2px 8px rgba(0,0,0,0.04)',
+                  transition: 'all 0.2s ease'
+                }}>
+                <div style={{ fontSize: 32, fontWeight: 800, color: b.numColor, lineHeight: 1 }}>{b.cnt}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: b.textColor, marginTop: 6 }}>{b.label}</div>
+                <div style={{ fontSize: 11, color: b.subColor, marginTop: 2 }}>{b.sub}</div>
               </div>
             ))}
           </div>
         );
       })()}
 
-      <div className="table-wrap" style={{ overflowX: 'auto' }}>
-        {loading ? <div className="no-data">Loading...</div> : (
-          <table style={{ minWidth: 1100 }}>
+      {/* Table */}
+      <div style={{ flex: 1, background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 420px)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr>
-                <th>HCF ID</th><th>Facility Name</th><th>Zone</th><th>Renewal Date</th>
-                <th>Days Left</th><th>Auto-Renew</th><th>MoU Re-sign</th><th>Last Reminded</th><th>State</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? <tr><td colSpan={10} className="no-data">No renewal records</td></tr>
-                : filtered.map(row => {
+                <tr style={{ background: '#f8fafc', position: 'sticky', top: 0 }}>
+                  <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>HCF ID</th>
+                  <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Facility Name</th>
+                  <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Zone</th>
+                  <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Renewal Date</th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Days Left</th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Auto-Renew</th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>MoU Re-sign</th>
+                  <th style={{ padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Reminded</th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>State</th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={10} style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>No renewal records</td></tr>
+                ) : filtered.map(row => {
                   const days = daysUntil(row.RenewalDate);
-                  const daysBg = days === null ? '#f1f5f9' : days < 0 ? '#fee2e2' : days <= 7 ? '#fee2e2' : days <= 15 ? '#ffedd5' : days <= 30 ? '#fef3c7' : '#dcfce7';
-                  const daysColor = days === null ? '#94a3b8' : days < 0 ? '#dc2626' : days <= 7 ? '#dc2626' : days <= 15 ? '#ea580c' : days <= 30 ? '#ca8a04' : '#15803d';
+                  const state = getState(row);
+                  // Days left badge colors
+                  let daysBg, daysColor;
+                  if (days === null) { daysBg = '#f1f5f9'; daysColor = '#94a3b8'; }
+                  else if (days < 0) { daysBg = '#fee2e2'; daysColor = '#dc2626'; }
+                  else if (days <= 7) { daysBg = '#fef3c7'; daysColor = '#b45309'; }
+                  else if (days <= 15) { daysBg = '#dcfce7'; daysColor = '#15803d'; }
+                  else if (days <= 30) { daysBg = '#fef3c7'; daysColor = '#ca8a04'; }
+                  else { daysBg = '#dcfce7'; daysColor = '#15803d'; }
+
                   return (
-                    <tr key={row.RenewalID}>
-                      <td style={{ fontWeight: 700, color: '#5b21b6' }}>{row.RegistrationID}</td>
-                      <td>
-                        <strong>{row.FacilityName}</strong>
-                        {row.Zone && <><br /><span style={{ fontSize: 10, color: '#64748b' }}>{row.Zone}</span></>}
+                    <tr key={row.RegistrationID} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '14px 12px', fontWeight: 700, color: '#3b82f6', fontSize: 12 }}>
+                        {formatHcfId(row)}
                       </td>
-                      <td>{row.Zone}</td>
-                      <td>{row.RenewalDate ? new Date(row.RenewalDate).toLocaleDateString('en-IN') : '—'}</td>
-                      <td>
-                        <span style={{ background: daysBg, color: daysColor, borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
-                          {days === null ? '—' : days < 0 ? `${Math.abs(days)}d overdue` : `${days} days`}
+                      <td style={{ padding: '14px 12px' }}>
+                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 13 }}>{row.InstitutionName || row.FacilityName}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{row.Area || row.City || row.Location || ''}</div>
+                      </td>
+                      <td style={{ padding: '14px 12px', fontWeight: 600, color: '#374151' }}>{row.Zone}</td>
+                      <td style={{ padding: '14px 12px', color: '#374151', fontWeight: 500 }}>
+                        {formatDate(row.RenewalDate) || <span style={{color:'#94a3b8'}}>Not Set</span>}
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
+                        <span style={{ 
+                          background: daysBg, color: daysColor, borderRadius: 8, 
+                          padding: '5px 12px', fontSize: 12, fontWeight: 700,
+                          display: 'inline-block', minWidth: 60
+                        }}>
+                          {days === null ? '—' : days < 0 ? `${Math.abs(days)} overdue` : `${days} days`}
                         </span>
                       </td>
-                      <td>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                          <input type="checkbox" checked={!!row.AutoRenew} onChange={() => handleToggleAuto(row)} style={{ width: 16, height: 16, accentColor: '#5b21b6' }} />
-                          <span style={{ fontSize: 12, color: row.AutoRenew ? '#5b21b6' : '#64748b', fontWeight: 600 }}>{row.AutoRenew ? 'ON' : 'OFF'}</span>
+                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={!!row.AutoRenew} 
+                            onChange={() => handleToggleAuto(row)} 
+                            style={{ 
+                              width: 18, height: 18, accentColor: '#3b82f6', cursor: 'pointer',
+                              borderRadius: 4
+                            }} 
+                          />
+                          <span style={{ 
+                            fontSize: 12, 
+                            color: row.AutoRenew ? '#1d4ed8' : '#94a3b8', 
+                            fontWeight: 600 
+                          }}>
+                            {row.AutoRenew ? 'ON' : 'OFF'}
+                          </span>
                         </label>
                       </td>
-                      <td>
-                        <span style={{ background: row.MoUReSigned ? '#dcfce7' : '#fef3c7', color: row.MoUReSigned ? '#15803d' : '#92400e', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
+                        <span style={{ 
+                          background: row.MoUReSigned ? '#dcfce7' : '#fef3c7', 
+                          color: row.MoUReSigned ? '#15803d' : '#b45309', 
+                          borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700,
+                          border: row.MoUReSigned ? '1px solid #86efac' : '1px solid #fcd34d'
+                        }}>
                           {row.MoUReSigned ? 'Done' : 'Required'}
                         </span>
                       </td>
-                      <td>{row.LastReminded ? new Date(row.LastReminded).toLocaleDateString('en-IN') : '—'}</td>
-                      <td><StatusBadge value={row.Status || 'Pending'} /></td>
-                      <td style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => handleRenew(row)} style={{ background: '#5b21b6', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>⚡ Renew</button>
-                        <button onClick={() => handleRemind(row)} style={{ background: '#dcfce7', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, color: '#15803d', fontWeight: 700, cursor: 'pointer' }}>📤 Remind</button>
+                      <td style={{ padding: '14px 12px', color: '#374151', fontSize: 12 }}>
+                        {row.LastReminded ? new Date(row.LastReminded).toLocaleDateString('en-IN') : '—'}
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
+                        <span style={{ 
+                          background: state.bg, color: state.color, 
+                          borderRadius: 20, padding: '5px 14px', fontSize: 11, fontWeight: 700,
+                          border: `1px solid ${state.color}33`
+                        }}>
+                          {state.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                          <button onClick={() => handleRenew(row)} style={{ 
+                            background: 'linear-gradient(135deg, #22c55e, #16a34a)', 
+                            color: '#fff', border: 'none', borderRadius: 8, 
+                            padding: '8px 14px', fontSize: 12, fontWeight: 700, 
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
+                            boxShadow: '0 2px 6px rgba(34, 197, 94, 0.3)'
+                          }}>
+                            <span style={{ fontSize: 12 }}>⚡</span> Renew
+                          </button>
+                          <button onClick={() => openHistory(row)} style={{ 
+                            background: '#f0fdf4', 
+                            color: '#15803d', border: '1.5px solid #86efac', borderRadius: 8, 
+                            padding: '8px 12px', fontSize: 12, fontWeight: 700, 
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5
+                          }}>
+                            <span style={{ fontSize: 12 }}>📜</span>
+                          </button>
+                          <button onClick={() => handleRemind(row)} style={{ 
+                            background: '#f5f3ff', 
+                            color: '#7c3aed', border: '1.5px solid #c4b5fd', borderRadius: 8, 
+                            padding: '8px 14px', fontSize: 12, fontWeight: 700, 
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5
+                          }}>
+                            <span style={{ fontSize: 12 }}>📤</span> Remind
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
-            </tbody>
-          </table>
-        )}
+              </tbody>
+            </table>
+        </div>
+      </div>
+
+      {/* Footer with Cancel and Next Step */}
+      <div style={{ 
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '16px 0', marginTop: 16, borderTop: '1px solid #e2e8f0'
+      }}>
+        <button style={{ 
+          background: '#fff', border: '1.5px solid #e2e8f0', color: '#dc2626', 
+          borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, 
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
+        }}>
+          <span>✕</span> Cancel
+        </button>
+        <button onClick={handleNextStep} style={{ 
+          background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', color: '#fff', 
+          border: 'none', borderRadius: 8, padding: '12px 28px', fontSize: 14, 
+          fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)'
+        }}>
+          Next Step →
+        </button>
       </div>
 
       {/* New Renewal Modal */}
@@ -1602,6 +2865,7 @@ const RenewalModule = ({ hcfMaster, showToast }) => {
                 </Field>
                 <Input label="Facility Name" value={form.FacilityName} onChange={e => setForm(p => ({ ...p, FacilityName: e.target.value }))} />
                 <Input label="Zone" value={form.Zone} onChange={e => setForm(p => ({ ...p, Zone: e.target.value }))} />
+                <Input label="Location" value={form.Location} onChange={e => setForm(p => ({ ...p, Location: e.target.value }))} />
                 <Input label="Renewal Date" type="date" value={form.RenewalDate} onChange={e => setForm(p => ({ ...p, RenewalDate: e.target.value }))} required />
               </div>
               <div style={{ marginTop: 20, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -1609,6 +2873,167 @@ const RenewalModule = ({ hcfMaster, showToast }) => {
                 <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Renewal Process Modal */}
+      {showRenewModal && selectedHCF && (
+        <div style={modalOverlay}>
+          <div style={modalBox(600)}>
+            <ModalHeader title="Process Renewal" onClose={() => { setShowRenewModal(false); setSelectedHCF(null); }} />
+            <div style={{ padding: 20 }}>
+              {/* HCF Info Header */}
+              <div style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', border: '1.5px solid #86efac', borderRadius: 12, padding: 16, marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 48, height: 48, background: '#22c55e', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🏥</div>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#15803d' }}>{selectedHCF.InstitutionName || selectedHCF.FacilityName}</div>
+                    <div style={{ fontSize: 12, color: '#166534' }}>{formatHcfId(selectedHCF)} · {selectedHCF.Zone} Zone</div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14, paddingTop: 12, borderTop: '1px solid #86efac' }}>
+                  <div><span style={{ fontSize: 11, color: '#166534' }}>Current Renewal Date:</span><div style={{ fontSize: 14, fontWeight: 700, color: '#15803d' }}>{selectedHCF.RenewalDate ? new Date(selectedHCF.RenewalDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</div></div>
+                  <div><span style={{ fontSize: 11, color: '#166534' }}>Status:</span><div style={{ fontSize: 14, fontWeight: 700, color: '#15803d' }}>{selectedHCF.Status || 'Active'}</div></div>
+                </div>
+              </div>
+
+              {/* Renewal Form */}
+              <div style={{ display: 'grid', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>New Renewal Date *</label>
+                    <input type="date" value={renewalForm.newRenewalDate} onChange={e => setRenewalForm(p => ({...p, newRenewalDate: e.target.value}))} style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, boxSizing: 'border-box' }} required />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>Renewal Period</label>
+                    <select value={renewalForm.renewalPeriod} onChange={e => setRenewalForm(p => ({...p, renewalPeriod: e.target.value}))} style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, boxSizing: 'border-box', background: '#fff' }}>
+                      <option value="6">6 Months</option>
+                      <option value="12">12 Months (1 Year)</option>
+                      <option value="24">24 Months (2 Years)</option>
+                      <option value="36">36 Months (3 Years)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 20 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={renewalForm.mouSigned} onChange={e => setRenewalForm(p => ({...p, mouSigned: e.target.checked}))} style={{ width: 18, height: 18, accentColor: '#22c55e' }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>MoU Re-signed</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={renewalForm.autoRenew} onChange={e => setRenewalForm(p => ({...p, autoRenew: e.target.checked}))} style={{ width: 18, height: 18, accentColor: '#3b82f6' }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Enable Auto-Renew</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={renewalForm.generateCertificate} onChange={e => setRenewalForm(p => ({...p, generateCertificate: e.target.checked}))} style={{ width: 18, height: 18, accentColor: '#7c3aed' }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>📜 Generate New Certificate</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>Renewal Notes</label>
+                  <textarea value={renewalForm.renewalNotes} onChange={e => setRenewalForm(p => ({...p, renewalNotes: e.target.value}))} placeholder="Add any notes about this renewal..." rows={3} style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, boxSizing: 'border-box', resize: 'vertical' }} />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 24, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+                <button onClick={() => { setShowRenewModal(false); setSelectedHCF(null); }} style={{ background: '#fff', color: '#64748b', border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                <button onClick={processRenewal} disabled={saving} style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(34, 197, 94, 0.3)' }}>{saving ? 'Processing...' : '✓ Process Renewal'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Renewal History Modal */}
+      {showHistoryModal && historyHCF && (
+        <div style={modalOverlay}>
+          <div style={modalBox(600)}>
+            <ModalHeader title={`Renewal History — ${historyHCF.InstitutionName || historyHCF.FacilityName}`} onClose={() => { setShowHistoryModal(false); setHistoryHCF(null); }} />
+            <div style={{ padding: 20, maxHeight: 500, overflowY: 'auto' }}>
+              {/* HCF Info Header */}
+              <div style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', border: '1.5px solid #86efac', borderRadius: 12, padding: 14, marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 40, height: 40, background: '#22c55e', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏥</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#15803d' }}>{historyHCF.InstitutionName || historyHCF.FacilityName}</div>
+                    <div style={{ fontSize: 11, color: '#166534' }}>{formatHcfId(historyHCF)} · {historyHCF.Zone} Zone</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* History List */}
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: '#1e293b' }}>
+                📜 Renewal & Re-registration History
+              </div>
+              {loadingHistory ? (
+                <div style={{ textAlign: 'center', padding: 30, color: '#64748b' }}>Loading history...</div>
+              ) : renewalHistory.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 30, color: '#64748b', background: '#f8fafc', borderRadius: 8 }}>
+                  No renewal history yet. History will be recorded when renewals are processed.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {renewalHistory.map((h, idx) => {
+                    const isRereg = h.Action === 'Re-registration';
+                    return (
+                      <div key={h.HistoryID || idx} style={{
+                        background: isRereg ? '#f0fdf4' : '#fff',
+                        border: `1.5px solid ${isRereg ? '#86efac' : '#e2e8f0'}`,
+                        borderRadius: 10, padding: 14,
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <span style={{ 
+                            background: isRereg ? '#22c55e' : '#3b82f6',
+                            color: '#fff', fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6
+                          }}>
+                            {h.Action || 'Renewal'}
+                          </span>
+                          <span style={{ fontSize: 11, color: '#64748b' }}>
+                            {h.CreatedAt ? new Date(h.CreatedAt).toLocaleString('en-IN') : '—'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
+                          {h.PreviousRenewalDate && (
+                            <div>
+                              <span style={{ color: '#64748b' }}>Previous:</span>
+                              <span style={{ fontWeight: 600, marginLeft: 6, color: '#374151' }}>
+                                {new Date(h.PreviousRenewalDate).toLocaleDateString('en-IN')}
+                              </span>
+                            </div>
+                          )}
+                          <div>
+                            <span style={{ color: '#64748b' }}>New Date:</span>
+                            <span style={{ fontWeight: 600, marginLeft: 6, color: '#15803d' }}>
+                              {h.NewRenewalDate ? new Date(h.NewRenewalDate).toLocaleDateString('en-IN') : '—'}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b' }}>MoU Signed:</span>
+                            <span style={{ fontWeight: 600, marginLeft: 6, color: h.MoUSigned ? '#15803d' : '#dc2626' }}>
+                              {h.MoUSigned ? '✓ Yes' : '✗ No'}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b' }}>Certificate:</span>
+                            <span style={{ fontWeight: 600, marginLeft: 6, color: h.CertificateGenerated ? '#7c3aed' : '#64748b' }}>
+                              {h.CertificateGenerated ? '📜 Generated' : '—'}
+                            </span>
+                          </div>
+                        </div>
+                        {h.Remarks && (
+                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 8, fontStyle: 'italic', paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
+                            💬 {h.Remarks}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1623,7 +3048,7 @@ const RenewalModule = ({ hcfMaster, showToast }) => {
 const DEREG_STAGES = ['Awaiting Accounts', 'Awaiting Transport', 'Awaiting HOD', 'Final Approved'];
 const DEREG_STAGE_COLORS = ['#f59e0b', '#0ea5e9', '#7c3aed', '#10b981'];
 
-const DeregisterModule = ({ hcfMaster, showToast }) => {
+const DeregisterModule = ({ hcfMaster, showToast, user }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -1640,6 +3065,28 @@ const DeregisterModule = ({ hcfMaster, showToast }) => {
     OutstandingCleared: false, KitReturned: false, HologramClosed: false,
   });
 
+  // View toggle for role users (queue vs history)
+  const [viewMode, setViewMode] = useState('queue'); // 'queue' or 'history'
+  
+  // History tracking
+  const [detailTab, setDetailTab] = useState('checklist'); // 'checklist' or 'history'
+  const [stageHistory, setStageHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Role-based stage mapping
+  const ROLE_STAGE_MAP = {
+    'Accounts': 'Awaiting Accounts',
+    'Accountant': 'Awaiting Accounts',
+    'Transport': 'Awaiting Transport',
+    'HOD': 'Awaiting HOD',
+    'Director': 'Final Approved',
+  };
+  const STAGE_ORDER = ['Awaiting Accounts', 'Awaiting Transport', 'Awaiting HOD', 'Final Approved', 'Completed', 'Rejected'];
+  const userRole = user?.roleName || 'Admin';
+  const isAdmin = ['Admin', 'SuperAdmin', 'Super Admin', 'admin', 'superadmin'].includes(userRole);
+  const userStage = ROLE_STAGE_MAP[userRole];
+  const userStageIndex = STAGE_ORDER.indexOf(userStage);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -1649,10 +3096,40 @@ const DeregisterModule = ({ hcfMaster, showToast }) => {
     } catch { showToast('Failed to load data', 'error'); }
     finally { setLoading(false); }
   };
+  
+  const loadHistory = async (deregId) => {
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/hcf-deregistrations/${deregId}/history`);
+      const json = await res.json();
+      setStageHistory(Array.isArray(json) ? json : []);
+    } catch { setStageHistory([]); }
+    finally { setLoadingHistory(false); }
+  };
 
   useEffect(() => { load(); }, []);
 
+  // Filter data based on user role and view mode
+  const getFilteredData = () => {
+    if (isAdmin) return data;
+    if (viewMode === 'queue') {
+      return data.filter(d => d.Stage === userStage);
+    } else {
+      // History: requests that have passed user's stage
+      return data.filter(d => {
+        const stageIdx = STAGE_ORDER.indexOf(d.Stage);
+        return stageIdx > userStageIndex || d.Stage === 'Completed' || d.Stage === 'Rejected';
+      });
+    }
+  };
+  const filteredData = getFilteredData();
+
   const stageCount = (stage) => data.filter(d => d.Stage === stage).length;
+  const queueCount = data.filter(d => d.Stage === userStage).length;
+  const historyCount = data.filter(d => {
+    const stageIdx = STAGE_ORDER.indexOf(d.Stage);
+    return stageIdx > userStageIndex || d.Stage === 'Completed' || d.Stage === 'Rejected';
+  }).length;
 
   const handleHCFSelect = (regId) => {
     const hcf = hcfMaster.find(h => String(h.RegistrationID) === String(regId));
@@ -1686,6 +3163,9 @@ const DeregisterModule = ({ hcfMaster, showToast }) => {
       KitReturned: !!row.KitReturned,
       HologramClosed: !!row.HologramClosed,
     });
+    setDetailTab('checklist');
+    setStageHistory([]);
+    loadHistory(row.DeregID);
     setShowDetailModal(true);
   };
 
@@ -1705,7 +3185,12 @@ const DeregisterModule = ({ hcfMaster, showToast }) => {
     try {
       await fetch(`/api/hcf-deregistrations/${detailRow.DeregID}/action`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, remarks: detailRemarks }),
+        body: JSON.stringify({ 
+          action, 
+          remarks: detailRemarks,
+          actionBy: user?.name || user?.username || 'Admin',
+          actionByRole: userRole
+        }),
       });
       showToast(`Action: ${action}`);
       setShowDetailModal(false);
@@ -1734,30 +3219,97 @@ const DeregisterModule = ({ hcfMaster, showToast }) => {
 
   const stageIndex = (stage) => DEREG_STAGES.indexOf(stage);
 
+  // Role descriptions
+  const ROLE_DESCRIPTIONS = {
+    'Accounts': 'Verify outstanding payments are cleared before proceeding',
+    'Transport': 'Ensure kit and vehicle are recalled from facility',
+    'HOD': 'Review and sign-off on closure request',
+    'Director': 'Final approval for deregistration',
+  };
+
   return (
     <div>
       <div className="page-header">
-        <div><h1>🚫 De-registration / Closure Workflow</h1><p>HCF closure pipeline — Accounts → Transport → HOD → Dr. Sir (Final Approval)</p></div>
         <div>
-          <button onClick={() => { setForm(blankForm); setShowNewModal(true); }} style={{ background: '#fee2e2', border: '1.5px solid #fca5a5', color: '#dc2626', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🚫 New Closure Request</button>
+          <h1>🚫 De-registration / Closure Workflow</h1>
+          {isAdmin ? (
+            <p>HCF closure pipeline — Accounts → Transport → HOD → Dr. Sir (Final Approval)</p>
+          ) : (
+            <p style={{ color: '#7c3aed', fontWeight: 600 }}>
+              📋 {userRole} Dashboard — {ROLE_DESCRIPTIONS[userRole] || 'Review and approve closure requests'}
+            </p>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {!isAdmin && (
+            <span style={{ background: '#ede9fe', color: '#5b21b6', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
+              👤 Logged in as: {userRole}
+            </span>
+          )}
+          {isAdmin && (
+            <button onClick={() => { setForm(blankForm); setShowNewModal(true); }} style={{ background: '#fee2e2', border: '1.5px solid #fca5a5', color: '#dc2626', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🚫 New Closure Request</button>
+          )}
         </div>
       </div>
 
-      {/* Stage Summary — 4 colored cards matching admin.html */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
+      {/* Stage Summary — show all for admin, highlight current stage for role users */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 18 }}>
         {[
           { stage:'Awaiting Accounts',  bg:'#fef2f2', border:'#fca5a5', numColor:'#dc2626', icon:'💰', sub:'Zero-outstanding check' },
           { stage:'Awaiting Transport', bg:'#fff7ed', border:'#fdba74', numColor:'#ea580c', icon:'🚛', sub:'Kit & vehicle recall' },
           { stage:'Awaiting HOD',       bg:'#fefce8', border:'#fde047', numColor:'#ca8a04', icon:'🏢', sub:'HOD sign-off' },
-          { stage:'Final Approved',     bg:'#f5f3ff', border:'#c4b5fd', numColor:'#5b21b6', icon:'👨‍⚕️', sub:'Final approval' },
-        ].map(s => (
-          <div key={s.stage} style={{ background: s.bg, borderRadius: 12, padding: 14, border: `2px solid ${s.border}`, textAlign: 'center' }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: s.numColor }}>{stageCount(s.stage)}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: s.numColor, marginTop: 4 }}>{s.icon} {s.stage}</div>
-            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{s.sub}</div>
-          </div>
-        ))}
+          { stage:'Final Approved',     bg:'#f5f3ff', border:'#c4b5fd', numColor:'#5b21b6', icon:'👨‍⚕️', sub:'Director sign-off' },
+          ...(isAdmin ? [
+            { stage:'Completed',        bg:'#dcfce7', border:'#86efac', numColor:'#15803d', icon:'✅', sub:'Fully deregistered' },
+            { stage:'Rejected',         bg:'#fee2e2', border:'#fca5a5', numColor:'#dc2626', icon:'❌', sub:'Request rejected' },
+          ] : []),
+        ].map(s => {
+          const isMyStage = !isAdmin && s.stage === userStage;
+          return (
+            <div key={s.stage} style={{ 
+              background: s.bg, borderRadius: 12, padding: 14, 
+              border: isMyStage ? `3px solid ${s.numColor}` : `2px solid ${s.border}`, 
+              textAlign: 'center',
+              opacity: (!isAdmin && !isMyStage) ? 0.5 : 1,
+              transform: isMyStage ? 'scale(1.02)' : 'none',
+              boxShadow: isMyStage ? '0 4px 12px rgba(0,0,0,0.15)' : 'none'
+            }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: s.numColor }}>{stageCount(s.stage)}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: s.numColor, marginTop: 4 }}>{s.icon} {s.stage}</div>
+              <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{s.sub}</div>
+              {isMyStage && <div style={{ fontSize: 9, color: '#15803d', marginTop: 4, fontWeight: 700 }}>← YOUR QUEUE</div>}
+            </div>
+          );
+        })}
       </div>
+
+      {/* View Mode Tabs - only for role users */}
+      {!isAdmin && (
+        <div style={{ display: 'flex', gap: 0, marginBottom: 16 }}>
+          <button 
+            onClick={() => setViewMode('queue')}
+            style={{ 
+              padding: '10px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              border: '2px solid #7c3aed', borderRadius: '8px 0 0 8px',
+              background: viewMode === 'queue' ? '#7c3aed' : '#fff',
+              color: viewMode === 'queue' ? '#fff' : '#7c3aed',
+            }}
+          >
+            📋 My Queue ({queueCount})
+          </button>
+          <button 
+            onClick={() => setViewMode('history')}
+            style={{ 
+              padding: '10px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              border: '2px solid #7c3aed', borderLeft: 'none', borderRadius: '0 8px 8px 0',
+              background: viewMode === 'history' ? '#7c3aed' : '#fff',
+              color: viewMode === 'history' ? '#fff' : '#7c3aed',
+            }}
+          >
+            📜 My History ({historyCount})
+          </button>
+        </div>
+      )}
 
       <div className="table-wrap" style={{ overflowX: 'auto' }}>
         {loading ? <div className="no-data">Loading...</div> : (
@@ -1769,20 +3321,22 @@ const DeregisterModule = ({ hcfMaster, showToast }) => {
               </tr>
             </thead>
             <tbody>
-              {data.length === 0 ? <tr><td colSpan={9} className="no-data">No closure requests</td></tr>
-                : data.map(row => {
-                  const stageColors = { 'Awaiting Accounts': '#dc2626', 'Awaiting Transport': '#ea580c', 'Awaiting HOD': '#ca8a04', 'Final Approved': '#5b21b6' };
-                  const stageBg = { 'Awaiting Accounts': '#fef3c7', 'Awaiting Transport': '#ffedd5', 'Awaiting HOD': '#fefce8', 'Final Approved': '#f5f3ff' };
+              {filteredData.length === 0 ? <tr><td colSpan={9} className="no-data">{isAdmin ? 'No closure requests' : (viewMode === 'queue' ? 'No requests pending your approval' : 'No history yet')}</td></tr>
+                : filteredData.map(row => {
+                  const stageColors = { 'Awaiting Accounts': '#dc2626', 'Awaiting Transport': '#ea580c', 'Awaiting HOD': '#ca8a04', 'Final Approved': '#5b21b6', 'Completed': '#15803d', 'Rejected': '#dc2626' };
+                  const stageBg = { 'Awaiting Accounts': '#fef3c7', 'Awaiting Transport': '#ffedd5', 'Awaiting HOD': '#fefce8', 'Final Approved': '#f5f3ff', 'Completed': '#dcfce7', 'Rejected': '#fee2e2' };
+                  const zone = (row.Zone || row.HCFZone || 'XX').substring(0, 3).toUpperCase();
+                  const hcfId = `MPCC-${zone}-${String(row.RegistrationID || row.DeregID).padStart(4, '0')}`;
                   return (
                     <tr key={row.DeregID}>
-                      <td style={{ fontWeight: 700, color: '#dc2626' }}>{row.RegistrationID || row.DeregID}</td>
+                      <td style={{ fontWeight: 700, color: '#dc2626' }}>{hcfId}</td>
                       <td>
-                        <strong>{row.FacilityName}</strong>
-                        {row.Zone && <><br /><span style={{ fontSize: 10, color: '#64748b' }}>{row.Zone}</span></>}
+                        <strong>{row.FacilityName || row.InstitutionName || '—'}</strong>
+                        {(row.ContactPerson || row.Mobile) && <><br /><span style={{ fontSize: 10, color: '#64748b' }}>{row.ContactPerson} {row.Mobile && `• ${row.Mobile}`}</span></>}
                       </td>
-                      <td>{row.Zone}</td>
+                      <td><span style={{ background:'#ede9fe', color:'#4c1d95', fontSize:12, fontWeight:700, borderRadius:6, padding:'3px 8px' }}>{row.Zone || row.HCFZone || '—'}</span></td>
                       <td>{row.CreatedAt ? new Date(row.CreatedAt).toLocaleDateString('en-IN') : '—'}</td>
-                      <td>{row.Reason}</td>
+                      <td>{row.Reason || '—'}</td>
                       <td style={{ color: (row.Outstanding > 0) ? '#dc2626' : '#16a34a', fontWeight: 700 }}>
                         ₹{Number(row.Outstanding || 0).toLocaleString('en-IN')}
                         <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4 }}>{row.Outstanding > 0 ? '(Pending)' : '(Clear)'}</span>
@@ -1841,7 +3395,7 @@ const DeregisterModule = ({ hcfMaster, showToast }) => {
       {/* Detail Modal */}
       {showDetailModal && detailRow && (
         <div style={modalOverlay}>
-          <div style={modalBox(620)}>
+          <div style={modalBox(680)}>
             <ModalHeader title={`Closure Details — ${detailRow.FacilityName}`} onClose={() => setShowDetailModal(false)} />
 
             {/* 4-step stepper */}
@@ -1869,27 +3423,131 @@ const DeregisterModule = ({ hcfMaster, showToast }) => {
               })}
             </div>
 
-            {/* Checklist */}
-            <div style={{ background: '#f8fafc', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#1e293b' }}>Closure Checklist</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {CHECKLIST_ITEMS.map(item => (
-                  <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={checklist[item.key]}
-                      onChange={e => setChecklist(p => ({ ...p, [item.key]: e.target.checked }))} />
-                    {item.label}
-                  </label>
-                ))}
+            {/* Tabs for Checklist / History */}
+            <div style={{ display: 'flex', gap: 0, marginBottom: 16 }}>
+              <button 
+                onClick={() => setDetailTab('checklist')}
+                style={{ 
+                  padding: '8px 20px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  border: '2px solid #10b981', borderRadius: '6px 0 0 6px',
+                  background: detailTab === 'checklist' ? '#10b981' : '#fff',
+                  color: detailTab === 'checklist' ? '#fff' : '#10b981',
+                }}
+              >
+                📋 Checklist
+              </button>
+              <button 
+                onClick={() => setDetailTab('history')}
+                style={{ 
+                  padding: '8px 20px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  border: '2px solid #10b981', borderLeft: 'none', borderRadius: '0 6px 6px 0',
+                  background: detailTab === 'history' ? '#10b981' : '#fff',
+                  color: detailTab === 'history' ? '#fff' : '#10b981',
+                }}
+              >
+                📜 History ({stageHistory.length})
+              </button>
+            </div>
+
+            {/* Checklist Tab */}
+            {detailTab === 'checklist' && (
+              <>
+                <div style={{ background: '#f8fafc', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#1e293b' }}>Closure Checklist</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {CHECKLIST_ITEMS.map(item => (
+                      <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={checklist[item.key]}
+                          onChange={e => setChecklist(p => ({ ...p, [item.key]: e.target.checked }))} 
+                          disabled={!isAdmin && detailRow?.Stage !== userStage} />
+                        {item.label}
+                      </label>
+                    ))}
+                  </div>
+                  {(isAdmin || detailRow?.Stage === userStage) && (
+                    <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={handleChecklistSave}>Save Checklist</button>
+                  )}
+                </div>
+
+                <Textarea label="Remarks" value={detailRemarks} onChange={e => setDetailRemarks(e.target.value)} />
+
+                {/* Action Buttons - only show if user can approve this stage */}
+                {(isAdmin || detailRow?.Stage === userStage) ? (
+                  <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
+                    <button className="btn" style={{ background: '#ef4444', color: '#fff' }} onClick={() => handleAction('Reject')} disabled={actionSaving}>Reject</button>
+                    <button className="btn btn-primary" onClick={() => handleAction('Approve & Forward')} disabled={actionSaving}>Approve &amp; Forward</button>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 20, padding: 16, background: '#fef3c7', borderRadius: 8, textAlign: 'center' }}>
+                    <div style={{ fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+                      ⏳ This request is currently at: <strong>{detailRow?.Stage}</strong>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
+                      You can only approve requests in your queue ({userStage})
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* History Tab */}
+            {detailTab === 'history' && (
+              <div style={{ background: '#f8fafc', borderRadius: 8, padding: 16, maxHeight: 400, overflowY: 'auto' }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: '#1e293b' }}>
+                  📜 Stage Transition History
+                </div>
+                {loadingHistory ? (
+                  <div style={{ textAlign: 'center', padding: 20, color: '#64748b' }}>Loading history...</div>
+                ) : stageHistory.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 20, color: '#64748b', background: '#fff', borderRadius: 8 }}>
+                    No history records yet. History will be recorded as stages are approved/rejected.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {stageHistory.map((h, idx) => {
+                      const isReactivation = h.Action === 'Reactivation';
+                      const isReject = h.Action === 'Reject';
+                      return (
+                        <div key={h.HistoryID || idx} style={{
+                          background: isReactivation ? '#dcfce7' : isReject ? '#fee2e2' : '#fff',
+                          border: `1px solid ${isReactivation ? '#86efac' : isReject ? '#fca5a5' : '#e2e8f0'}`,
+                          borderRadius: 8, padding: 12,
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ 
+                              background: isReactivation ? '#10b981' : isReject ? '#ef4444' : '#3b82f6',
+                              color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4
+                            }}>
+                              {h.Action || 'Stage Change'}
+                            </span>
+                            <span style={{ fontSize: 11, color: '#64748b' }}>
+                              {h.CreatedAt ? new Date(h.CreatedAt).toLocaleString('en-IN') : '—'}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 6 }}>
+                            <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
+                              {h.PreviousStage || 'Start'}
+                            </span>
+                            <span style={{ color: '#10b981', fontWeight: 700 }}>→</span>
+                            <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
+                              {h.NewStage}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: '#475569' }}>
+                            <strong>By:</strong> {h.ActionBy || 'System'} ({h.ActionByRole || 'Admin'})
+                          </div>
+                          {h.Remarks && (
+                            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>
+                              💬 {h.Remarks}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={handleChecklistSave}>Save Checklist</button>
-            </div>
-
-            <Textarea label="Remarks" value={detailRemarks} onChange={e => setDetailRemarks(e.target.value)} />
-
-            <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
-              <button className="btn" style={{ background: '#ef4444', color: '#fff' }} onClick={() => handleAction('Reject')} disabled={actionSaving}>Reject</button>
-              <button className="btn btn-primary" onClick={() => handleAction('Approve & Forward')} disabled={actionSaving}>Approve &amp; Forward</button>
-            </div>
+            )}
           </div>
         </div>
       )}

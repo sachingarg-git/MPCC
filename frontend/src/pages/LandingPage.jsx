@@ -44,6 +44,13 @@ const PLAN_SUGGESTIONS = {
 
 function fmt(n){ return '₹'+n.toLocaleString('en-IN') }
 
+// Extract subcategory from category string like "Hospital (Surgery)" → "Surgery"
+function getSubCatFromCategory(category) {
+  if (!category) return ''
+  const match = category.match(/\(([^)]+)\)/)
+  return match ? match[1] : category
+}
+
 function calcBedFee(beds){
   if(beds<=0) return 0
   if(beds<=10) return 2500
@@ -52,6 +59,9 @@ function calcBedFee(beds){
 }
 
 export default function LandingPage(){
+  // Set browser tab title
+  useEffect(() => { document.title = 'MPCC' }, [])
+
   // Landing form
   const [instName, setInstName] = useState('')
   const [mobile, setMobile]     = useState('')
@@ -115,8 +125,26 @@ export default function LandingPage(){
     }
   }, [apiKits])
 
-  const sugPlan = cat ? apiPlans.find(p => p.Category === cat.label) || apiPlans[0] : apiPlans[0]
-  const selPlan = planCode ? apiPlans.find(p=>p.PlanID===planCode) : (apiPlans[0] || null)
+  // Filter plans by category and subcategory
+  const filteredPlans = cat ? apiPlans.filter(p => {
+    // First check main category matches
+    const categoryMatches = p.Category && p.Category.toLowerCase().startsWith(cat.label.toLowerCase())
+    if (!categoryMatches) return false
+    
+    // If subcategory is selected, filter by SubCategory field
+    if (subCat) {
+      // Check if plan's SubCategory matches the selected subcategory
+      return p.SubCategory && p.SubCategory.toLowerCase() === subCat.toLowerCase()
+    }
+    return true
+  }) : apiPlans
+  const sugPlan = filteredPlans.length > 0 ? filteredPlans[0] : (cat ? apiPlans.find(p => p.Category === cat.label) || apiPlans[0] : apiPlans[0])
+  const selPlan = planCode ? apiPlans.find(p=>p.PlanID===planCode) : null
+  
+  // Determine if beds tab is needed based on category (Hospital, Nursing Home need beds)
+  const needsBeds = cat && ['hospital', 'nursing'].some(k => cat.label.toLowerCase().includes(k))
+  const step3Tabs = needsBeds ? ['plan','beds','kit','addons'] : ['plan','kit','addons']
+  const step3Labels = needsBeds ? ['📋 Plan','🛏️ Beds','📦 Kit','➕ Add-ons'] : ['📋 Plan','📦 Kit','➕ Add-ons']
 
   function getRegFee(){
     const p = selPlan || sugPlan
@@ -640,9 +668,9 @@ export default function LandingPage(){
           {step===3 && (
             <div>
               <div className="flex items-center gap-1.5 mb-3 bg-white rounded-xl border border-slate-100 shadow-sm p-1.5">
-                {['plan','beds','kit','addons'].map((t,i)=>(
+                {step3Tabs.map((t,i)=>(
                   <button key={t} className={`inner-tab flex-1 ${s3tab===t?'active':''}`} onClick={()=>setS3tab(t)}>
-                    {['📋 Plan','🛏️ Beds','📦 Kit','➕ Add-ons'][i]}
+                    {step3Labels[i]}
                   </button>
                 ))}
               </div>
@@ -658,11 +686,10 @@ export default function LandingPage(){
                         <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
                       </div>
                       <div className="flex-1">
+                        {subCat && <div className="text-purple-600 text-xs font-medium">{subCat}</div>}
                         <div className="font-bold text-slate-700 text-sm">{sugPlan.PlanName}</div>
                         <div className="text-slate-400 text-xs">
-                          {sugPlan.PricingType === 'perbed'
-                            ? `Per bed/day × 30 (beds × ₹${Number(sugPlan.MonthlyCharges)} × 30)`
-                            : `${sugPlan.Category || 'Service'} · per month`}
+                          {getSubCatFromCategory(sugPlan.Category) || cat?.label || 'Service'} · per month
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -677,7 +704,7 @@ export default function LandingPage(){
                   )}
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 mt-3">All Plans</p>
                   <div className="space-y-2" style={{maxHeight:'200px', overflowY:'auto', paddingRight:'4px'}}>
-                    {(apiPlans.length > 0 ? apiPlans : []).map(p => (
+                    {filteredPlans.map(p => (
                       <div key={p.PlanID}
                         className={`plan-card p-3 flex items-center gap-3 ${planCode === p.PlanID ? 'selected' : ''}`}
                         onClick={() => setPlan(p.PlanID)}>
@@ -685,8 +712,9 @@ export default function LandingPage(){
                           {planCode===p.PlanID && <div className="w-2 h-2 rounded-full bg-blue-600"></div>}
                         </div>
                         <div className="flex-1 text-xs">
+                          {subCat && <div className="text-purple-600 font-medium">{subCat}</div>}
                           <div className="font-semibold text-slate-700">{p.PlanName}</div>
-                          <div className="text-slate-400">{p.Category || ''}{p.RegistrationCharges > 0 ? ` · Reg: ${fmt(Number(p.RegistrationCharges))}` : ''}</div>
+                          <div className="text-slate-400">{getSubCatFromCategory(p.Category) || cat?.label || ''}{p.RegistrationCharges > 0 ? ` · Reg: ${fmt(Number(p.RegistrationCharges))}` : ''}</div>
                         </div>
                         <div className="text-xs font-bold text-blue-700 shrink-0 text-right">
                           {p.PricingType === 'perbed'
@@ -695,15 +723,17 @@ export default function LandingPage(){
                         </div>
                       </div>
                     ))}
-                    {apiPlans.length === 0 && (
-                      <div className="text-center py-4 text-slate-400 text-xs">No plans configured yet. Add plans in Service Plan Master.</div>
+                    {filteredPlans.length === 0 && (
+                      <div className="text-center py-4 text-slate-400 text-xs">No plans available for this category. Add plans in Service Plan Master.</div>
                     )}
                   </div>
                   <div className="mt-3 flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-xl p-3">
                     <svg className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                     <div><div className="text-xs font-bold text-orange-700">One-Time Registration Fee: {fmt(getRegFee())}</div><div className="text-xs text-slate-500 mt-0.5">Non-refundable. CPCB onboarding & documentation included.</div></div>
                   </div>
-                  <button className="mt-4 w-full inner-tab active py-2.5 text-sm" onClick={()=>setS3tab('beds')}>Next: Set Bed Count →</button>
+                  <button className="mt-4 w-full inner-tab active py-2.5 text-sm" onClick={()=>setS3tab(needsBeds ? 'beds' : 'kit')}>
+                    {needsBeds ? 'Next: Set Bed Count →' : 'Next: Choose Kit →'}
+                  </button>
                 </div>
               )}
 
@@ -713,38 +743,94 @@ export default function LandingPage(){
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shrink-0">
                       <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4z"/></svg>
                     </div>
-                    <div><div className="font-bold text-slate-700 text-sm">Bed Capacity</div><div className="text-xs text-slate-400">Enter number of beds for auto-calculation</div></div>
+                    <div><div className="font-bold text-slate-700 text-sm">Bed Capacity</div><div className="text-xs text-slate-400">Select plan based on your bed count</div></div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 mb-4">
-                    <div className={`rounded-xl p-2.5 text-center border-2 transition-all ${beds>=1&&beds<=10?'border-blue-400 bg-blue-50':'border-slate-200 bg-slate-50'}`}>
-                      <div className="text-xs font-bold text-blue-600">1–10 Beds</div><div className="text-base font-black text-slate-700 mt-0.5">₹2,500</div><div className="text-xs text-slate-400">/month</div>
-                    </div>
-                    <div className={`rounded-xl p-2.5 text-center border-2 transition-all ${beds>=11&&beds<=20?'border-purple-400 bg-purple-50':'border-slate-200 bg-slate-50'}`}>
-                      <div className="text-xs font-bold text-purple-600">11–20 Beds</div><div className="text-base font-black text-slate-700 mt-0.5">₹3,500</div><div className="text-xs text-slate-400">/month</div>
-                    </div>
-                    <div className={`rounded-xl p-2.5 text-center border-2 transition-all ${beds>20?'border-orange-400 bg-orange-50':'border-slate-200 bg-slate-50'}`}>
-                      <div className="text-xs font-bold text-orange-600">21+ Beds</div><div className="text-base font-black text-slate-700 mt-0.5">₹7/bed</div><div className="text-xs text-slate-400">/day × 30</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between bg-slate-50 rounded-2xl p-4 mb-4 border border-slate-100 gap-3">
-                    <button className="step-btn" onClick={()=>setBeds(b=>Math.max(0,b-10))}><span className="text-xs font-black leading-none">−10</span></button>
-                    <button className="step-btn" onClick={()=>setBeds(b=>Math.max(0,b-1))}>−</button>
-                    <div className="text-center flex-1">
-                      <input type="number" min="1" max="500" value={beds||''} onChange={e=>setBeds(Math.max(0,parseInt(e.target.value)||0))} className="text-4xl font-black text-slate-800 text-center w-24 bg-transparent border-b-2 border-blue-300 focus:outline-none focus:border-blue-600 pb-1"/>
-                      <div className="text-xs text-slate-400 font-medium mt-1">Total Beds</div>
-                    </div>
-                    <button className="step-btn" onClick={()=>setBeds(b=>b+1)}>+</button>
-                    <button className="step-btn" onClick={()=>setBeds(b=>b+10)}><span className="text-xs font-black leading-none">+10</span></button>
-                  </div>
+                  
+                  {/* Show available plans for selected category/subcategory */}
+                  {(() => {
+                    // Use filteredPlans if available, otherwise fall back to sugPlan
+                    const plansToShow = filteredPlans.length > 0 ? filteredPlans : (sugPlan ? [sugPlan] : []);
+                    
+                    if (plansToShow.length === 0) {
+                      return (
+                        <div className="text-center py-4 text-slate-400 text-sm mb-4">
+                          No plans available for this category. Please add plans in Service Plan Master.
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                        {plansToShow.map((p, idx) => {
+                          const isSelected = planCode === p.PlanID || (!planCode && idx === 0)
+                          const colors = ['blue', 'purple', 'orange', 'green']
+                          const color = colors[idx % colors.length]
+                          return (
+                            <div key={p.PlanID} 
+                              className={`rounded-xl p-3 text-center border-2 transition-all cursor-pointer ${isSelected ? `border-${color}-400 bg-${color}-50` : 'border-slate-200 bg-slate-50 hover:border-slate-300'}`}
+                              style={isSelected ? {borderColor: color === 'blue' ? '#60a5fa' : color === 'purple' ? '#c084fc' : color === 'orange' ? '#fb923c' : '#4ade80', backgroundColor: color === 'blue' ? '#eff6ff' : color === 'purple' ? '#faf5ff' : color === 'orange' ? '#fff7ed' : '#f0fdf4'} : {}}
+                              onClick={() => {
+                                setPlan(p.PlanID);
+                                // Auto-set beds to minimum when selecting a plan
+                                const match = p.PlanName?.match(/(\d+)\s*-\s*(\d+)/);
+                                if (match) setBeds(parseInt(match[1]));
+                              }}>
+                              {subCat && <div className="text-xs text-purple-600 font-medium mb-1">{subCat}</div>}
+                              <div className="text-sm font-bold text-slate-700">{p.PlanName}</div>
+                              <div className="text-lg font-black text-slate-800 mt-1">
+                                {p.PricingType === 'perbed' ? `₹${Number(p.MonthlyCharges)}/bed` : fmt(Number(p.MonthlyCharges))}
+                              </div>
+                              <div className="text-xs text-slate-400">
+                                {p.PricingType === 'perbed' ? '/day × 30' : '/month'}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {(() => {
+                    // Get the active plan (from filteredPlans or sugPlan)
+                    const plansToUse = filteredPlans.length > 0 ? filteredPlans : (sugPlan ? [sugPlan] : []);
+                    const activePlanInBeds = plansToUse.find(p => p.PlanID === planCode) || plansToUse[0];
+                    // Extract max bed limit from plan name (e.g., "1-5 Beds" → 5, "11-20 Beds" → 20)
+                    const planName = activePlanInBeds?.PlanName || '';
+                    const bedMatch = planName.match(/(\d+)\s*-\s*(\d+)/);
+                    const maxBeds = bedMatch ? parseInt(bedMatch[2]) : 500;
+                    const minBeds = bedMatch ? parseInt(bedMatch[1]) : 1;
+                    // Auto-initialize beds to min if currently 0 or out of range
+                    if (activePlanInBeds && (beds < minBeds || beds > maxBeds)) {
+                      setTimeout(() => setBeds(minBeds), 0);
+                    }
+                    
+                    return (
+                      <div className="flex items-center justify-between bg-slate-50 rounded-2xl p-4 mb-4 border border-slate-100 gap-3">
+                        <button className="step-btn" onClick={()=>setBeds(b=>Math.max(minBeds, b-10))}><span className="text-xs font-black leading-none">−10</span></button>
+                        <button className="step-btn" onClick={()=>setBeds(b=>Math.max(minBeds, b-1))}>−</button>
+                        <div className="text-center flex-1">
+                          <input type="number" min={minBeds} max={maxBeds} value={beds||''} onChange={e=>{
+                            const val = parseInt(e.target.value) || 0;
+                            setBeds(Math.min(maxBeds, Math.max(minBeds, val)));
+                          }} className="text-4xl font-black text-slate-800 text-center w-24 bg-transparent border-b-2 border-blue-300 focus:outline-none focus:border-blue-600 pb-1"/>
+                          <div className="text-xs text-slate-400 font-medium mt-1">Total Beds ({minBeds}-{maxBeds})</div>
+                        </div>
+                        <button className="step-btn" onClick={()=>setBeds(b=>Math.min(maxBeds, b+1))}>+</button>
+                        <button className="step-btn" onClick={()=>setBeds(b=>Math.min(maxBeds, b+10))}><span className="text-xs font-black leading-none">+10</span></button>
+                      </div>
+                    );
+                  })()}
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-3 border border-blue-100 flex items-center justify-between mb-4">
                     {(() => {
-                      const activePlan = selPlan || sugPlan;
+                      // Get the active plan
+                      const plansToUse = filteredPlans.length > 0 ? filteredPlans : (sugPlan ? [sugPlan] : []);
+                      const activePlan = plansToUse.find(p => p.PlanID === planCode) || plansToUse[0];
                       const isPerBed = activePlan && activePlan.PricingType === 'perbed';
-                      const bedRate = activePlan ? Number(activePlan.MonthlyCharges) : 7;
-                      const bedFee = isPerBed ? (beds > 0 ? beds * bedRate * 30 : 0) : calcBedFee(beds);
+                      const bedRate = activePlan ? Number(activePlan.MonthlyCharges) : 0;
+                      const bedFee = isPerBed ? (beds > 0 ? beds * bedRate * 30 : 0) : (activePlan ? Number(activePlan.MonthlyCharges) : 0);
                       const bedLabel = isPerBed
                         ? (beds > 0 ? `${beds} beds × ₹${bedRate}/bed/day × 30` : 'Enter beds above')
-                        : (beds <= 0 ? 'Enter beds above' : beds <= 10 ? 'Slab 1 (1-10 beds)' : beds <= 20 ? 'Slab 2 (11-20 beds)' : 'Slab 3 (21+ beds)');
+                        : (activePlan ? activePlan.PlanName : 'Select a plan');
                       return (<>
                         <div><div className="text-xs text-slate-500 font-semibold">Calculated Monthly Service Fee</div><div className="text-xs text-slate-400">{bedLabel}</div></div>
                         <div className="text-2xl font-black text-blue-700">{fmt(bedFee)}</div>

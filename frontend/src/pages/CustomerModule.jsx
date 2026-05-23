@@ -3,6 +3,7 @@ import '../styles/CustomerModule.css';
 
 const CustomerModule = () => {
   const [activeSubModule, setActiveSubModule] = useState('customer-reg');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [filters, setFilters] = useState({});
 
   // Dropdown data states
@@ -657,6 +658,25 @@ const CustomerModule = () => {
     }
   };
 
+  const handleApproveRegistration = async (reg) => {
+    if (!window.confirm(`Approve registration for "${reg.InstitutionName}"?`)) return;
+    try {
+      const res = await fetch(`/api/customer-registrations/${reg.RegistrationID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Approved' })
+      });
+      if (res.ok) {
+        setCustomerRegistrations(prev => prev.map(r => r.RegistrationID === reg.RegistrationID ? { ...r, Status: 'Approved' } : r));
+        alert('✅ Registration approved successfully!');
+      } else {
+        alert('❌ Error approving registration.');
+      }
+    } catch (err) {
+      alert('❌ Error: ' + err.message);
+    }
+  };
+
   // ── Enable Portal Modal State ──────────────────────────────────────────────
   const [showEnablePortalModal, setShowEnablePortalModal] = React.useState(false);
   const [portalTargetReg, setPortalTargetReg] = React.useState(null);
@@ -685,7 +705,17 @@ const CustomerModule = () => {
       });
       const data = await res.json();
       if (data.success) {
-        setPortalEnableMsg(`✅ Portal enabled! Member ID: ${data.customerId || portalTargetReg.CustomerID} · PIN: ${data.pin}`);
+        let msg = `✅ Portal enabled! Member ID: ${data.customerId || portalTargetReg.CustomerID} · PIN: ${data.pin}`;
+        if (data.emailSent) {
+          msg += `\n📧 Credentials sent to ${portalTargetReg.Email}`;
+        } else if (data.emailError) {
+          msg += `\n⚠️ Email not sent: ${data.emailError}`;
+        }
+        setPortalEnableMsg(msg);
+        // Update local state to show portal enabled
+        setCustomerRegistrations(prev => prev.map(r => 
+          r.RegistrationID === portalTargetReg.RegistrationID ? { ...r, PortalEnabled: true } : r
+        ));
       } else {
         setPortalEnableMsg('❌ ' + (data.error || 'Failed to enable portal.'));
       }
@@ -1719,18 +1749,56 @@ const CustomerModule = () => {
   };
 
   return (
-    <div style={{ display: 'flex', gap: '16px', minHeight: 'calc(100vh - 100px)' }}>
+    <div style={{ display: 'flex', gap: '0', minHeight: 'calc(100vh - 100px)', position: 'relative' }}>
       {/* Submenu Sidebar */}
-      <div className="submenu-sidebar">
-        <div className="submenu-header">Customer</div>
+      <div className={`submenu-sidebar${sidebarCollapsed ? ' collapsed' : ''}`} style={{
+        width: sidebarCollapsed ? 60 : 240,
+        minWidth: sidebarCollapsed ? 60 : 240,
+        transition: 'all 0.3s ease',
+      }}>
+        <div className="submenu-header" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+          padding: sidebarCollapsed ? '16px 8px' : '16px 18px',
+        }}>
+          {!sidebarCollapsed && <span>Customer</span>}
+          <button 
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: 6,
+              padding: '6px 8px',
+              cursor: 'pointer',
+              color: '#a5b4fc',
+              fontSize: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease',
+            }}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {sidebarCollapsed ? '»' : '«'}
+          </button>
+        </div>
         {subMenuItems.map(item => (
           <button
             key={item.id}
             className={`submenu-item ${activeSubModule === item.id ? 'active' : ''}`}
             onClick={() => setActiveSubModule(item.id)}
+            style={{
+              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+              padding: sidebarCollapsed ? '12px 8px' : '12px 18px',
+            }}
+            title={sidebarCollapsed ? item.label : ''}
           >
-            <span className="submenu-icon">{item.icon}</span>
-            <span className="submenu-label">{item.label}</span>
+            <span className="submenu-icon" style={{ 
+              marginRight: sidebarCollapsed ? 0 : 12,
+              fontSize: sidebarCollapsed ? 20 : 18,
+            }}>{item.icon}</span>
+            {!sidebarCollapsed && <span className="submenu-label">{item.label}</span>}
           </button>
         ))}
       </div>
@@ -1899,6 +1967,9 @@ const CustomerModule = () => {
                       <div style={{display:'flex',gap:4}}>
                         <button onClick={() => handleViewRegistration(reg)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>👁 View</button>
                         <button onClick={() => handleEditRegistration(reg)} style={{background:'linear-gradient(135deg,#0369a1,#0ea5e9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>✏ Edit</button>
+                        {reg.Status === 'Pending' && (
+                          <button onClick={() => handleApproveRegistration(reg)} style={{background:'linear-gradient(135deg,#16a34a,#22c55e)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>✓ Approve</button>
+                        )}
                         <button onClick={() => handleEnablePortal(reg)} style={{background:reg.PortalEnabled?'linear-gradient(135deg,#16a34a,#15803d)':'linear-gradient(135deg,#5b21b6,#7c3aed)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>🔐 {reg.PortalEnabled?'✓':'Portal'}</button>
                         <button onClick={() => handleDeleteRegistration(reg.RegistrationID)} style={{background:'linear-gradient(135deg,#dc2626,#ef4444)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 9px',borderRadius:6}}>🗑</button>
                       </div>

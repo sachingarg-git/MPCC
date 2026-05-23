@@ -4,6 +4,7 @@ import ServicePlanForm from '../components/ServicePlanForm';
 
 const MasterDataModule = () => {
   const [activeSubModule, setActiveSubModule] = useState('routes');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({});
@@ -1045,18 +1046,56 @@ const MasterDataModule = () => {
   const currentData = getCurrentData();
 
   return (
-    <div style={{ display: 'flex', gap: '16px', minHeight: 'calc(100vh - 100px)' }}>
+    <div style={{ display: 'flex', gap: '0', minHeight: 'calc(100vh - 100px)', position: 'relative' }}>
       {/* Submenu Sidebar */}
-      <div className="submenu-sidebar">
-        <div className="submenu-header">Master Data</div>
+      <div className={`submenu-sidebar${sidebarCollapsed ? ' collapsed' : ''}`} style={{
+        width: sidebarCollapsed ? 60 : 240,
+        minWidth: sidebarCollapsed ? 60 : 240,
+        transition: 'all 0.3s ease',
+      }}>
+        <div className="submenu-header" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+          padding: sidebarCollapsed ? '16px 8px' : '16px 18px',
+        }}>
+          {!sidebarCollapsed && <span>Master Data</span>}
+          <button 
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: 6,
+              padding: '6px 8px',
+              cursor: 'pointer',
+              color: '#a5b4fc',
+              fontSize: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease',
+            }}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {sidebarCollapsed ? '»' : '«'}
+          </button>
+        </div>
         {subMenuItems.map(item => (
           <button
             key={item.id}
             className={`submenu-item ${activeSubModule === item.id ? 'active' : ''}`}
             onClick={() => setActiveSubModule(item.id)}
+            style={{
+              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+              padding: sidebarCollapsed ? '12px 8px' : '12px 18px',
+            }}
+            title={sidebarCollapsed ? item.label : ''}
           >
-            <span className="submenu-icon">{item.icon}</span>
-            <span className="submenu-label">{item.label}</span>
+            <span className="submenu-icon" style={{ 
+              marginRight: sidebarCollapsed ? 0 : 12,
+              fontSize: sidebarCollapsed ? 20 : 18,
+            }}>{item.icon}</span>
+            {!sidebarCollapsed && <span className="submenu-label">{item.label}</span>}
           </button>
         ))}
       </div>
@@ -1205,7 +1244,7 @@ const MasterDataModule = () => {
             <div style={{ flex:1,overflow:'auto',padding:'20px' }}>
               <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px' }}>
                 {Object.entries(viewItem)
-                  .filter(([k]) => !['IsActive','CreatedAt','UpdatedAt','SubCategories'].includes(k))
+                  .filter(([k]) => !['IsActive','CreatedAt','UpdatedAt','SubCategories','KitItems'].includes(k))
                   .map(([key, val]) => val != null && val !== '' ? (
                     <div key={key} style={{ background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:'8px',padding:'10px 12px' }}>
                       <div style={{ fontSize:'10px',color:'#94a3b8',fontWeight:'700',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:'4px' }}>
@@ -1233,6 +1272,47 @@ const MasterDataModule = () => {
                   ) : (
                     <span style={{ fontSize:'12px', color:'#94a3b8' }}>No sub-categories added</span>
                   )}
+                </div>
+              )}
+
+              {/* KitItems — rendered as table for Kit Master */}
+              {viewItem.KitItems && Array.isArray(viewItem.KitItems) && viewItem.KitItems.length > 0 && (
+                <div style={{ marginTop:'12px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'12px' }}>
+                  <div style={{ fontSize:'10px',color:'#7c3aed',fontWeight:'700',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:'10px' }}>
+                    Kit Items ({viewItem.KitItems.length})
+                  </div>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px' }}>
+                    <thead>
+                      <tr style={{ background:'#ede9fe' }}>
+                        <th style={{ padding:'6px 8px', textAlign:'left', fontWeight:'600', color:'#6d28d9', borderBottom:'1px solid #c4b5fd' }}>Item</th>
+                        <th style={{ padding:'6px 8px', textAlign:'left', fontWeight:'600', color:'#6d28d9', borderBottom:'1px solid #c4b5fd' }}>HSN</th>
+                        <th style={{ padding:'6px 8px', textAlign:'center', fontWeight:'600', color:'#6d28d9', borderBottom:'1px solid #c4b5fd' }}>Qty</th>
+                        <th style={{ padding:'6px 8px', textAlign:'left', fontWeight:'600', color:'#6d28d9', borderBottom:'1px solid #c4b5fd' }}>Unit</th>
+                        <th style={{ padding:'6px 8px', textAlign:'right', fontWeight:'600', color:'#6d28d9', borderBottom:'1px solid #c4b5fd' }}>Rate</th>
+                        <th style={{ padding:'6px 8px', textAlign:'right', fontWeight:'600', color:'#6d28d9', borderBottom:'1px solid #c4b5fd' }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewItem.KitItems.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom:'1px solid #e2e8f0' }}>
+                          <td style={{ padding:'6px 8px', color:'#1e293b', fontWeight:'500' }}>{item.item || item.ItemName || '-'}</td>
+                          <td style={{ padding:'6px 8px', color:'#64748b' }}>{item.hsn || item.HSN || '-'}</td>
+                          <td style={{ padding:'6px 8px', textAlign:'center', color:'#1e293b' }}>{item.qty || item.Qty || 0}</td>
+                          <td style={{ padding:'6px 8px', color:'#64748b' }}>{item.unit || item.Unit || '-'}</td>
+                          <td style={{ padding:'6px 8px', textAlign:'right', color:'#1e293b' }}>₹{item.rate || item.Rate || 0}</td>
+                          <td style={{ padding:'6px 8px', textAlign:'right', fontWeight:'600', color:'#0f172a' }}>₹{((item.qty || item.Qty || 0) * (item.rate || item.Rate || 0)).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background:'#f1f5f9' }}>
+                        <td colSpan="5" style={{ padding:'8px', textAlign:'right', fontWeight:'700', color:'#1e293b' }}>Total:</td>
+                        <td style={{ padding:'8px', textAlign:'right', fontWeight:'700', color:'#7c3aed' }}>
+                          ₹{viewItem.KitItems.reduce((sum, item) => sum + ((item.qty || item.Qty || 0) * (item.rate || item.Rate || 0)), 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
               )}
               <div style={{ marginTop:'14px',display:'flex',gap:'8px',fontSize:'12px',color:'#64748b' }}>

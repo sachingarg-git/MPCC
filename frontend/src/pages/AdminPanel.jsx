@@ -276,7 +276,251 @@ const PaymentFreqFormComponent = ({ formData, handleInputChange }) => (
 // are still defined as inline functions within AdminPanel to avoid breaking the current structure.
 // They can be refactored to separate components similarly if needed for better performance.
 
+// ─── Settings Panel ──────────────────────────────────────────────────────────────────────
+function SettingsPanel() {
+  const [settings, setSettings] = useState({
+    companyName: '',
+    companyEmail: '',
+    companyPhone: '',
+    companyAddress: '',
+    smtpHost: '',
+    smtpPort: '587',
+    smtpUser: '',
+    smtpPass: '',
+    smtpSecure: 'tls',
+    emailFromName: '',
+    emailFromAddress: '',
+    emailSubjectPrefix: '[MPCC]',
+    enableEmailNotifications: true
+  })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [testingEmail, setTestingEmail] = useState(false)
+  const [testEmail, setTestEmail] = useState('')
+  const [message, setMessage] = useState({ type: '', text: '' })
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  const fetchSettings = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch('/api/settings')
+      if (res.ok) {
+        const data = await res.json()
+        if (data) setSettings(prev => ({ ...prev, ...data }))
+      }
+    } catch (err) {
+      console.error('Error fetching settings:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSave = async () => {
+    try {
+      setSaving(true)
+      setMessage({ type: '', text: '' })
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      })
+      if (res.ok) {
+        setMessage({ type: 'success', text: '✅ Settings saved successfully!' })
+      } else {
+        setMessage({ type: 'error', text: '❌ Failed to save settings' })
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: '❌ Error: ' + err.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTestEmail = async () => {
+    if (!testEmail.trim()) {
+      setMessage({ type: 'error', text: 'Please enter a test email address' })
+      return
+    }
+    try {
+      setTestingEmail(true)
+      setMessage({ type: '', text: '' })
+      const res = await fetch('/api/settings/test-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: testEmail, settings })
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setMessage({ type: 'success', text: '✅ Test email sent successfully!' })
+      } else {
+        setMessage({ type: 'error', text: '❌ ' + (data.error || 'Failed to send test email') })
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: '❌ Error: ' + err.message })
+    } finally {
+      setTestingEmail(false)
+    }
+  }
+
+  const inputStyle = { width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }
+  const labelStyle = { display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚙️</div>
+          <div style={{ color: '#64748b' }}>Loading settings...</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ maxWidth: '900px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '26px', fontWeight: '800', color: '#1e293b', margin: '0 0 4px 0' }}>⚙️ Settings</h1>
+        <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>Configure company details and email settings for notifications</p>
+      </div>
+
+      {message.text && (
+        <div style={{
+          padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '14px', fontWeight: '600',
+          background: message.type === 'success' ? '#d1fae5' : '#fee2e2',
+          color: message.type === 'success' ? '#065f46' : '#991b1b',
+          border: `1px solid ${message.type === 'success' ? '#a7f3d0' : '#fecaca'}`
+        }}>
+          {message.text}
+        </div>
+      )}
+
+      {/* Company Information */}
+      <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', overflow: 'hidden' }}>
+        <div style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '18px' }}>🏢</span>
+          <span style={{ color: '#fff', fontWeight: '700', fontSize: '15px' }}>Company Information</span>
+        </div>
+        <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div>
+            <label style={labelStyle}>Company Name</label>
+            <input type="text" value={settings.companyName} onChange={e => setSettings(p => ({...p, companyName: e.target.value}))} placeholder="MPCC Haridwar" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Company Email</label>
+            <input type="email" value={settings.companyEmail} onChange={e => setSettings(p => ({...p, companyEmail: e.target.value}))} placeholder="info@mpccharidwar.in" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Company Phone</label>
+            <input type="text" value={settings.companyPhone} onChange={e => setSettings(p => ({...p, companyPhone: e.target.value}))} placeholder="+91-1234567890" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Company Address</label>
+            <input type="text" value={settings.companyAddress} onChange={e => setSettings(p => ({...p, companyAddress: e.target.value}))} placeholder="Haridwar, Uttarakhand" style={inputStyle} />
+          </div>
+        </div>
+      </div>
+
+      {/* Email Configuration */}
+      <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', overflow: 'hidden' }}>
+        <div style={{ background: 'linear-gradient(135deg, #0891b2 0%, #0e7490 100%)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '18px' }}>📧</span>
+          <span style={{ color: '#fff', fontWeight: '700', fontSize: '15px' }}>Email Configuration (SMTP)</span>
+        </div>
+        <div style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', padding: '10px 14px', background: '#fef3c7', borderRadius: '8px', border: '1px solid #fcd34d' }}>
+            <span>💡</span>
+            <span style={{ fontSize: '13px', color: '#92400e' }}>These settings are used to send credential emails when you enable portal access for members.</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label style={labelStyle}>SMTP Host</label>
+              <input type="text" value={settings.smtpHost} onChange={e => setSettings(p => ({...p, smtpHost: e.target.value}))} placeholder="smtp.gmail.com" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>SMTP Port</label>
+              <input type="text" value={settings.smtpPort} onChange={e => setSettings(p => ({...p, smtpPort: e.target.value}))} placeholder="587" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>SMTP Username / Email</label>
+              <input type="text" value={settings.smtpUser} onChange={e => setSettings(p => ({...p, smtpUser: e.target.value}))} placeholder="your-email@gmail.com" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>SMTP Password / App Password</label>
+              <input type="password" value={settings.smtpPass} onChange={e => setSettings(p => ({...p, smtpPass: e.target.value}))} placeholder="••••••••••" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Security</label>
+              <select value={settings.smtpSecure} onChange={e => setSettings(p => ({...p, smtpSecure: e.target.value}))} style={inputStyle}>
+                <option value="tls">TLS (Port 587)</option>
+                <option value="ssl">SSL (Port 465)</option>
+                <option value="none">None (Port 25)</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>From Name</label>
+              <input type="text" value={settings.emailFromName} onChange={e => setSettings(p => ({...p, emailFromName: e.target.value}))} placeholder="MPCC Haridwar" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>From Email Address</label>
+              <input type="email" value={settings.emailFromAddress} onChange={e => setSettings(p => ({...p, emailFromAddress: e.target.value}))} placeholder="noreply@mpccharidwar.in" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Email Subject Prefix</label>
+              <input type="text" value={settings.emailSubjectPrefix} onChange={e => setSettings(p => ({...p, emailSubjectPrefix: e.target.value}))} placeholder="[MPCC]" style={inputStyle} />
+            </div>
+          </div>
+          <div style={{ marginTop: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={settings.enableEmailNotifications} onChange={e => setSettings(p => ({...p, enableEmailNotifications: e.target.checked}))} />
+              <span style={{ fontWeight: '600', fontSize: '14px' }}>Enable Email Notifications</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Test Email */}
+      <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', overflow: 'hidden' }}>
+        <div style={{ background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '18px' }}>🧪</span>
+          <span style={{ color: '#fff', fontWeight: '700', fontSize: '15px' }}>Test Email Configuration</span>
+        </div>
+        <div style={{ padding: '20px', display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Send Test Email To</label>
+            <input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="test@example.com" style={inputStyle} />
+          </div>
+          <button onClick={handleTestEmail} disabled={testingEmail} style={{
+            background: testingEmail ? '#94a3b8' : 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+            color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: '700', fontSize: '14px', cursor: testingEmail ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap'
+          }}>
+            {testingEmail ? 'Sending...' : '📨 Send Test Email'}
+          </button>
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+        <button onClick={fetchSettings} style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 24px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+          ↻ Reset
+        </button>
+        <button onClick={handleSave} disabled={saving} style={{
+          background: saving ? '#94a3b8' : 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+          color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 28px', fontWeight: '700', fontSize: '14px', cursor: saving ? 'not-allowed' : 'pointer'
+        }}>
+          {saving ? 'Saving...' : '💾 Save Settings'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminPanel({ user, onLogout }) {
+  // Set browser tab title
+  useEffect(() => { document.title = 'ADMIN-MPCC' }, [])
+
   // Main navigation state
   const [activeMainNav, setActiveMainNav] = useState('dashboard')
   const [expandedMainNav, setExpandedMainNav] = useState('masterdata')
@@ -1285,7 +1529,8 @@ export default function AdminPanel({ user, onLogout }) {
     { id: 'alerts', label: 'Alerts', icon: '🔔' },
     { id: 'hrhrm', label: 'HR/HRM', icon: '👔' },
     { id: 'usermgmt', label: 'User Mgmt', icon: '🔐' },
-    { id: 'rolemgmt', label: 'Role Mgmt', icon: '🛡️' }
+    { id: 'rolemgmt', label: 'Role Mgmt', icon: '🛡️' },
+    { id: 'settings', label: 'Settings', icon: '⚙️' }
   ]
 
 
@@ -1411,9 +1656,11 @@ export default function AdminPanel({ user, onLogout }) {
         ) : activeMainNav === 'customer' ? (
           <CustomerModule />
         ) : activeMainNav === 'crmhcf' ? (
-          <CRMHCFMaster />
+          <CRMHCFMaster user={user} />
         ) : activeMainNav === 'dashboard' ? (
           <DashboardPanel />
+        ) : activeMainNav === 'settings' ? (
+          <SettingsPanel />
         ) : (
           /* Other Main Navigation Sections - Coming Soon */
           <div style={{ background: '#fff', borderRadius: '8px', padding: '40px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>

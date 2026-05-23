@@ -1646,6 +1646,9 @@ function PortalView({ user, onLogout }) {
 
 // ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
 export default function CustomerPortal() {
+  // Set browser tab title
+  useEffect(() => { document.title = 'Member-MPCC' }, [])
+
   const [user, setUser] = useState(() => {
     try {
       const stored = localStorage.getItem('portalUser')

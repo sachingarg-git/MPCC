@@ -147,6 +147,16 @@ async function ensureTablesExist() {
          ALTER TABLE CustomerRegistrations ADD PortalEnabled BIT DEFAULT 0`,
       `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='PortalPin')
          ALTER TABLE CustomerRegistrations ADD PortalPin NVARCHAR(10) NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='AutoRenew')
+         ALTER TABLE CustomerRegistrations ADD AutoRenew BIT DEFAULT 0`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='MoUReSigned')
+         ALTER TABLE CustomerRegistrations ADD MoUReSigned BIT DEFAULT 0`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='LastReminded')
+         ALTER TABLE CustomerRegistrations ADD LastReminded DATETIME NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='RenewalDate')
+         ALTER TABLE CustomerRegistrations ADD RenewalDate DATE NULL`,
+      `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('CustomerRegistrations') AND name='LatePayer')
+         ALTER TABLE CustomerRegistrations ADD LatePayer BIT DEFAULT 0`,
     ];
     for (const q of crMigrations) {
       try { await pool.request().query(q); } catch(e) { console.warn('CR migration warn:', e.message); }
@@ -272,6 +282,58 @@ async function ensureTablesExist() {
       console.log('✓ HCFRenewals table ready');
     } catch(e) { console.warn('HCFRenewals init warn:', e.message); }
 
+    // HCFPayments - Payment history for each HCF
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='HCFPayments' AND xtype='U')
+        CREATE TABLE HCFPayments (
+          PaymentID INT PRIMARY KEY IDENTITY(1,1),
+          RegistrationID INT NOT NULL,
+          InvoiceNo NVARCHAR(50),
+          InvoiceDate DATE,
+          InvoiceAmount DECIMAL(12,2),
+          PaidAmount DECIMAL(12,2),
+          PaymentDate DATE,
+          PaymentMode NVARCHAR(50),
+          TransactionRef NVARCHAR(100),
+          BankName NVARCHAR(100),
+          Status NVARCHAR(30) DEFAULT 'Pending',
+          Remarks NVARCHAR(500),
+          RecordedBy NVARCHAR(100),
+          CreatedAt DATETIME DEFAULT GETDATE(),
+          UpdatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ HCFPayments table ready');
+    } catch(e) { console.warn('HCFPayments init warn:', e.message); }
+
+    // HCFPickups - Waste collection/pickup records for each HCF
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='HCFPickups' AND xtype='U')
+        CREATE TABLE HCFPickups (
+          PickupID INT PRIMARY KEY IDENTITY(1,1),
+          RegistrationID INT NOT NULL,
+          PickupDate DATE NOT NULL,
+          DriverName NVARCHAR(100),
+          VehicleNo NVARCHAR(50),
+          WasteKg DECIMAL(8,2),
+          YellowBag INT DEFAULT 0,
+          RedBag INT DEFAULT 0,
+          SharpContainer INT DEFAULT 0,
+          ManifestNo NVARCHAR(50),
+          Status NVARCHAR(30) DEFAULT 'Collected',
+          GPSLat DECIMAL(10,7),
+          GPSLng DECIMAL(10,7),
+          Remarks NVARCHAR(500),
+          CollectedBy NVARCHAR(100),
+          CreatedAt DATETIME DEFAULT GETDATE(),
+          UpdatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ HCFPickups table ready');
+    } catch(e) { console.warn('HCFPickups init warn:', e.message); }
+
     // HCFDeregistrations
     try {
       await pool.request().query(`
@@ -298,6 +360,46 @@ async function ensureTablesExist() {
       console.log('✓ HCFDeregistrations table ready');
     } catch(e) { console.warn('HCFDeregistrations init warn:', e.message); }
 
+    // DeregistrationHistory - track all stage changes
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='DeregistrationHistory' AND xtype='U')
+        CREATE TABLE DeregistrationHistory (
+          HistoryID INT PRIMARY KEY IDENTITY(1,1),
+          DeregID INT NOT NULL,
+          RegistrationID INT,
+          PreviousStage NVARCHAR(100),
+          NewStage NVARCHAR(100),
+          Action NVARCHAR(100),
+          ActionBy NVARCHAR(255),
+          ActionByRole NVARCHAR(100),
+          Remarks NVARCHAR(1000),
+          CreatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ DeregistrationHistory table ready');
+    } catch(e) { console.warn('DeregistrationHistory init warn:', e.message); }
+
+    // RenewalHistory - track all renewal actions
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='RenewalHistory' AND xtype='U')
+        CREATE TABLE RenewalHistory (
+          HistoryID INT PRIMARY KEY IDENTITY(1,1),
+          RegistrationID INT NOT NULL,
+          Action NVARCHAR(100),
+          PreviousRenewalDate DATE,
+          NewRenewalDate DATE,
+          MoUSigned BIT DEFAULT 0,
+          CertificateGenerated BIT DEFAULT 0,
+          ActionBy NVARCHAR(255),
+          Remarks NVARCHAR(1000),
+          CreatedAt DATETIME DEFAULT GETDATE()
+        )
+      `);
+      console.log('✓ RenewalHistory table ready');
+    } catch(e) { console.warn('RenewalHistory init warn:', e.message); }
+
     // HCFSupportTickets
     try {
       await pool.request().query(`
@@ -314,15 +416,23 @@ async function ensureTablesExist() {
           Subject NVARCHAR(255),
           Description NVARCHAR(MAX),
           AssignedTo NVARCHAR(100),
-          Status NVARCHAR(50) DEFAULT 'Open',
+          Status NVARCHAR(50) DEFAULT 'Pending',
           DueDate DATE NULL,
           Resolution NVARCHAR(MAX),
+          ResolvedAt DATETIME NULL,
           NotifyBM BIT DEFAULT 0,
           BMName NVARCHAR(100),
           CreatedAt DATETIME DEFAULT GETDATE(),
           UpdatedAt DATETIME DEFAULT GETDATE()
         )
       `);
+      // Add ResolvedAt column if not exists
+      try {
+        await pool.request().query(`
+          IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('HCFSupportTickets') AND name = 'ResolvedAt')
+          ALTER TABLE HCFSupportTickets ADD ResolvedAt DATETIME NULL
+        `);
+      } catch(e) {}
       console.log('✓ HCFSupportTickets table ready');
     } catch(e) { console.warn('HCFSupportTickets init warn:', e.message); }
 
@@ -569,6 +679,20 @@ async function ensureTablesExist() {
     `);
     console.log('✓ ZoneMaster table ready');
 
+    // SystemSettings table for email and company configuration
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='SystemSettings' AND xtype='U')
+      CREATE TABLE SystemSettings (
+        SettingID       INT PRIMARY KEY IDENTITY(1,1),
+        SettingKey      NVARCHAR(100) UNIQUE NOT NULL,
+        SettingValue    NVARCHAR(MAX),
+        SettingType     NVARCHAR(50) DEFAULT 'string',
+        Description     NVARCHAR(500),
+        UpdatedAt       DATETIME DEFAULT GETDATE()
+      );
+    `);
+    console.log('✓ SystemSettings table ready');
+
     // Add FacilityTypes column to ServicePlans if missing
     try {
       await pool.request().query(`
@@ -662,11 +786,14 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'Email/Username and password are required' });
     }
 
-    // Query Users table - try to find by email or username
+    // Query Users table - try to find by email or username, include Role name
     const result = await pool
       .request()
       .input('credential', sql.VarChar, credential)
-      .query(`SELECT UserID, Email, Password, Username, RoleID FROM Users WHERE Email = @credential OR Username = @credential`);
+      .query(`SELECT u.UserID, u.Email, u.Password, u.Username, u.RoleID, r.RoleName 
+              FROM Users u 
+              LEFT JOIN Roles r ON u.RoleID = r.RoleID 
+              WHERE u.Email = @credential OR u.Username = @credential`);
 
     console.log('Query result rows:', result.recordset.length);
 
@@ -723,7 +850,8 @@ app.post('/api/auth/login', async (req, res) => {
         userId: user.UserID,
         email: user.Email,
         username: user.Username,
-        roleId: user.RoleID
+        roleId: user.RoleID,
+        roleName: user.RoleName || 'Admin'
       }
     });
   } catch (err) {
@@ -2555,9 +2683,28 @@ app.get('/api/hcf-master', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
     const result = await pool.request().query(`
-      SELECT cr.*,
+      SELECT cr.RegistrationID, cr.RegistrationCode, cr.InstitutionName, cr.InstitutionType, cr.NumberOfBeds,
+        cr.BMWRegNo, cr.FullAddress, cr.Zone, cr.Pincode, cr.ContactPerson, cr.Designation, cr.Mobile, cr.Email,
+        cr.AlternateMobile, cr.Website, cr.PANNumber, cr.GSTNumber, cr.GPSLatitude, cr.GPSLongitude, cr.GPSAddress,
+        cr.SelectedPlan, cr.BillingCycle, cr.ContractStartDate, cr.ContractDuration, cr.PaymentModePreference,
+        cr.PaymentMethod, cr.Status, cr.RegistrationDate, cr.ApprovedDate, cr.ApprovedBy, cr.CreatedAt, cr.UpdatedAt,
+        cr.Category, cr.SubCategory, cr.Route, cr.Kit, cr.Consulting, cr.Compliance, cr.CustomerID, cr.TxnID,
+        cr.RegFee, cr.SvcFee, cr.TotalAmount, cr.PayMode, cr.PortalEnabled, cr.PortalPin, cr.AutoRenew,
+        cr.MoUReSigned, cr.LastReminded, cr.LatePayer,
         (SELECT COUNT(*) FROM HCFDocuments d WHERE d.RegistrationID = cr.RegistrationID) AS DocCount,
-        (SELECT COUNT(*) FROM HCFContacts c WHERE c.RegistrationID = cr.RegistrationID) AS ContactCount
+        (SELECT COUNT(*) FROM HCFContacts c WHERE c.RegistrationID = cr.RegistrationID) AS ContactCount,
+        (SELECT TOP 1 ValidTill FROM Certificates cert WHERE cert.RegistrationID = cr.RegistrationID AND cert.Status = 'Active' ORDER BY cert.ValidTill DESC) AS CertificateValidTill,
+        COALESCE(
+          cr.RenewalDate,
+          (SELECT TOP 1 ValidTill FROM Certificates cert WHERE cert.RegistrationID = cr.RegistrationID AND cert.Status = 'Active' ORDER BY cert.ValidTill DESC),
+          (SELECT TOP 1 RenewalDate FROM HCFRenewals r WHERE r.RegistrationID = cr.RegistrationID ORDER BY r.RenewalDate DESC),
+          CASE WHEN cr.ContractStartDate IS NOT NULL THEN DATEADD(month, ISNULL(cr.ContractDuration, 12), cr.ContractStartDate)
+               WHEN cr.RegistrationDate IS NOT NULL THEN DATEADD(month, ISNULL(cr.ContractDuration, 12), cr.RegistrationDate)
+               WHEN cr.CreatedAt IS NOT NULL THEN DATEADD(month, 12, cr.CreatedAt)
+               ELSE DATEADD(month, 12, GETDATE())
+          END
+        ) AS RenewalDate,
+        (SELECT TOP 1 Status FROM HCFRenewals r WHERE r.RegistrationID = cr.RegistrationID ORDER BY r.CreatedAt DESC) AS RenewalStatus
       FROM CustomerRegistrations cr
       ORDER BY cr.CreatedAt DESC
     `);
@@ -2580,6 +2727,340 @@ app.put('/api/hcf-master/:id/state', async (req, res) => {
     res.json({ message: 'State updated' });
   } catch (err) {
     console.error('HCF state update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-master/:id/reactivate — reactivate a deregistered HCF
+app.put('/api/hcf-master/:id/reactivate', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const regId = parseInt(req.params.id);
+    const { 
+      ContractStartDate, ContractDuration, BillingCycle, PaymentMode, 
+      RegFee, SvcFee, MoUReSigned, GenerateCertificate, Remarks 
+    } = req.body;
+    
+    // Calculate new renewal date
+    const startDate = ContractStartDate ? new Date(ContractStartDate) : new Date();
+    const duration = parseInt(ContractDuration) || 12;
+    const renewalDate = new Date(startDate);
+    renewalDate.setMonth(renewalDate.getMonth() + duration);
+    
+    // Update CustomerRegistrations with new contract details
+    await pool.request()
+      .input('id', sql.Int, regId)
+      .input('contractStart', sql.Date, startDate)
+      .input('duration', sql.Int, duration)
+      .input('renewalDate', sql.Date, renewalDate)
+      .input('billingCycle', sql.NVarChar, BillingCycle || 'Monthly')
+      .input('paymentMode', sql.NVarChar, PaymentMode || 'Online')
+      .input('regFee', sql.Decimal(10,2), parseFloat(RegFee) || 0)
+      .input('svcFee', sql.Decimal(10,2), parseFloat(SvcFee) || 0)
+      .input('mouSigned', sql.Bit, MoUReSigned ? 1 : 0)
+      .query(`UPDATE CustomerRegistrations SET 
+        Status='Active', 
+        ContractStartDate=@contractStart,
+        ContractDuration=@duration,
+        RenewalDate=@renewalDate,
+        BillingCycle=@billingCycle,
+        PaymentModePreference=@paymentMode,
+        RegFee=@regFee,
+        SvcFee=@svcFee,
+        MoUReSigned=@mouSigned,
+        UpdatedAt=GETDATE() 
+        WHERE RegistrationID=@id`);
+    
+    // Get any completed deregistration record for history tracking
+    const deregResult = await pool.request()
+      .input('regId', sql.Int, regId)
+      .query(`SELECT DeregID, Stage FROM HCFDeregistrations WHERE RegistrationID=@regId AND Stage='Completed'`);
+    
+    // Mark any completed deregistration requests as 'Reactivated' and save history
+    if (deregResult.recordset.length > 0) {
+      const deregId = deregResult.recordset[0].DeregID;
+      
+      await pool.request()
+        .input('regId', sql.Int, regId)
+        .query(`UPDATE HCFDeregistrations SET Stage='Reactivated', UpdatedAt=GETDATE() WHERE RegistrationID=@regId AND Stage='Completed'`);
+      
+      // Save to deregistration history
+      await pool.request()
+        .input('deregId', sql.Int, deregId)
+        .input('regId', sql.Int, regId)
+        .input('prevStage', sql.NVarChar, 'Completed')
+        .input('newStage', sql.NVarChar, 'Reactivated')
+        .input('action', sql.NVarChar, 'Reactivation')
+        .input('remarks', sql.NVarChar, Remarks || 'HCF Re-registered')
+        .query(`INSERT INTO DeregistrationHistory (DeregID, RegistrationID, PreviousStage, NewStage, Action, ActionBy, ActionByRole, Remarks)
+                VALUES (@deregId, @regId, @prevStage, @newStage, @action, 'Admin', 'Admin', @remarks)`);
+    }
+    
+    // Create a renewal record for tracking
+    await pool.request()
+      .input('regId', sql.Int, regId)
+      .input('renewalDate', sql.Date, renewalDate)
+      .input('mouSigned', sql.Bit, MoUReSigned ? 1 : 0)
+      .query(`INSERT INTO HCFRenewals (RegistrationID, RenewalDate, MoUReSigned, Status, CreatedAt)
+        VALUES (@regId, @renewalDate, @mouSigned, 'Completed', GETDATE())`);
+    
+    // Save to renewal history for reactivation
+    await pool.request()
+      .input('regId', sql.Int, regId)
+      .input('action', sql.NVarChar, 'Re-registration')
+      .input('newDate', sql.Date, renewalDate)
+      .input('mouSigned', sql.Bit, MoUReSigned ? 1 : 0)
+      .input('certGen', sql.Bit, GenerateCertificate ? 1 : 0)
+      .input('remarks', sql.NVarChar, Remarks || 'HCF Re-registered after deregistration')
+      .query(`INSERT INTO RenewalHistory (RegistrationID, Action, NewRenewalDate, MoUSigned, CertificateGenerated, Remarks)
+              VALUES (@regId, @action, @newDate, @mouSigned, @certGen, @remarks)`);
+    
+    // Generate certificate if requested
+    let certificateId = null;
+    if (GenerateCertificate) {
+      // Generate certificate code
+      const certResult = await pool.request()
+        .input('regId', sql.Int, regId)
+        .query(`SELECT RegistrationCode, InstitutionName FROM CustomerRegistrations WHERE RegistrationID = @regId`);
+      const reg = certResult.recordset[0];
+      const regCode = reg?.RegistrationCode || `HCF-${regId}`;
+      const certCode = `CERT-${regCode}-${Date.now().toString(36).toUpperCase()}`;
+      
+      // Insert certificate
+      const insertResult = await pool.request()
+        .input('regId', sql.Int, regId)
+        .input('certCode', sql.NVarChar, certCode)
+        .input('facilityName', sql.NVarChar, reg?.InstitutionName || '')
+        .input('issueDate', sql.DateTime, startDate)
+        .input('validTill', sql.DateTime, renewalDate)
+        .query(`INSERT INTO Certificates (RegistrationID, CertificateCode, CertificateType, FacilityName, IssueDate, ValidTill, Status, CreatedAt)
+          OUTPUT INSERTED.CertificateID
+          VALUES (@regId, @certCode, 'BMW Registration', @facilityName, @issueDate, @validTill, 'Active', GETDATE())`);
+      certificateId = insertResult.recordset[0]?.CertificateID;
+    }
+    
+    res.json({ 
+      message: 'HCF re-registered successfully',
+      renewalDate: renewalDate.toISOString().split('T')[0],
+      certificateId
+    });
+  } catch (err) {
+    console.error('HCF reactivation error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-master/:id/renew — process renewal
+app.put('/api/hcf-master/:id/renew', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { newRenewalDate, mouSigned, autoRenew, renewalNotes, generateCertificate } = req.body;
+    const regId = parseInt(req.params.id);
+    
+    // Get current renewal date for history
+    const currentData = await pool.request()
+      .input('id', sql.Int, regId)
+      .query(`SELECT RenewalDate, InstitutionName, RegistrationCode FROM CustomerRegistrations WHERE RegistrationID = @id`);
+    const previousRenewalDate = currentData.recordset[0]?.RenewalDate;
+    
+    // Update CustomerRegistrations with new contract dates
+    await pool.request()
+      .input('id', sql.Int, regId)
+      .input('renewalDate', sql.Date, newRenewalDate)
+      .input('autoRenew', sql.Bit, autoRenew ? 1 : 0)
+      .input('mouSigned', sql.Bit, mouSigned ? 1 : 0)
+      .query(`UPDATE CustomerRegistrations SET 
+        ContractStartDate = GETDATE(),
+        RenewalDate = @renewalDate,
+        AutoRenew = @autoRenew,
+        MoUReSigned = @mouSigned,
+        Status = 'Active',
+        UpdatedAt = GETDATE() 
+        WHERE RegistrationID = @id`);
+    
+    // Insert into HCFRenewals table for tracking
+    await pool.request()
+      .input('regId', sql.Int, regId)
+      .input('renewalDate', sql.Date, newRenewalDate)
+      .input('mouSigned', sql.Bit, mouSigned ? 1 : 0)
+      .query(`INSERT INTO HCFRenewals (RegistrationID, RenewalDate, MoUReSigned, Status, CreatedAt, UpdatedAt)
+              VALUES (@regId, @renewalDate, @mouSigned, 'Renewed', GETDATE(), GETDATE())`);
+    
+    // Generate certificate if requested
+    let certificateId = null;
+    if (generateCertificate) {
+      // Get registration details
+      const certResult = await pool.request()
+        .input('regId', sql.Int, regId)
+        .query(`SELECT RegistrationCode, InstitutionName FROM CustomerRegistrations WHERE RegistrationID = @regId`);
+      const reg = certResult.recordset[0];
+      const regCode = reg?.RegistrationCode || `HCF-${regId}`;
+      const certCode = `CERT-${regCode}-${Date.now().toString(36).toUpperCase()}`;
+      
+      // Insert certificate
+      const insertResult = await pool.request()
+        .input('regId', sql.Int, regId)
+        .input('certCode', sql.NVarChar, certCode)
+        .input('facilityName', sql.NVarChar, reg?.InstitutionName || '')
+        .input('issueDate', sql.DateTime, new Date())
+        .input('validTill', sql.DateTime, newRenewalDate)
+        .query(`INSERT INTO Certificates (RegistrationID, CertificateCode, CertificateType, FacilityName, IssueDate, ValidTill, Status, CreatedAt)
+          OUTPUT INSERTED.CertificateID
+          VALUES (@regId, @certCode, 'BMW Registration', @facilityName, @issueDate, @validTill, 'Active', GETDATE())`);
+      certificateId = insertResult.recordset[0]?.CertificateID;
+    }
+    
+    // Save to renewal history
+    await pool.request()
+      .input('regId', sql.Int, regId)
+      .input('action', sql.NVarChar, 'Renewal')
+      .input('prevDate', sql.Date, previousRenewalDate || null)
+      .input('newDate', sql.Date, newRenewalDate)
+      .input('mouSigned', sql.Bit, mouSigned ? 1 : 0)
+      .input('certGen', sql.Bit, generateCertificate ? 1 : 0)
+      .input('remarks', sql.NVarChar, renewalNotes || '')
+      .query(`INSERT INTO RenewalHistory (RegistrationID, Action, PreviousRenewalDate, NewRenewalDate, MoUSigned, CertificateGenerated, Remarks)
+              VALUES (@regId, @action, @prevDate, @newDate, @mouSigned, @certGen, @remarks)`);
+    
+    res.json({ message: 'Renewal processed successfully', certificateId });
+  } catch (err) {
+    console.error('HCF renewal error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-master/:id/remind — send reminder and update LastReminded
+app.put('/api/hcf-master/:id/remind', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const regId = parseInt(req.params.id);
+    if (isNaN(regId)) return res.status(400).json({ error: 'Invalid ID' });
+    
+    // Get customer details
+    const custResult = await pool.request()
+      .input('id', sql.Int, regId)
+      .query(`SELECT InstitutionName, Email, Mobile, RenewalDate, ContractStartDate, ContractDuration, CreatedAt FROM CustomerRegistrations WHERE RegistrationID = @id`);
+    
+    const customer = custResult.recordset[0];
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    
+    // Calculate renewal date
+    let renewalDate = customer.RenewalDate;
+    if (!renewalDate) {
+      const start = customer.ContractStartDate || customer.CreatedAt;
+      const duration = customer.ContractDuration || 12;
+      renewalDate = new Date(start);
+      renewalDate.setMonth(renewalDate.getMonth() + duration);
+    }
+    const formattedDate = new Date(renewalDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const daysLeft = Math.ceil((new Date(renewalDate) - new Date()) / (1000 * 60 * 60 * 24));
+    
+    // Update LastReminded
+    await pool.request()
+      .input('id', sql.Int, regId)
+      .query(`UPDATE CustomerRegistrations SET LastReminded = GETDATE(), UpdatedAt = GETDATE() WHERE RegistrationID = @id`);
+    
+    let emailSent = false;
+    let emailError = null;
+    
+    // Try to send email if customer has email
+    if (customer.Email) {
+      try {
+        // Fetch email settings
+        const settingsResult = await pool.request().query('SELECT SettingKey, SettingValue FROM SystemSettings');
+        const settings = {};
+        settingsResult.recordset.forEach(row => { settings[row.SettingKey] = row.SettingValue; });
+        
+        if (settings.smtpHost && settings.smtpUser && settings.smtpPass && settings.enableEmailNotifications !== 'false') {
+          const nodemailer = require('nodemailer');
+          
+          const transportConfig = {
+            host: settings.smtpHost,
+            port: parseInt(settings.smtpPort) || 587,
+            secure: settings.smtpSecure === 'ssl',
+            auth: { user: settings.smtpUser, pass: settings.smtpPass }
+          };
+          if (settings.smtpSecure === 'tls') transportConfig.requireTLS = true;
+          
+          const transporter = nodemailer.createTransport(transportConfig);
+          
+          // Send renewal reminder email
+          await transporter.sendMail({
+            from: `"${settings.emailFromName || settings.companyName || 'MPCC'}" <${settings.emailFromAddress || settings.smtpUser}>`,
+            to: customer.Email,
+            subject: `${settings.emailSubjectPrefix || '[MPCC]'} Contract Renewal Reminder`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f8fafc;">
+                <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
+                  <h1 style="color: white; margin: 0; font-size: 22px;">🔄 Contract Renewal Reminder</h1>
+                </div>
+                <div style="background: white; padding: 28px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+                  <p style="color: #1e293b; font-size: 16px; margin: 0 0 20px 0;">
+                    Dear <strong>${customer.InstitutionName}</strong>,
+                  </p>
+                  <p style="color: #475569; font-size: 14px; margin: 0 0 20px 0;">
+                    This is a friendly reminder that your contract with ${settings.companyName || 'MPCC'} is due for renewal.
+                  </p>
+                  
+                  <div style="background: ${daysLeft <= 7 ? '#fef2f2' : daysLeft <= 15 ? '#fef3c7' : '#f0fdf4'}; padding: 20px; border-radius: 10px; border: 2px solid ${daysLeft <= 7 ? '#fca5a5' : daysLeft <= 15 ? '#fcd34d' : '#86efac'}; margin-bottom: 20px; text-align: center;">
+                    <div style="font-size: 14px; color: #64748b; margin-bottom: 8px;">Contract Renewal Date</div>
+                    <div style="font-size: 24px; font-weight: 700; color: ${daysLeft <= 7 ? '#dc2626' : daysLeft <= 15 ? '#ca8a04' : '#15803d'};">${formattedDate}</div>
+                    <div style="font-size: 16px; font-weight: 600; color: ${daysLeft <= 7 ? '#ef4444' : daysLeft <= 15 ? '#eab308' : '#22c55e'}; margin-top: 8px;">
+                      ${daysLeft <= 0 ? '⚠️ OVERDUE' : `${daysLeft} days remaining`}
+                    </div>
+                  </div>
+                  
+                  <p style="color: #475569; font-size: 14px; margin: 0 0 16px 0;">
+                    Please ensure timely renewal to continue uninterrupted biomedical waste management services.
+                  </p>
+                  
+                  <p style="color: #64748b; font-size: 13px; margin: 16px 0 0 0;">
+                    For any queries, please contact us at <strong>${settings.companyEmail || settings.smtpUser}</strong> or call <strong>${settings.companyPhone || ''}</strong>
+                  </p>
+                </div>
+                <div style="text-align: center; padding: 16px; color: #94a3b8; font-size: 11px;">
+                  <p style="margin: 0;">© ${new Date().getFullYear()} ${settings.companyName || 'MPCC'}. All rights reserved.</p>
+                </div>
+              </div>
+            `
+          });
+          emailSent = true;
+          console.log(`📧 Renewal reminder sent to ${customer.Email}`);
+        }
+      } catch (emailErr) {
+        console.error('Reminder email error:', emailErr.message);
+        emailError = emailErr.message;
+      }
+    }
+    
+    res.json({ 
+      message: 'Reminder sent', 
+      emailSent, 
+      emailError,
+      facilityName: customer.InstitutionName 
+    });
+  } catch (err) {
+    console.error('HCF remind error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-master/:id/auto-renew — toggle auto-renew
+app.put('/api/hcf-master/:id/auto-renew', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const regId = parseInt(req.params.id);
+    if (isNaN(regId)) return res.status(400).json({ error: 'Invalid ID' });
+    const { AutoRenew } = req.body;
+    
+    await pool.request()
+      .input('id', sql.Int, regId)
+      .input('autoRenew', sql.Bit, AutoRenew ? 1 : 0)
+      .query(`UPDATE CustomerRegistrations SET AutoRenew = @autoRenew, UpdatedAt = GETDATE() WHERE RegistrationID = @id`);
+    
+    res.json({ message: 'Auto-renew updated' });
+  } catch (err) {
+    console.error('HCF auto-renew error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2983,6 +3464,289 @@ app.delete('/api/hcf-renewals/:id', async (req, res) => {
 });
 
 // ============================================
+// HCF PAYMENTS ENDPOINTS (Payment History)
+// ============================================
+
+// GET /api/hcf-payments/:registrationId — get payment history for an HCF
+app.get('/api/hcf-payments/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('regId', sql.Int, req.params.registrationId)
+      .query(`SELECT * FROM HCFPayments WHERE RegistrationID=@regId ORDER BY PaymentDate DESC, CreatedAt DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('HCF Payments fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hcf-payments — record a new payment
+app.post('/api/hcf-payments', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { RegistrationID, InvoiceNo, InvoiceDate, InvoiceAmount, PaidAmount, PaymentDate, PaymentMode, TransactionRef, BankName, Status, Remarks, RecordedBy } = req.body;
+    await pool.request()
+      .input('regId', sql.Int, RegistrationID)
+      .input('invoiceNo', sql.NVarChar, InvoiceNo || null)
+      .input('invoiceDate', sql.Date, InvoiceDate || null)
+      .input('invoiceAmount', sql.Decimal(12,2), InvoiceAmount || 0)
+      .input('paidAmount', sql.Decimal(12,2), PaidAmount || 0)
+      .input('paymentDate', sql.Date, PaymentDate || null)
+      .input('paymentMode', sql.NVarChar, PaymentMode || null)
+      .input('transactionRef', sql.NVarChar, TransactionRef || null)
+      .input('bankName', sql.NVarChar, BankName || null)
+      .input('status', sql.NVarChar, Status || 'Paid')
+      .input('remarks', sql.NVarChar, Remarks || null)
+      .input('recordedBy', sql.NVarChar, RecordedBy || 'Admin')
+      .query(`INSERT INTO HCFPayments (RegistrationID, InvoiceNo, InvoiceDate, InvoiceAmount, PaidAmount, PaymentDate, PaymentMode, TransactionRef, BankName, Status, Remarks, RecordedBy)
+              VALUES (@regId, @invoiceNo, @invoiceDate, @invoiceAmount, @paidAmount, @paymentDate, @paymentMode, @transactionRef, @bankName, @status, @remarks, @recordedBy)`);
+    res.status(201).json({ message: 'Payment recorded' });
+  } catch (err) {
+    console.error('HCF Payment create error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-payments/:id — update a payment record
+app.put('/api/hcf-payments/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { InvoiceNo, InvoiceDate, InvoiceAmount, PaidAmount, PaymentDate, PaymentMode, TransactionRef, BankName, Status, Remarks } = req.body;
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('invoiceNo', sql.NVarChar, InvoiceNo || null)
+      .input('invoiceDate', sql.Date, InvoiceDate || null)
+      .input('invoiceAmount', sql.Decimal(12,2), InvoiceAmount || 0)
+      .input('paidAmount', sql.Decimal(12,2), PaidAmount || 0)
+      .input('paymentDate', sql.Date, PaymentDate || null)
+      .input('paymentMode', sql.NVarChar, PaymentMode || null)
+      .input('transactionRef', sql.NVarChar, TransactionRef || null)
+      .input('bankName', sql.NVarChar, BankName || null)
+      .input('status', sql.NVarChar, Status || 'Paid')
+      .input('remarks', sql.NVarChar, Remarks || null)
+      .query(`UPDATE HCFPayments SET InvoiceNo=@invoiceNo, InvoiceDate=@invoiceDate, InvoiceAmount=@invoiceAmount, 
+              PaidAmount=@paidAmount, PaymentDate=@paymentDate, PaymentMode=@paymentMode, TransactionRef=@transactionRef, 
+              BankName=@bankName, Status=@status, Remarks=@remarks, UpdatedAt=GETDATE() WHERE PaymentID=@id`);
+    res.json({ message: 'Payment updated' });
+  } catch (err) {
+    console.error('HCF Payment update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hcf-payments/:id — delete a payment record
+app.delete('/api/hcf-payments/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`DELETE FROM HCFPayments WHERE PaymentID=@id`);
+    res.json({ message: 'Payment deleted' });
+  } catch (err) {
+    console.error('HCF Payment delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/hcf-payments-summary/:registrationId — get payment summary stats
+app.get('/api/hcf-payments-summary/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('regId', sql.Int, req.params.registrationId)
+      .query(`SELECT 
+                COUNT(*) AS TotalPayments,
+                ISNULL(SUM(InvoiceAmount), 0) AS TotalInvoiced,
+                ISNULL(SUM(PaidAmount), 0) AS TotalPaid,
+                ISNULL(SUM(InvoiceAmount), 0) - ISNULL(SUM(PaidAmount), 0) AS Outstanding,
+                MAX(PaymentDate) AS LastPaymentDate
+              FROM HCFPayments WHERE RegistrationID=@regId`);
+    res.json(result.recordset[0] || {});
+  } catch (err) {
+    console.error('HCF Payment summary error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// HCF PICKUPS ENDPOINTS (Collection History)
+// ============================================
+
+// GET /api/hcf-pickups/:registrationId — get pickup/collection history for an HCF
+app.get('/api/hcf-pickups/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('regId', sql.Int, req.params.registrationId)
+      .query(`SELECT * FROM HCFPickups WHERE RegistrationID=@regId ORDER BY PickupDate DESC`);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('HCF Pickups fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hcf-pickups — record a new pickup
+app.post('/api/hcf-pickups', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { RegistrationID, PickupDate, DriverName, VehicleNo, WasteKg, YellowBag, RedBag, SharpContainer, ManifestNo, Status, GPSLat, GPSLng, Remarks, CollectedBy } = req.body;
+    await pool.request()
+      .input('regId', sql.Int, RegistrationID)
+      .input('pickupDate', sql.Date, PickupDate)
+      .input('driverName', sql.NVarChar, DriverName || null)
+      .input('vehicleNo', sql.NVarChar, VehicleNo || null)
+      .input('wasteKg', sql.Decimal(8,2), WasteKg || 0)
+      .input('yellowBag', sql.Int, YellowBag || 0)
+      .input('redBag', sql.Int, RedBag || 0)
+      .input('sharpContainer', sql.Int, SharpContainer || 0)
+      .input('manifestNo', sql.NVarChar, ManifestNo || null)
+      .input('status', sql.NVarChar, Status || 'Collected')
+      .input('gpsLat', sql.Decimal(10,7), GPSLat || null)
+      .input('gpsLng', sql.Decimal(10,7), GPSLng || null)
+      .input('remarks', sql.NVarChar, Remarks || null)
+      .input('collectedBy', sql.NVarChar, CollectedBy || 'Driver')
+      .query(`INSERT INTO HCFPickups (RegistrationID, PickupDate, DriverName, VehicleNo, WasteKg, YellowBag, RedBag, SharpContainer, ManifestNo, Status, GPSLat, GPSLng, Remarks, CollectedBy)
+              VALUES (@regId, @pickupDate, @driverName, @vehicleNo, @wasteKg, @yellowBag, @redBag, @sharpContainer, @manifestNo, @status, @gpsLat, @gpsLng, @remarks, @collectedBy)`);
+    res.status(201).json({ message: 'Pickup recorded' });
+  } catch (err) {
+    console.error('HCF Pickup create error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-pickups/:id — update a pickup record
+app.put('/api/hcf-pickups/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { PickupDate, DriverName, VehicleNo, WasteKg, YellowBag, RedBag, SharpContainer, ManifestNo, Status, GPSLat, GPSLng, Remarks } = req.body;
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('pickupDate', sql.Date, PickupDate)
+      .input('driverName', sql.NVarChar, DriverName || null)
+      .input('vehicleNo', sql.NVarChar, VehicleNo || null)
+      .input('wasteKg', sql.Decimal(8,2), WasteKg || 0)
+      .input('yellowBag', sql.Int, YellowBag || 0)
+      .input('redBag', sql.Int, RedBag || 0)
+      .input('sharpContainer', sql.Int, SharpContainer || 0)
+      .input('manifestNo', sql.NVarChar, ManifestNo || null)
+      .input('status', sql.NVarChar, Status || 'Collected')
+      .input('gpsLat', sql.Decimal(10,7), GPSLat || null)
+      .input('gpsLng', sql.Decimal(10,7), GPSLng || null)
+      .input('remarks', sql.NVarChar, Remarks || null)
+      .query(`UPDATE HCFPickups SET PickupDate=@pickupDate, DriverName=@driverName, VehicleNo=@vehicleNo, WasteKg=@wasteKg,
+              YellowBag=@yellowBag, RedBag=@redBag, SharpContainer=@sharpContainer, ManifestNo=@manifestNo, Status=@status,
+              GPSLat=@gpsLat, GPSLng=@gpsLng, Remarks=@remarks, UpdatedAt=GETDATE() WHERE PickupID=@id`);
+    res.json({ message: 'Pickup updated' });
+  } catch (err) {
+    console.error('HCF Pickup update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hcf-pickups/:id — delete a pickup record
+app.delete('/api/hcf-pickups/:id', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`DELETE FROM HCFPickups WHERE PickupID=@id`);
+    res.json({ message: 'Pickup deleted' });
+  } catch (err) {
+    console.error('HCF Pickup delete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/hcf-pickups-summary/:registrationId — get pickup summary stats
+app.get('/api/hcf-pickups-summary/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('regId', sql.Int, req.params.registrationId)
+      .query(`SELECT 
+                COUNT(*) AS TotalPickups,
+                SUM(CASE WHEN Status='Missed' THEN 1 ELSE 0 END) AS MissedPickups,
+                ISNULL(SUM(WasteKg), 0) AS TotalWasteKg,
+                ISNULL(AVG(WasteKg), 0) AS AvgWasteKg,
+                MAX(PickupDate) AS LastPickupDate
+              FROM HCFPickups WHERE RegistrationID=@regId`);
+    res.json(result.recordset[0] || {});
+  } catch (err) {
+    console.error('HCF Pickup summary error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// HCF CERTIFICATES ENDPOINTS
+// ============================================
+
+// GET /api/hcf-certificates/:registrationId — get all certificates for an HCF
+app.get('/api/hcf-certificates/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('regId', sql.Int, req.params.registrationId)
+      .query(`SELECT * FROM Certificates WHERE RegistrationID=@regId ORDER BY CreatedAt DESC`);
+    res.json(result.recordset || []);
+  } catch (err) {
+    console.error('HCF Certificates fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hcf-certificates — generate a new certificate
+app.post('/api/hcf-certificates', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { registrationId, validTill } = req.body;
+    
+    // Get registration details
+    const regResult = await pool.request()
+      .input('regId', sql.Int, registrationId)
+      .query(`SELECT RegistrationCode, RenewalDate, InstitutionName FROM CustomerRegistrations WHERE RegistrationID = @regId`);
+    const reg = regResult.recordset[0];
+    if (!reg) return res.status(404).json({ error: 'HCF not found' });
+    
+    const regCode = reg.RegistrationCode || `HCF-${registrationId}`;
+    const certCode = `CERT-${regCode}-${Date.now().toString(36).toUpperCase()}`;
+    const expiryDate = validTill || reg.RenewalDate || new Date(Date.now() + 365*24*60*60*1000);
+    
+    // Insert certificate
+    const insertResult = await pool.request()
+      .input('regId', sql.Int, registrationId)
+      .input('certCode', sql.NVarChar, certCode)
+      .input('facilityName', sql.NVarChar, reg.InstitutionName || '')
+      .input('issueDate', sql.DateTime, new Date())
+      .input('validTill', sql.DateTime, expiryDate)
+      .query(`INSERT INTO Certificates (RegistrationID, CertificateCode, CertificateType, FacilityName, IssueDate, ValidTill, Status, CreatedAt)
+        OUTPUT INSERTED.*
+        VALUES (@regId, @certCode, 'BMW Registration', @facilityName, @issueDate, @validTill, 'Active', GETDATE())`);
+    
+    res.json(insertResult.recordset[0]);
+  } catch (err) {
+    console.error('Certificate generation error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/hcf-certificates/:id/revoke — revoke a certificate
+app.put('/api/hcf-certificates/:id/revoke', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`UPDATE Certificates SET Status='Revoked', UpdatedAt=GETDATE() WHERE CertificateID=@id`);
+    res.json({ message: 'Certificate revoked' });
+  } catch (err) {
+    console.error('Certificate revoke error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
 // HCF DEREGISTRATIONS ENDPOINTS
 // ============================================
 
@@ -2990,8 +3754,21 @@ app.delete('/api/hcf-renewals/:id', async (req, res) => {
 app.get('/api/hcf-deregistrations', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const result = await pool.request().query(`SELECT * FROM HCFDeregistrations ORDER BY CreatedAt DESC`);
-    res.json(result.recordset);
+    const result = await pool.request().query(`
+      SELECT d.*, 
+        cr.InstitutionName, cr.Zone AS HCFZone, cr.Mobile, cr.Email, cr.ContactPerson,
+        cr.Status AS HCFStatus
+      FROM HCFDeregistrations d
+      LEFT JOIN CustomerRegistrations cr ON d.RegistrationID = cr.RegistrationID
+      ORDER BY d.CreatedAt DESC
+    `);
+    // Map data for frontend
+    const mapped = result.recordset.map(r => ({
+      ...r,
+      FacilityName: r.FacilityName || r.InstitutionName || 'Unknown',
+      Zone: r.Zone || r.HCFZone || '',
+    }));
+    res.json(mapped);
   } catch (err) {
     console.error('HCF Deregistrations fetch error:', err);
     res.status(500).json({ error: err.message });
@@ -3002,13 +3779,19 @@ app.get('/api/hcf-deregistrations', async (req, res) => {
 app.post('/api/hcf-deregistrations', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { registrationId, facilityName, zone, reason, outstanding } = req.body;
+    // Accept both camelCase and PascalCase
+    const registrationId = req.body.registrationId || req.body.RegistrationID;
+    const facilityName = req.body.facilityName || req.body.FacilityName;
+    const zone = req.body.zone || req.body.Zone;
+    const reason = req.body.reason || req.body.Reason;
+    const outstanding = req.body.outstanding || req.body.Outstanding || 0;
+    
     const result = await pool.request()
       .input('registrationId', sql.Int, registrationId || null)
       .input('facilityName', sql.NVarChar, facilityName || null)
       .input('zone', sql.NVarChar, zone || null)
       .input('reason', sql.NVarChar, reason || null)
-      .input('outstanding', sql.Decimal(12,2), outstanding || 0)
+      .input('outstanding', sql.Decimal(12,2), outstanding)
       .query(`INSERT INTO HCFDeregistrations (RegistrationID, FacilityName, Zone, Reason, Outstanding, Stage, CreatedAt, UpdatedAt)
               VALUES (@registrationId, @facilityName, @zone, @reason, @outstanding, 'Awaiting Accounts', GETDATE(), GETDATE());
               SELECT SCOPE_IDENTITY() AS DeregID`);
@@ -3073,23 +3856,97 @@ app.put('/api/hcf-deregistrations/:id', async (req, res) => {
   }
 });
 
-// PUT /api/hcf-deregistrations/:id/action — approve or reject
+// PUT /api/hcf-deregistrations/:id/action — approve or reject with stage progression
 app.put('/api/hcf-deregistrations/:id/action', async (req, res) => {
   try {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
-    const { action, remarks } = req.body;
-    if (action !== 'approve' && action !== 'reject') {
-      return res.status(400).json({ error: 'Invalid action. Use approve or reject' });
+    const { action, remarks, actionBy, actionByRole } = req.body;
+    
+    // Get current stage
+    const current = await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query('SELECT Stage, RegistrationID FROM HCFDeregistrations WHERE DeregID = @id');
+    
+    if (current.recordset.length === 0) {
+      return res.status(404).json({ error: 'Deregistration not found' });
     }
-    const newStage = action === 'approve' ? 'Approved' : 'Rejected';
+    
+    const currentStage = current.recordset[0].Stage;
+    const registrationId = current.recordset[0].RegistrationID;
+    
+    // Stage progression workflow
+    const STAGES = ['Awaiting Accounts', 'Awaiting Transport', 'Awaiting HOD', 'Final Approved'];
+    const currentIndex = STAGES.indexOf(currentStage);
+    
+    let newStage;
+    if (action === 'Reject') {
+      newStage = 'Rejected';
+    } else if (action === 'Approve & Forward' || action === 'approve') {
+      if (currentIndex < STAGES.length - 1) {
+        newStage = STAGES[currentIndex + 1];
+      } else {
+        newStage = 'Completed';
+        // Mark the HCF as Deregistered when fully approved
+        if (registrationId) {
+          await pool.request()
+            .input('regId', sql.Int, registrationId)
+            .query("UPDATE CustomerRegistrations SET Status = 'Deregistered', UpdatedAt = GETDATE() WHERE RegistrationID = @regId");
+        }
+      }
+    } else {
+      return res.status(400).json({ error: 'Invalid action' });
+    }
+    
     await pool.request()
       .input('id', sql.Int, req.params.id)
       .input('stage', sql.NVarChar, newStage)
       .input('remarks', sql.NVarChar, remarks || null)
       .query(`UPDATE HCFDeregistrations SET Stage=@stage, Remarks=ISNULL(@remarks, Remarks), UpdatedAt=GETDATE() WHERE DeregID=@id`);
-    res.json({ message: `Deregistration ${action}d` });
+    
+    // Save to history
+    await pool.request()
+      .input('deregId', sql.Int, req.params.id)
+      .input('regId', sql.Int, registrationId)
+      .input('prevStage', sql.NVarChar, currentStage)
+      .input('newStage', sql.NVarChar, newStage)
+      .input('action', sql.NVarChar, action)
+      .input('actionBy', sql.NVarChar, actionBy || 'Admin')
+      .input('actionByRole', sql.NVarChar, actionByRole || 'Admin')
+      .input('remarks', sql.NVarChar, remarks || '')
+      .query(`INSERT INTO DeregistrationHistory (DeregID, RegistrationID, PreviousStage, NewStage, Action, ActionBy, ActionByRole, Remarks)
+              VALUES (@deregId, @regId, @prevStage, @newStage, @action, @actionBy, @actionByRole, @remarks)`);
+    
+    res.json({ message: `Stage updated to: ${newStage}`, newStage });
   } catch (err) {
     console.error('HCF Deregistration action error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/hcf-deregistrations/:id/history — get history of stage changes
+app.get('/api/hcf-deregistrations/:id/history', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .query(`SELECT * FROM DeregistrationHistory WHERE DeregID=@id ORDER BY CreatedAt DESC`);
+    res.json(result.recordset || []);
+  } catch (err) {
+    console.error('Deregistration history error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/hcf-renewal-history/:registrationId — get renewal history for an HCF
+app.get('/api/hcf-renewal-history/:registrationId', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request()
+      .input('regId', sql.Int, req.params.registrationId)
+      .query(`SELECT * FROM RenewalHistory WHERE RegistrationID=@regId ORDER BY CreatedAt DESC`);
+    res.json(result.recordset || []);
+  } catch (err) {
+    console.error('Renewal history error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -3413,13 +4270,124 @@ app.put('/api/customer-registrations/:id/enable-portal', async (req, res) => {
     if (!pool) return res.status(503).json({ error: 'Database not ready' });
     const { pin } = req.body;
     if (!pin || pin.length !== 6) return res.status(400).json({ error: 'PIN must be exactly 6 digits' });
+    
+    // Update portal access
     const result = await pool.request()
       .input('id', sql.Int, parseInt(req.params.id))
       .input('pin', sql.NVarChar, pin)
       .query(`UPDATE CustomerRegistrations SET PortalEnabled=1, PortalPin=@pin, UpdatedAt=GETDATE() WHERE RegistrationID=@id;
-              SELECT CustomerID FROM CustomerRegistrations WHERE RegistrationID=@id`);
-    const customerId = result.recordset[0] ? result.recordset[0].CustomerID : null;
-    res.json({ success: true, message: 'Portal access enabled', customerId, pin });
+              SELECT CustomerID, Email, InstitutionName, Mobile FROM CustomerRegistrations WHERE RegistrationID=@id`);
+    
+    const customer = result.recordset[0];
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    
+    const customerId = customer.CustomerID;
+    const customerEmail = customer.Email;
+    const institutionName = customer.InstitutionName;
+    
+    let emailSent = false;
+    let emailError = null;
+    
+    // Try to send email if customer has an email address
+    if (customerEmail) {
+      try {
+        // Fetch email settings
+        const settingsResult = await pool.request().query('SELECT SettingKey, SettingValue FROM SystemSettings');
+        const settings = {};
+        settingsResult.recordset.forEach(row => { settings[row.SettingKey] = row.SettingValue; });
+        
+        // Check if email settings are configured
+        if (settings.smtpHost && settings.smtpUser && settings.smtpPass && settings.enableEmailNotifications !== 'false') {
+          const nodemailer = require('nodemailer');
+          
+          const transportConfig = {
+            host: settings.smtpHost,
+            port: parseInt(settings.smtpPort) || 587,
+            secure: settings.smtpSecure === 'ssl',
+            auth: {
+              user: settings.smtpUser,
+              pass: settings.smtpPass
+            }
+          };
+          
+          if (settings.smtpSecure === 'tls') {
+            transportConfig.requireTLS = true;
+          }
+          
+          const transporter = nodemailer.createTransport(transportConfig);
+          
+          // Send credentials email
+          await transporter.sendMail({
+            from: `"${settings.emailFromName || settings.companyName || 'MPCC'}" <${settings.emailFromAddress || settings.smtpUser}>`,
+            to: customerEmail,
+            subject: `${settings.emailSubjectPrefix || '[MPCC]'} Your Member Portal Credentials`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f8fafc;">
+                <div style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
+                  <h1 style="color: white; margin: 0; font-size: 22px;">🔐 Member Portal Access</h1>
+                  <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">Welcome to ${settings.companyName || 'MPCC'}</p>
+                </div>
+                <div style="background: white; padding: 28px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+                  <p style="color: #1e293b; font-size: 16px; margin: 0 0 20px 0;">
+                    Dear <strong>${institutionName}</strong>,
+                  </p>
+                  <p style="color: #475569; font-size: 14px; margin: 0 0 20px 0;">
+                    Your member portal access has been enabled. Use the following credentials to login:
+                  </p>
+                  
+                  <div style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); padding: 20px; border-radius: 10px; border: 2px solid #e9d5ff; margin-bottom: 20px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 8px 0; color: #7c3aed; font-weight: 600; font-size: 13px; width: 120px;">Member ID:</td>
+                        <td style="padding: 8px 0; color: #1e293b; font-weight: 700; font-size: 18px; letter-spacing: 1px;">${customerId}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #7c3aed; font-weight: 600; font-size: 13px;">PIN:</td>
+                        <td style="padding: 8px 0; color: #1e293b; font-weight: 700; font-size: 18px; letter-spacing: 3px;">${pin}</td>
+                      </tr>
+                    </table>
+                  </div>
+                  
+                  <div style="background: #fef3c7; padding: 14px 16px; border-radius: 8px; border: 1px solid #fcd34d; margin-bottom: 20px;">
+                    <p style="color: #92400e; font-size: 13px; margin: 0;">
+                      <strong>🔗 Login URL:</strong> <a href="${settings.companyWebsite || 'https://mpccharidwar.in'}/portal" style="color: #7c3aed;">${settings.companyWebsite || 'mpccharidwar.in'}/portal</a>
+                    </p>
+                  </div>
+                  
+                  <p style="color: #64748b; font-size: 13px; margin: 0 0 8px 0;">
+                    ⚠️ Please keep your credentials secure and do not share them with anyone.
+                  </p>
+                  <p style="color: #64748b; font-size: 13px; margin: 0;">
+                    If you have any questions, please contact us at <strong>${settings.companyEmail || settings.smtpUser}</strong>
+                  </p>
+                </div>
+                <div style="text-align: center; padding: 16px; color: #94a3b8; font-size: 11px;">
+                  <p style="margin: 0;">© ${new Date().getFullYear()} ${settings.companyName || 'MPCC'}. All rights reserved.</p>
+                </div>
+              </div>
+            `
+          });
+          emailSent = true;
+          console.log(`✉️ Portal credentials sent to ${customerEmail}`);
+        } else {
+          emailError = 'Email settings not configured';
+        }
+      } catch (emailErr) {
+        console.error('Email send error:', emailErr.message);
+        emailError = emailErr.message;
+      }
+    } else {
+      emailError = 'No email address on file';
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Portal access enabled', 
+      customerId, 
+      pin,
+      emailSent,
+      emailError: emailSent ? null : emailError
+    });
   } catch (err) {
     console.error('Enable portal error:', err);
     res.status(500).json({ error: err.message });
@@ -3780,6 +4748,139 @@ app.get('/api/portal/complaints/:registrationId', async (req, res) => {
       .query(`SELECT * FROM HCFSupportTickets WHERE RegistrationID=@rid ORDER BY CreatedAt DESC`);
     res.json(result.recordset);
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/portal/complaints - Add new complaint
+app.post('/api/portal/complaints', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const { RegistrationID, Type, Description, Priority, AssignedTo, Status, CreatedAt } = req.body;
+    await pool.request()
+      .input('rid', sql.Int, RegistrationID)
+      .input('category', sql.NVarChar(100), Type || '')
+      .input('subject', sql.NVarChar(200), Type || '')
+      .input('description', sql.NVarChar(sql.MAX), Description || '')
+      .input('priority', sql.NVarChar(20), Priority || 'Medium')
+      .input('assignedTo', sql.NVarChar(100), AssignedTo || '')
+      .input('status', sql.NVarChar(50), Status || 'Pending')
+      .input('createdAt', sql.DateTime, CreatedAt ? new Date(CreatedAt) : new Date())
+      .query(`INSERT INTO HCFSupportTickets (RegistrationID, Category, Subject, Description, Priority, AssignedTo, Status, CreatedAt) 
+              VALUES (@rid, @category, @subject, @description, @priority, @assignedTo, @status, @createdAt)`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ============================================
+// SETTINGS API ENDPOINTS
+// ============================================
+
+// GET /api/settings - Get all settings as an object
+app.get('/api/settings', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const result = await pool.request().query('SELECT SettingKey, SettingValue, SettingType FROM SystemSettings');
+    const settings = {};
+    result.recordset.forEach(row => {
+      let value = row.SettingValue;
+      if (row.SettingType === 'boolean') value = value === 'true';
+      else if (row.SettingType === 'number') value = Number(value);
+      settings[row.SettingKey] = value;
+    });
+    res.json(settings);
+  } catch (err) {
+    console.error('Get settings error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/settings - Save all settings
+app.put('/api/settings', async (req, res) => {
+  try {
+    if (!pool) return res.status(503).json({ error: 'Database not ready' });
+    const settings = req.body;
+    
+    for (const [key, value] of Object.entries(settings)) {
+      const settingType = typeof value === 'boolean' ? 'boolean' : typeof value === 'number' ? 'number' : 'string';
+      const stringValue = String(value);
+      
+      await pool.request()
+        .input('key', sql.NVarChar, key)
+        .input('value', sql.NVarChar, stringValue)
+        .input('type', sql.NVarChar, settingType)
+        .query(`
+          MERGE SystemSettings AS target
+          USING (SELECT @key AS SettingKey) AS source
+          ON target.SettingKey = source.SettingKey
+          WHEN MATCHED THEN 
+            UPDATE SET SettingValue = @value, SettingType = @type, UpdatedAt = GETDATE()
+          WHEN NOT MATCHED THEN 
+            INSERT (SettingKey, SettingValue, SettingType) VALUES (@key, @value, @type);
+        `);
+    }
+    res.json({ success: true, message: 'Settings saved successfully' });
+  } catch (err) {
+    console.error('Save settings error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/settings/test-email - Send test email
+app.post('/api/settings/test-email', async (req, res) => {
+  try {
+    const { email, settings } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email address required' });
+    
+    const nodemailer = require('nodemailer');
+    
+    // Create transporter with provided settings
+    const transportConfig = {
+      host: settings.smtpHost,
+      port: parseInt(settings.smtpPort) || 587,
+      secure: settings.smtpSecure === 'ssl',
+      auth: {
+        user: settings.smtpUser,
+        pass: settings.smtpPass
+      }
+    };
+    
+    if (settings.smtpSecure === 'tls') {
+      transportConfig.requireTLS = true;
+    }
+    
+    const transporter = nodemailer.createTransport(transportConfig);
+    
+    // Send test email
+    await transporter.sendMail({
+      from: `"${settings.emailFromName || 'MPCC'}" <${settings.emailFromAddress || settings.smtpUser}>`,
+      to: email,
+      subject: `${settings.emailSubjectPrefix || '[MPCC]'} Test Email`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">🎉 Test Email Successful!</h1>
+          </div>
+          <div style="background: #f8fafc; padding: 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+            <p style="color: #1e293b; font-size: 16px; margin: 0 0 16px 0;">
+              Congratulations! Your email configuration is working correctly.
+            </p>
+            <div style="background: white; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
+              <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px;"><strong>SMTP Host:</strong> ${settings.smtpHost}</p>
+              <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px;"><strong>SMTP Port:</strong> ${settings.smtpPort}</p>
+              <p style="margin: 0; color: #64748b; font-size: 14px;"><strong>From:</strong> ${settings.emailFromName || 'MPCC'}</p>
+            </div>
+            <p style="color: #94a3b8; font-size: 12px; margin: 16px 0 0 0; text-align: center;">
+              This is an automated test email from MPCC Settings.
+            </p>
+          </div>
+        </div>
+      `
+    });
+    
+    res.json({ success: true, message: 'Test email sent successfully' });
+  } catch (err) {
+    console.error('Test email error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // 404 handler
