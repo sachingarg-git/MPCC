@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import '../styles/MasterDataModule.css';
 import ServicePlanForm from '../components/ServicePlanForm';
+import Pagination from '../components/Pagination';
 
 const MasterDataModule = () => {
   const [activeSubModule, setActiveSubModule] = useState('routes');
@@ -13,6 +14,10 @@ const MasterDataModule = () => {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewItem, setViewItem] = useState(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Data states
   const [routes, setRoutes] = useState([]);
@@ -1084,7 +1089,7 @@ const MasterDataModule = () => {
           <button
             key={item.id}
             className={`submenu-item ${activeSubModule === item.id ? 'active' : ''}`}
-            onClick={() => setActiveSubModule(item.id)}
+            onClick={() => { setActiveSubModule(item.id); setCurrentPage(1); }}
             style={{
               justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
               padding: sidebarCollapsed ? '12px 8px' : '12px 18px',
@@ -1149,7 +1154,7 @@ const MasterDataModule = () => {
             </span>
           </div>
 
-          <div className="table-wrap">
+          <div className="table-wrap" style={{ borderRadius: '12px 12px 0 0' }}>
             <table style={{ minWidth: '900px' }}>
               <thead>
                 <tr>
@@ -1160,7 +1165,9 @@ const MasterDataModule = () => {
               </thead>
               <tbody>
                 {getRawData().length > 0 ? (
-                  getRawData().map((row, idx) => (
+                  getRawData()
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((row, idx) => (
                     <tr key={idx}>
                       {renderRowCells(row)}
                     </tr>
@@ -1174,16 +1181,17 @@ const MasterDataModule = () => {
                   </tr>
                 )}
               </tbody>
-              {getRawData().length > 0 && (
-                <tfoot>
-                  <tr>
-                    <td colSpan={content.columns.length - 1}>📊 Total: {getRawData().length} records</td>
-                    <td />
-                  </tr>
-                </tfoot>
-              )}
             </table>
           </div>
+          {getRawData().length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalItems={getRawData().length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+            />
+          )}
           </>
         )}
       </div>

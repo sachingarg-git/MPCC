@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/CRMHCFMaster.css';
+import Pagination from '../components/Pagination';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -304,6 +305,55 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Column filters state
+  const [columnFilters, setColumnFilters] = useState({});
+
+  // Column filter configuration
+  const columnFilterConfig = [
+    { key: 'RegistrationID', type: 'text', placeholder: 'ID...' },
+    { key: 'InstitutionName', type: 'text', placeholder: 'Name...' },
+    { key: 'Category', type: 'text', placeholder: 'Category...' },
+    { key: 'Zone', type: 'text', placeholder: 'Zone...' },
+    { key: 'Route', type: 'text', placeholder: 'Route...' },
+    { key: 'ContactPerson', type: 'text', placeholder: 'Contact...' },
+    { key: 'Mobile', type: 'text', placeholder: 'Mobile...' },
+    { key: 'Status', type: 'select', options: ['All', 'Active', 'Pending', 'Suspended', 'Late Payer', 'Slow Payer', 'Defaulter', 'Deregistered'] },
+    { key: 'CreatedAt', type: 'date', placeholder: 'Reg Date' },
+    { key: 'RenewalDate', type: 'date', placeholder: 'Renewal' },
+    { key: 'Outstanding', type: 'text', placeholder: 'Amt...' },
+    { key: 'Docs', type: 'none' },
+    { key: 'Actions', type: 'none' }
+  ];
+
+  const handleColumnFilterChange = (key, value) => {
+    setColumnFilters(prev => ({ ...prev, [key]: value }));
+    setCurrentPage(1);
+  };
+
+  // Apply column filters
+  const applyColumnFilters = (data) => {
+    if (!data || data.length === 0) return [];
+    return data.filter(item => {
+      return Object.entries(columnFilters).every(([key, value]) => {
+        if (!value || value === '' || value === 'All') return true;
+        const itemValue = item[key];
+        // Date filtering
+        if (key === 'CreatedAt' || key === 'RenewalDate') {
+          if (!itemValue) return false;
+          const itemDate = new Date(itemValue).toISOString().split('T')[0];
+          return itemDate === value;
+        }
+        // Text filtering
+        if (itemValue === null || itemValue === undefined) return false;
+        return String(itemValue).toLowerCase().includes(String(value).toLowerCase());
+      });
+    });
+  };
+
   // Modals
   const [showNewModal, setShowNewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -368,7 +418,8 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
     finally { setLoadingDocsData(false); }
   };
 
-  const filtered = data.filter(r => {
+  // First apply search bar filters
+  const searchFiltered = data.filter(r => {
     const q = search.toLowerCase();
     const matchQ = !q || (r.InstitutionName || '').toLowerCase().includes(q) || String(r.RegistrationID || '').includes(q) || (r.Mobile || '').includes(q);
     const matchZ = !filterZone || r.Zone === filterZone;
@@ -376,6 +427,9 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
     const matchC = !filterCategory || r.Category === filterCategory;
     return matchQ && matchZ && matchS && matchC;
   });
+  
+  // Then apply column filters
+  const filtered = applyColumnFilters(searchFiltered);
 
   const elevenMonthsAgo = new Date();
   elevenMonthsAgo.setMonth(elevenMonthsAgo.getMonth() - 11);
@@ -764,6 +818,37 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
                     }}>{h}</th>
                   ))}
                 </tr>
+                {/* Column Filter Row */}
+                <tr className="filter-row" style={{ background:'#f8fafc' }}>
+                  {columnFilterConfig.map((cfg) => (
+                    <th key={cfg.key} style={{ padding:'8px 6px', borderBottom:'1px solid #e2e8f0' }}>
+                      {cfg.type === 'none' ? null : cfg.type === 'select' ? (
+                        <select
+                          value={columnFilters[cfg.key] || ''}
+                          onChange={(e) => handleColumnFilterChange(cfg.key, e.target.value)}
+                          style={{ width:'100%', padding:'6px 8px', border:'1px solid #e2e8f0', borderRadius:4, fontSize:11, background:'#fff' }}
+                        >
+                          {cfg.options.map(opt => <option key={opt} value={opt === 'All' ? '' : opt}>{opt}</option>)}
+                        </select>
+                      ) : cfg.type === 'date' ? (
+                        <input
+                          type="date"
+                          value={columnFilters[cfg.key] || ''}
+                          onChange={(e) => handleColumnFilterChange(cfg.key, e.target.value)}
+                          style={{ width:'100%', padding:'6px 8px', border:'1px solid #e2e8f0', borderRadius:4, fontSize:11, background:'#fff' }}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          placeholder={cfg.placeholder}
+                          value={columnFilters[cfg.key] || ''}
+                          onChange={(e) => handleColumnFilterChange(cfg.key, e.target.value)}
+                          style={{ width:'100%', padding:'6px 8px', border:'1px solid #e2e8f0', borderRadius:4, fontSize:11 }}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
@@ -772,7 +857,7 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
                     <div style={{ fontSize:15, fontWeight:600 }}>No records found</div>
                     <div style={{ fontSize:13, marginTop:4 }}>Try adjusting your search or filters</div>
                   </td></tr>
-                ) : filtered.map((row, idx) => (
+                ) : filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((row, idx) => (
                   <tr key={row.RegistrationID} style={{ 
                     background: idx % 2 === 0 ? '#fff' : '#fafbfc',
                     borderBottom:'1px solid #f1f5f9',
@@ -921,22 +1006,17 @@ const HCFMasterModule = ({ zones, routes, categories, servicePlans, showToast, h
                   </tr>
                 ))}
               </tbody>
-              {filtered.length > 0 && (
-                <tfoot>
-                  <tr style={{ background:'linear-gradient(135deg,#1e293b,#0f172a)' }}>
-                    <td colSpan={2} style={{ padding:'16px', fontWeight:900, fontSize:14, color:'#fff', borderBottom:'none' }}>
-                      📊 Total: {filtered.length} HCFs
-                    </td>
-                    <td colSpan={8} style={{ borderBottom:'none' }} />
-                    <td style={{ padding:'16px', fontWeight:900, fontSize:15, color:'#f87171', borderBottom:'none' }}>
-                      {filtered.some(r => r.Outstanding) ? `₹${filtered.reduce((s,r) => s + (Number(r.Outstanding)||0), 0).toLocaleString('en-IN')}` : '—'}
-                    </td>
-                    <td colSpan={2} style={{ borderBottom:'none' }} />
-                  </tr>
-                </tfoot>
-              )}
             </table>
           </div>
+        )}
+        {filtered.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filtered.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+          />
         )}
       </div>
 
@@ -2222,6 +2302,10 @@ const ApprovalPipelineModule = ({ zones, categories, hcfMaster, showToast }) => 
   const [saving, setSaving] = useState(false);
   const [actionForm, setActionForm] = useState({ action: '', remarks: '' });
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const blankForm = { RegistrationID: '', FacilityName: '', Zone: '', Category: '', RaisedBy: '', MonthlyAmount: '', Remarks: '' };
   const [form, setForm] = useState(blankForm);
 
@@ -2328,10 +2412,10 @@ const ApprovalPipelineModule = ({ zones, categories, hcfMaster, showToast }) => 
         );
       })()}
 
-      <div className="table-wrap">
+      <div className="table-wrap" style={{ borderRadius: '12px 12px 0 0' }}>
         {loading ? <div className="no-data">Loading...</div> : data.length === 0
           ? <div className="no-data">No applications found</div>
-          : data.map(row => {
+          : data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(row => {
               const stageIdx = APPROVAL_STAGES.indexOf(row.CurrentStage);
               const STAGE_FILLS = ['#7c3aed','#fbbf24','#86efac','#93c5fd','#86efac','#f9a8d4','#4ade80'];
               const stageLabels = ['RM','BH','Reg','Acc','Mat','Trns','Done'];
@@ -2376,6 +2460,15 @@ const ApprovalPipelineModule = ({ zones, categories, hcfMaster, showToast }) => 
             })
         }
       </div>
+      {data.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={data.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+        />
+      )}
 
       {/* New Application Modal */}
       {showNewModal && (
@@ -2461,6 +2554,59 @@ const RenewalModule = ({ hcfMaster, refreshHcfMaster, showToast }) => {
   const [selectedHCF, setSelectedHCF] = useState(null);
   const [saving, setSaving] = useState(false);
   const [selectedRows, setSelectedRows] = useState([]);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Column filters state
+  const [columnFilters, setColumnFilters] = useState({});
+
+  // Column filter configuration for Renewal table
+  const columnFilterConfig = [
+    { key: 'select', type: 'none' },
+    { key: 'RegistrationID', type: 'text', placeholder: 'ID...' },
+    { key: 'InstitutionName', type: 'text', placeholder: 'HCF Name...' },
+    { key: 'Zone', type: 'text', placeholder: 'Zone...' },
+    { key: 'Category', type: 'text', placeholder: 'Category...' },
+    { key: 'RenewalDate', type: 'date', placeholder: 'Renewal Date' },
+    { key: 'AutoRenew', type: 'select', options: ['All', 'Yes', 'No'] },
+    { key: 'LastReminded', type: 'date', placeholder: 'Reminded' },
+    { key: 'State', type: 'none' },
+    { key: 'Actions', type: 'none' }
+  ];
+
+  const handleColumnFilterChange = (key, value) => {
+    setColumnFilters(prev => ({ ...prev, [key]: value }));
+    setCurrentPage(1);
+  };
+
+  // Apply column filters
+  const applyColumnFilters = (data) => {
+    if (!data || data.length === 0) return [];
+    return data.filter(item => {
+      return Object.entries(columnFilters).every(([key, value]) => {
+        if (!value || value === '' || value === 'All') return true;
+        const itemValue = item[key];
+        // Date filtering
+        if (key === 'RenewalDate' || key === 'LastReminded') {
+          if (!itemValue) return false;
+          const itemDate = new Date(itemValue).toISOString().split('T')[0];
+          return itemDate === value;
+        }
+        // Boolean/Auto-renew filtering
+        if (key === 'AutoRenew') {
+          if (value === 'Yes') return !!itemValue;
+          if (value === 'No') return !itemValue;
+          return true;
+        }
+        // Text filtering
+        if (itemValue === null || itemValue === undefined) return false;
+        return String(itemValue).toLowerCase().includes(String(value).toLowerCase());
+      });
+    });
+  };
+
   const [renewalForm, setRenewalForm] = useState({ 
     newRenewalDate: '', 
     mouSigned: false, 
@@ -2480,7 +2626,8 @@ const RenewalModule = ({ hcfMaster, refreshHcfMaster, showToast }) => {
     return `MPCC-${zone}-${num}`;
   };
 
-  const filtered = data.filter(r => {
+  // First filter by bucket tab
+  const bucketFiltered = data.filter(r => {
     if (bucketTab === 'all') return true;
     const days = daysUntil(r.RenewalDate);
     if (days === null) return false;
@@ -2490,6 +2637,9 @@ const RenewalModule = ({ hcfMaster, refreshHcfMaster, showToast }) => {
     if (bucketTab === '7')  return days <= 7;
     return true;
   });
+  
+  // Then apply column filters
+  const filtered = applyColumnFilters(bucketFiltered);
 
   // State determination based on payment/renewal behavior
   const getState = (row) => {
@@ -2712,11 +2862,40 @@ const RenewalModule = ({ hcfMaster, refreshHcfMaster, showToast }) => {
                   <th style={{ padding: '14px 12px', textAlign: 'center', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>State</th>
                   <th style={{ padding: '14px 12px', textAlign: 'center', fontWeight: 700, color: '#64748b', borderBottom: '1.5px solid #e2e8f0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Actions</th>
                 </tr>
+                {/* Column Filter Row */}
+                <tr className="filter-row" style={{ background: '#fafafa' }}>
+                  <th style={{ padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}>
+                    <input type="text" placeholder="ID..." value={columnFilters.RegistrationID || ''} onChange={e => handleColumnFilterChange('RegistrationID', e.target.value)} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 11 }} />
+                  </th>
+                  <th style={{ padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}>
+                    <input type="text" placeholder="Name..." value={columnFilters.InstitutionName || ''} onChange={e => handleColumnFilterChange('InstitutionName', e.target.value)} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 11 }} />
+                  </th>
+                  <th style={{ padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}>
+                    <input type="text" placeholder="Zone..." value={columnFilters.Zone || ''} onChange={e => handleColumnFilterChange('Zone', e.target.value)} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 11 }} />
+                  </th>
+                  <th style={{ padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}>
+                    <input type="date" value={columnFilters.RenewalDate || ''} onChange={e => handleColumnFilterChange('RenewalDate', e.target.value)} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 11 }} />
+                  </th>
+                  <th style={{ padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}></th>
+                  <th style={{ padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}>
+                    <select value={columnFilters.AutoRenew || ''} onChange={e => handleColumnFilterChange('AutoRenew', e.target.value)} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 11, background: '#fff' }}>
+                      <option value="">All</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                    </select>
+                  </th>
+                  <th style={{ padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}></th>
+                  <th style={{ padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}>
+                    <input type="date" value={columnFilters.LastReminded || ''} onChange={e => handleColumnFilterChange('LastReminded', e.target.value)} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 11 }} />
+                  </th>
+                  <th style={{ padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}></th>
+                  <th style={{ padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}></th>
+                </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr><td colSpan={10} style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>No renewal records</td></tr>
-                ) : filtered.map(row => {
+                ) : filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(row => {
                   const days = daysUntil(row.RenewalDate);
                   const state = getState(row);
                   // Days left badge colors
@@ -2827,6 +3006,15 @@ const RenewalModule = ({ hcfMaster, refreshHcfMaster, showToast }) => {
               </tbody>
             </table>
         </div>
+        {filtered.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filtered.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+          />
+        )}
       </div>
 
       {/* Footer with Cancel and Next Step */}
@@ -3057,6 +3245,67 @@ const DeregisterModule = ({ hcfMaster, showToast, user }) => {
   const [saving, setSaving] = useState(false);
   const [actionSaving, setActionSaving] = useState(false);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Column filters state
+  const [columnFilters, setColumnFilters] = useState({});
+
+  // Column filter configuration
+  const columnFilterConfig = [
+    { key: 'hcfId', label: 'HCF ID', type: 'text' },
+    { key: 'facilityName', label: 'Facility Name', type: 'text' },
+    { key: 'zone', label: 'Zone', type: 'text' },
+    { key: 'closureDate', label: 'Closure Date', type: 'date' },
+    { key: 'reason', label: 'Reason', type: 'text' },
+    { key: 'outstanding', label: 'Outstanding', type: 'text' },
+    { key: 'kitReturned', label: 'Kit Returned', type: 'select', options: ['Pending', 'Returned'] },
+    { key: 'stage', label: 'Stage', type: 'select', options: ['Awaiting Accounts', 'Awaiting Transport', 'Awaiting HOD', 'Final Approved', 'Completed', 'Rejected'] },
+  ];
+
+  // Handle column filter change
+  const handleColumnFilterChange = (key, value) => {
+    setColumnFilters(prev => ({ ...prev, [key]: value }));
+    setCurrentPage(1);
+  };
+
+  // Apply column filters to data
+  const applyColumnFilters = (dataToFilter) => {
+    return dataToFilter.filter(row => {
+      const zone = (row.Zone || row.HCFZone || 'XX').substring(0, 3).toUpperCase();
+      const hcfId = `MPCC-${zone}-${String(row.RegistrationID || row.DeregID).padStart(4, '0')}`;
+      const closureDate = row.CreatedAt ? new Date(row.CreatedAt).toISOString().split('T')[0] : '';
+      
+      for (const filter of columnFilterConfig) {
+        const filterValue = columnFilters[filter.key];
+        if (!filterValue) continue;
+        
+        let cellValue = '';
+        switch (filter.key) {
+          case 'hcfId': cellValue = hcfId; break;
+          case 'facilityName': cellValue = row.FacilityName || row.InstitutionName || ''; break;
+          case 'zone': cellValue = row.Zone || row.HCFZone || ''; break;
+          case 'closureDate': cellValue = closureDate; break;
+          case 'reason': cellValue = row.Reason || ''; break;
+          case 'outstanding': cellValue = String(row.Outstanding || 0); break;
+          case 'kitReturned': cellValue = row.KitReturned ? 'Returned' : 'Pending'; break;
+          case 'stage': cellValue = row.Stage || 'Pending'; break;
+          default: cellValue = '';
+        }
+        
+        if (filter.type === 'date') {
+          if (filterValue && cellValue !== filterValue) return false;
+        } else if (filter.type === 'select') {
+          if (filterValue && cellValue !== filterValue) return false;
+        } else {
+          if (!cellValue.toLowerCase().includes(filterValue.toLowerCase())) return false;
+        }
+      }
+      return true;
+    });
+  };
+
   const blankForm = { RegistrationID: '', FacilityName: '', Zone: '', Reason: '', Outstanding: '' };
   const [form, setForm] = useState(blankForm);
   const [detailRemarks, setDetailRemarks] = useState('');
@@ -3122,7 +3371,7 @@ const DeregisterModule = ({ hcfMaster, showToast, user }) => {
       });
     }
   };
-  const filteredData = getFilteredData();
+  const filteredData = applyColumnFilters(getFilteredData());
 
   const stageCount = (stage) => data.filter(d => d.Stage === stage).length;
   const queueCount = data.filter(d => d.Stage === userStage).length;
@@ -3319,10 +3568,42 @@ const DeregisterModule = ({ hcfMaster, showToast, user }) => {
                 <th>HCF ID</th><th>Facility Name</th><th>Zone</th><th>Closure Request Date</th>
                 <th>Reason</th><th>Outstanding</th><th>Kit Returned</th><th>Current Stage</th><th>Actions</th>
               </tr>
+              <tr className="filter-row">
+                {columnFilterConfig.map(filter => (
+                  <th key={filter.key} style={{ padding: '4px 6px' }}>
+                    {filter.type === 'select' ? (
+                      <select
+                        value={columnFilters[filter.key] || ''}
+                        onChange={(e) => handleColumnFilterChange(filter.key, e.target.value)}
+                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, border: '1px solid #e2e8f0', borderRadius: 4 }}
+                      >
+                        <option value="">All</option>
+                        {filter.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    ) : filter.type === 'date' ? (
+                      <input
+                        type="date"
+                        value={columnFilters[filter.key] || ''}
+                        onChange={(e) => handleColumnFilterChange(filter.key, e.target.value)}
+                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, border: '1px solid #e2e8f0', borderRadius: 4 }}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder={`Search...`}
+                        value={columnFilters[filter.key] || ''}
+                        onChange={(e) => handleColumnFilterChange(filter.key, e.target.value)}
+                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, border: '1px solid #e2e8f0', borderRadius: 4 }}
+                      />
+                    )}
+                  </th>
+                ))}
+                <th></th>
+              </tr>
             </thead>
             <tbody>
               {filteredData.length === 0 ? <tr><td colSpan={9} className="no-data">{isAdmin ? 'No closure requests' : (viewMode === 'queue' ? 'No requests pending your approval' : 'No history yet')}</td></tr>
-                : filteredData.map(row => {
+                : filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(row => {
                   const stageColors = { 'Awaiting Accounts': '#dc2626', 'Awaiting Transport': '#ea580c', 'Awaiting HOD': '#ca8a04', 'Final Approved': '#5b21b6', 'Completed': '#15803d', 'Rejected': '#dc2626' };
                   const stageBg = { 'Awaiting Accounts': '#fef3c7', 'Awaiting Transport': '#ffedd5', 'Awaiting HOD': '#fefce8', 'Final Approved': '#f5f3ff', 'Completed': '#dcfce7', 'Rejected': '#fee2e2' };
                   const zone = (row.Zone || row.HCFZone || 'XX').substring(0, 3).toUpperCase();
@@ -3360,6 +3641,15 @@ const DeregisterModule = ({ hcfMaster, showToast, user }) => {
                 })}
             </tbody>
           </table>
+        )}
+        {filteredData.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredData.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+          />
         )}
       </div>
 
@@ -3572,6 +3862,67 @@ const SupportModule = ({ hcfMaster, showToast }) => {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Column filters state
+  const [columnFilters, setColumnFilters] = useState({});
+
+  // Column filter configuration
+  const columnFilterConfig = [
+    { key: 'ticketCode', label: 'Ticket Code', type: 'text' },
+    { key: 'hcfName', label: 'HCF Name', type: 'text' },
+    { key: 'zone', label: 'Zone', type: 'text' },
+    { key: 'category', label: 'Category', type: 'select', options: ['Vehicle / Pickup', 'Billing / Payment', 'Kit / Equipment', 'Extra Pickup', 'Training / Compliance', 'Portal / Tech', 'Bill Not Received', 'Other'] },
+    { key: 'priority', label: 'Priority', type: 'select', options: ['Critical', 'High', 'Medium', 'Low'] },
+    { key: 'subject', label: 'Subject', type: 'text' },
+    { key: 'status', label: 'Status', type: 'select', options: ['Open', 'In Progress', 'Escalated', 'Resolved', 'Closed'] },
+    { key: 'dueDate', label: 'Due Date', type: 'date' },
+    { key: 'assignedTo', label: 'Assigned To', type: 'text' },
+  ];
+
+  // Handle column filter change
+  const handleColumnFilterChange = (key, value) => {
+    setColumnFilters(prev => ({ ...prev, [key]: value }));
+    setCurrentPage(1);
+  };
+
+  // Apply column filters to data
+  const applyColumnFilters = (dataToFilter) => {
+    return dataToFilter.filter(row => {
+      const dueDate = row.DueDate ? new Date(row.DueDate).toISOString().split('T')[0] : '';
+      
+      for (const filter of columnFilterConfig) {
+        const filterValue = columnFilters[filter.key];
+        if (!filterValue) continue;
+        
+        let cellValue = '';
+        switch (filter.key) {
+          case 'ticketCode': cellValue = row.TicketCode || ''; break;
+          case 'hcfName': cellValue = row.HCFName || ''; break;
+          case 'zone': cellValue = row.Zone || ''; break;
+          case 'category': cellValue = row.Category || ''; break;
+          case 'priority': cellValue = row.Priority || ''; break;
+          case 'subject': cellValue = row.Subject || ''; break;
+          case 'status': cellValue = row.Status || ''; break;
+          case 'dueDate': cellValue = dueDate; break;
+          case 'assignedTo': cellValue = row.AssignedTo || ''; break;
+          default: cellValue = '';
+        }
+        
+        if (filter.type === 'date') {
+          if (filterValue && cellValue !== filterValue) return false;
+        } else if (filter.type === 'select') {
+          if (filterValue && cellValue !== filterValue) return false;
+        } else {
+          if (!cellValue.toLowerCase().includes(filterValue.toLowerCase())) return false;
+        }
+      }
+      return true;
+    });
+  };
+
   const [showNewModal, setShowNewModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -3608,14 +3959,14 @@ const SupportModule = ({ hcfMaster, showToast }) => {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = data.filter(r => {
+  const filtered = applyColumnFilters(data.filter(r => {
     const q = search.toLowerCase();
     const matchQ = !q || (r.Subject || '').toLowerCase().includes(q) || (r.HCFName || '').toLowerCase().includes(q);
     const matchS = !filterStatus || r.Status === filterStatus;
     const matchC = !filterCategory || r.Category === filterCategory;
     const matchP = !filterPriority || r.Priority === filterPriority;
     return matchQ && matchS && matchC && matchP;
-  });
+  }));
 
   const kpis = [
     { label: 'Open Tickets', val: data.filter(d => d.Status === 'Open').length, color: '#2563eb' },
@@ -3771,36 +4122,36 @@ const SupportModule = ({ hcfMaster, showToast }) => {
         </div>
       )}
 
-      {/* Filter Bar — 5 filters with grouped assignee */}
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '14px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <input placeholder="🔍  Search ticket ID, HCF, or issue..." value={search} onChange={e => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: 180, border: '1.5px solid #e2e8f0', borderRadius: 9, padding: '8px 12px', fontSize: 13, outline: 'none' }} />
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...inputStyle, minWidth: 140, borderRadius: 9 }}>
+      {/* Filter Bar — Compact single row */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <input placeholder="🔍 Search..." value={search} onChange={e => setSearch(e.target.value)}
+          style={{ width: 160, border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 10px', fontSize: 12, outline: 'none' }} />
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 8px', fontSize: 12, background: '#fff', cursor: 'pointer' }}>
           <option value="">All Status</option>
-          <option value="Open">🔴 Open</option>
-          <option value="In Progress">⏳ In Progress</option>
-          <option value="Escalated">🚨 Escalated</option>
-          <option value="Resolved">✅ Resolved</option>
-          <option value="Closed">⬛ Closed</option>
+          <option value="Open">Open</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Escalated">Escalated</option>
+          <option value="Resolved">Resolved</option>
+          <option value="Closed">Closed</option>
         </select>
-        <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...inputStyle, minWidth: 160, borderRadius: 9 }}>
+        <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 8px', fontSize: 12, background: '#fff', cursor: 'pointer' }}>
           <option value="">All Categories</option>
-          <option value="Vehicle / Pickup">🚛 Vehicle / Pickup</option>
-          <option value="Billing / Payment">💰 Billing / Payment</option>
-          <option value="Kit / Equipment">🧰 Kit / Equipment</option>
-          <option value="Extra Pickup">➕ Extra Pickup</option>
-          <option value="Training / Compliance">📋 Training</option>
-          <option value="Portal / Tech">💻 Portal / Tech</option>
-          <option value="Other">📌 Other</option>
+          <option value="Vehicle / Pickup">Vehicle / Pickup</option>
+          <option value="Billing / Payment">Billing / Payment</option>
+          <option value="Kit / Equipment">Kit / Equipment</option>
+          <option value="Extra Pickup">Extra Pickup</option>
+          <option value="Training / Compliance">Training</option>
+          <option value="Portal / Tech">Portal / Tech</option>
+          <option value="Other">Other</option>
         </select>
-        <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} style={{ ...inputStyle, minWidth: 130, borderRadius: 9 }}>
+        <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 8px', fontSize: 12, background: '#fff', cursor: 'pointer' }}>
           <option value="">All Priority</option>
-          <option value="Critical">🔴 Critical</option>
-          <option value="High">🟠 High</option>
-          <option value="Medium">🟡 Medium</option>
-          <option value="Low">🟢 Low</option>
+          <option value="Critical">Critical</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
         </select>
-        <button style={{ background: '#f0fdf4', border: '1.5px solid #86efac', color: '#15803d', borderRadius: 9, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>📥 Export</button>
+        <button style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#15803d', borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📥 Export</button>
       </div>
 
       <div className="table-wrap">
@@ -3811,10 +4162,42 @@ const SupportModule = ({ hcfMaster, showToast }) => {
                 <th>Ticket Code</th><th>HCF Name</th><th>Zone</th><th>Category</th>
                 <th>Priority</th><th>Subject</th><th>Status</th><th>Due Date</th><th>Assigned To</th><th>Actions</th>
               </tr>
+              <tr className="filter-row">
+                {columnFilterConfig.map(filter => (
+                  <th key={filter.key} style={{ padding: '4px 6px' }}>
+                    {filter.type === 'select' ? (
+                      <select
+                        value={columnFilters[filter.key] || ''}
+                        onChange={(e) => handleColumnFilterChange(filter.key, e.target.value)}
+                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, border: '1px solid #e2e8f0', borderRadius: 4 }}
+                      >
+                        <option value="">All</option>
+                        {filter.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    ) : filter.type === 'date' ? (
+                      <input
+                        type="date"
+                        value={columnFilters[filter.key] || ''}
+                        onChange={(e) => handleColumnFilterChange(filter.key, e.target.value)}
+                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, border: '1px solid #e2e8f0', borderRadius: 4 }}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder={`Search...`}
+                        value={columnFilters[filter.key] || ''}
+                        onChange={(e) => handleColumnFilterChange(filter.key, e.target.value)}
+                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, border: '1px solid #e2e8f0', borderRadius: 4 }}
+                      />
+                    )}
+                  </th>
+                ))}
+                <th></th>
+              </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? <tr><td colSpan={10} className="no-data">No tickets found</td></tr>
-                : filtered.map(row => (
+                : filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(row => (
                   <tr key={row.TicketID}>
                     <td style={{ fontWeight: 700, color: '#7c3aed' }}>{row.TicketCode}</td>
                     <td style={{ fontWeight: 600, color: '#1e293b' }}>{row.HCFName}</td>
@@ -3839,6 +4222,15 @@ const SupportModule = ({ hcfMaster, showToast }) => {
                 ))}
             </tbody>
           </table>
+        )}
+        {filtered.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filtered.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+          />
         )}
       </div>
 

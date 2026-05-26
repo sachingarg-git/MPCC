@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import '../styles/CustomerModule.css';
+import Pagination from '../components/Pagination';
 
 const CustomerModule = () => {
   const [activeSubModule, setActiveSubModule] = useState('customer-reg');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [filters, setFilters] = useState({});
+  
+  // Column filters state - stores filter value for each column
+  const [columnFilters, setColumnFilters] = useState({});
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Dropdown data states
   const [customers, setCustomers] = useState([]);
@@ -237,8 +244,129 @@ const CustomerModule = () => {
     fetchTableData();
   }, [activeSubModule]);
 
+  // Reset filters when changing submodule
+  useEffect(() => {
+    setColumnFilters({});
+    setCurrentPage(1);
+  }, [activeSubModule]);
+
+  // Column filter configurations for each submodule
+  const getColumnFilterConfig = () => {
+    const configs = {
+      'customer-reg': [
+        { key: 'CustomerID', type: 'text', placeholder: 'Search ID...' },
+        { key: 'InstitutionName', type: 'text', placeholder: 'Search Name...' },
+        { key: 'Category', type: 'text', placeholder: 'Search Category...' },
+        { key: 'SubCategory', type: 'text', placeholder: 'Search Sub-Cat...' },
+        { key: 'Zone', type: 'text', placeholder: 'Search Zone...' },
+        { key: 'Route', type: 'text', placeholder: 'Search Route...' },
+        { key: 'Mobile', type: 'text', placeholder: 'Search Mobile...' },
+        { key: 'Email', type: 'text', placeholder: 'Search Email...' },
+        { key: 'SelectedPlan', type: 'text', placeholder: 'Search Plan...' },
+        { key: 'NumberOfBeds', type: 'text', placeholder: 'Beds...' },
+        { key: 'Kit', type: 'text', placeholder: 'Kit...' },
+        { key: 'Consulting', type: 'text', placeholder: 'Cons...' },
+        { key: 'Compliance', type: 'text', placeholder: 'Comp...' },
+        { key: 'RegistrationDate', type: 'daterange', placeholder: 'Reg. Date' },
+        { key: 'Status', type: 'select', options: ['All', 'Approved', 'Pending', 'Rejected', 'Inactive'] },
+        { key: 'QRCode', type: 'none' },
+        { key: 'Actions', type: 'none' }
+      ],
+      'certificate': [
+        { key: 'CertificateCode', type: 'text', placeholder: 'Search No...' },
+        { key: 'CustomerName', type: 'text', placeholder: 'Search Facility...' },
+        { key: 'CertificateType', type: 'select', options: ['All', 'Annual', 'Renewal', 'Amendment'] },
+        { key: 'IssueDate', type: 'daterange', placeholder: 'Issue Date' },
+        { key: 'ValidTill', type: 'daterange', placeholder: 'Valid Till' },
+        { key: 'Status', type: 'select', options: ['All', 'Active', 'Expired', 'Pending'] },
+        { key: 'Actions', type: 'none' }
+      ],
+      'servicereq': [
+        { key: 'RequestCode', type: 'text', placeholder: 'Search ID...' },
+        { key: 'CustomerName', type: 'text', placeholder: 'Search Customer...' },
+        { key: 'RequestType', type: 'text', placeholder: 'Search Type...' },
+        { key: 'AssignedUserName', type: 'text', placeholder: 'Search Assigned...' },
+        { key: 'CreatedAt', type: 'daterange', placeholder: 'Request Date' },
+        { key: 'UpdatedAt', type: 'daterange', placeholder: 'Follow-up Date' },
+        { key: 'Status', type: 'select', options: ['All', 'Open', 'In Progress', 'Completed', 'Cancelled'] },
+        { key: 'Actions', type: 'none' }
+      ],
+      'mou': [
+        { key: 'MOUCode', type: 'text', placeholder: 'Search MOU...' },
+        { key: 'CustomerName', type: 'text', placeholder: 'Search Customer...' },
+        { key: 'ServicePlan', type: 'text', placeholder: 'Search Plan...' },
+        { key: 'StartDate', type: 'daterange', placeholder: 'Start Date' },
+        { key: 'EndDate', type: 'daterange', placeholder: 'End Date' },
+        { key: 'ContractValue', type: 'text', placeholder: 'Search Value...' },
+        { key: 'Status', type: 'select', options: ['All', 'Active', 'Expired', 'Terminated', 'Under Review'] },
+        { key: 'Actions', type: 'none' }
+      ],
+      'failed-reg': [
+        { key: 'FailureCode', type: 'text', placeholder: 'Search ID...' },
+        { key: 'FacilityName', type: 'text', placeholder: 'Search Name...' },
+        { key: 'AttemptedDate', type: 'daterange', placeholder: 'Failure Date' },
+        { key: 'FailureReason', type: 'text', placeholder: 'Search Reason...' },
+        { key: 'Mobile', type: 'text', placeholder: 'Search Contact...' },
+        { key: 'Status', type: 'select', options: ['All', 'Failed', 'Resolved', 'Abandoned'] },
+        { key: 'Actions', type: 'none' }
+      ]
+    };
+    return configs[activeSubModule] || configs['customer-reg'];
+  };
+
+  const handleColumnFilterChange = (key, value) => {
+    setColumnFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+    setCurrentPage(1); // Reset to first page on filter change
+  };
+
+  // Filter data based on column filters
+  const applyFilters = (data) => {
+    if (!data || data.length === 0) return [];
+    
+    return data.filter(item => {
+      return Object.entries(columnFilters).every(([key, value]) => {
+        if (!value || value === '' || value === 'All') return true;
+        
+        const itemValue = item[key];
+        
+        // Date filtering - match the selected date
+        const isDateKey = key.includes('Date') || key === 'ValidTill' || key === 'CreatedAt' || key === 'UpdatedAt';
+        if (isDateKey) {
+          if (!itemValue) return false;
+          const itemDate = new Date(itemValue).toISOString().split('T')[0];
+          return itemDate === value;
+        }
+        
+        // Text filtering (case-insensitive partial match)
+        if (itemValue === null || itemValue === undefined) return false;
+        return String(itemValue).toLowerCase().includes(String(value).toLowerCase());
+      });
+    });
+  };
+
+  // Get filtered data for current submodule
+  const getFilteredData = () => {
+    switch(activeSubModule) {
+      case 'customer-reg':
+        return applyFilters(customerRegistrations);
+      case 'certificate':
+        return applyFilters(certificates);
+      case 'servicereq':
+        return applyFilters(serviceRequests);
+      case 'mou':
+        return applyFilters(mouRecords);
+      case 'failed-reg':
+        return applyFilters(failedRegistrations);
+      default:
+        return [];
+    }
+  };
+
   const handleFilterChange = (e, field) => {
-    setFilters(prev => ({
+    setColumnFilters(prev => ({
       ...prev,
       [field]: e.target.value
     }));
@@ -1762,16 +1890,16 @@ const CustomerModule = () => {
           justifyContent: sidebarCollapsed ? 'center' : 'space-between',
           padding: sidebarCollapsed ? '16px 8px' : '16px 18px',
         }}>
-          {!sidebarCollapsed && <span>Customer</span>}
+          {!sidebarCollapsed && <span>CUSTOMER</span>}
           <button 
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             style={{
-              background: 'rgba(255,255,255,0.1)',
-              border: 'none',
+              background: '#f1f5f9',
+              border: '1px solid #e2e8f0',
               borderRadius: 6,
               padding: '6px 8px',
               cursor: 'pointer',
-              color: '#a5b4fc',
+              color: '#475569',
               fontSize: 14,
               display: 'flex',
               alignItems: 'center',
@@ -1787,7 +1915,7 @@ const CustomerModule = () => {
           <button
             key={item.id}
             className={`submenu-item ${activeSubModule === item.id ? 'active' : ''}`}
-            onClick={() => setActiveSubModule(item.id)}
+            onClick={() => { setActiveSubModule(item.id); setCurrentPage(1); }}
             style={{
               justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
               padding: sidebarCollapsed ? '12px 8px' : '12px 18px',
@@ -1892,16 +2020,21 @@ const CustomerModule = () => {
           )}
         </div>
 
-        {/* Row count */}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+        {/* Row count with filter info */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
           <span style={{ fontSize:12, color:'#64748b', fontWeight:600 }}>
-            Showing <strong style={{ color:'#1e293b' }}>
+            Showing <strong style={{ color:'#1e293b' }}>{getFilteredData().length}</strong> of <strong style={{ color:'#94a3b8' }}>
               {activeSubModule==='customer-reg' ? customerRegistrations.length
                : activeSubModule==='certificate' ? certificates.length
                : activeSubModule==='servicereq' ? serviceRequests.length
                : activeSubModule==='mou' ? mouRecords.length
                : failedRegistrations.length}
             </strong> records
+            {Object.values(columnFilters).filter(v => v && v !== 'All').length > 0 && (
+              <span style={{marginLeft:10, color:'#7c3aed', cursor:'pointer'}} onClick={() => setColumnFilters({})}>
+                🔄 Clear Filters
+              </span>
+            )}
           </span>
         </div>
 
@@ -1915,142 +2048,167 @@ const CustomerModule = () => {
                 ))}
               </tr>
               <tr className="filter-row">
-                {content.columns && content.columns.map((col, idx) => (
+                {getColumnFilterConfig().map((filterConfig, idx) => (
                   <th key={idx}>
-                    {idx < 3 ? (
+                    {filterConfig.type === 'text' && (
                       <input
                         type="text"
-                        placeholder={`${col.slice(0, 10)}...`}
-                        onChange={(e) => handleFilterChange(e, col)}
+                        placeholder={filterConfig.placeholder}
+                        value={columnFilters[filterConfig.key] || ''}
+                        onChange={(e) => handleColumnFilterChange(filterConfig.key, e.target.value)}
+                        style={{width:'100%', minWidth:'70px'}}
                       />
-                    ) : idx === content.columns.length - 2 ? (
-                      <select onChange={(e) => handleFilterChange(e, col)}>
-                        <option>All</option>
-                        <option>Active</option>
-                        <option>Pending</option>
-                        <option>Inactive</option>
+                    )}
+                    {filterConfig.type === 'daterange' && (
+                      <input
+                        type="date"
+                        value={columnFilters[filterConfig.key] || ''}
+                        onChange={(e) => handleColumnFilterChange(filterConfig.key, e.target.value)}
+                        style={{width:'100%', minWidth:'110px', fontSize:'11px', padding:'6px 8px'}}
+                        title={filterConfig.placeholder}
+                      />
+                    )}
+                    {filterConfig.type === 'select' && (
+                      <select
+                        value={columnFilters[filterConfig.key] || 'All'}
+                        onChange={(e) => handleColumnFilterChange(filterConfig.key, e.target.value)}
+                        style={{width:'100%', minWidth:'80px'}}
+                      >
+                        {filterConfig.options.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
                       </select>
-                    ) : null}
+                    )}
+                    {filterConfig.type === 'none' && null}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {activeSubModule === 'customer-reg' && customerRegistrations.length > 0 ? (
-                customerRegistrations.map((reg, idx) => (
+              {activeSubModule === 'customer-reg' && getFilteredData().length > 0 ? (
+                getFilteredData().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((reg, idx) => (
                   <tr key={idx}>
-                    <td><span style={{display:'inline-block',background:'linear-gradient(135deg,#5b21b6,#7c3aed)',color:'#fff',fontWeight:800,fontSize:12,borderRadius:6,padding:'3px 9px'}}>{reg.CustomerID || reg.RegistrationCode || 'N/A'}</span></td>
-                    <td style={{fontWeight:800,color:'#0f172a'}}>{reg.InstitutionName}</td>
-                    <td><span style={{background:'#e2e8f0',color:'#1e293b',fontSize:11,fontWeight:700,borderRadius:5,padding:'3px 8px'}}>{reg.Category || reg.InstitutionType || 'N/A'}</span></td>
-                    <td style={{fontWeight:600}}>{reg.SubCategory || '—'}</td>
-                    <td><span style={{background:'#ede9fe',color:'#4c1d95',fontSize:11,fontWeight:800,borderRadius:5,padding:'3px 8px'}}>{reg.Zone || '—'}</span></td>
-                    <td><span style={{background:'#dbeafe',color:'#1e40af',fontSize:11,fontWeight:800,borderRadius:5,padding:'3px 8px'}}>{reg.Route || '—'}</span></td>
-                    <td style={{fontWeight:800,color:'#1d4ed8'}}>{reg.Mobile || '—'}</td>
-                    <td style={{fontWeight:600,color:'#0f172a'}}>{reg.Email || '—'}</td>
-                    <td style={{fontWeight:700}}>{reg.SelectedPlan || '—'}</td>
-                    <td style={{fontWeight:700,textAlign:'center'}}>{reg.NumberOfBeds || 0}</td>
-                    <td style={{fontWeight:600}}>{reg.Kit || '—'}</td>
-                    <td style={{fontWeight:600}}>{reg.Consulting || '—'}</td>
-                    <td style={{fontWeight:600}}>{reg.Compliance || '—'}</td>
-                    <td style={{fontWeight:700,color:'#374151'}}>{reg.RegistrationDate ? new Date(reg.RegistrationDate).toLocaleDateString('en-IN') : (reg.CreatedAt ? new Date(reg.CreatedAt).toLocaleDateString('en-IN') : '—')}</td>
-                    <td><span style={{padding:'4px 10px',borderRadius:20,fontWeight:800,fontSize:11, background:reg.Status==='Approved'?'#d1fae5':reg.Status==='Pending'?'#fef3c7':'#fee2e2', color:reg.Status==='Approved'?'#065f46':reg.Status==='Pending'?'#92400e':'#7f1d1d'}}>{reg.Status}</span></td>
-                    <td style={{fontWeight:600,color:'#94a3b8',textAlign:'center'}}>—</td>
+                    <td><span style={{display:'inline-block',background:'linear-gradient(135deg,#5b21b6,#7c3aed)',color:'#fff',fontWeight:700,fontSize:11,borderRadius:6,padding:'4px 10px',whiteSpace:'nowrap'}}>{reg.CustomerID || reg.RegistrationCode || 'N/A'}</span></td>
+                    <td style={{fontWeight:700,color:'#0f172a',whiteSpace:'nowrap'}}>{reg.InstitutionName}</td>
+                    <td><span style={{background:'#f1f5f9',color:'#475569',fontSize:11,fontWeight:600,borderRadius:5,padding:'4px 10px',whiteSpace:'nowrap',display:'inline-block'}}>{reg.Category || reg.InstitutionType || 'N/A'}</span></td>
+                    <td style={{fontWeight:500,whiteSpace:'nowrap'}}>{reg.SubCategory || '—'}</td>
+                    <td><span style={{background:'#ede9fe',color:'#6d28d9',fontSize:11,fontWeight:600,borderRadius:5,padding:'4px 10px',whiteSpace:'nowrap',display:'inline-block'}}>{reg.Zone || '—'}</span></td>
+                    <td><span style={{background:'#dbeafe',color:'#1e40af',fontSize:11,fontWeight:600,borderRadius:5,padding:'4px 10px',whiteSpace:'nowrap',display:'inline-block'}}>{reg.Route || '—'}</span></td>
+                    <td style={{fontWeight:600,color:'#1d4ed8',whiteSpace:'nowrap'}}>{reg.Mobile || '—'}</td>
+                    <td style={{fontWeight:500,color:'#374151',whiteSpace:'nowrap'}}>{reg.Email || '—'}</td>
+                    <td style={{fontWeight:600,whiteSpace:'nowrap'}}>{reg.SelectedPlan || '—'}</td>
+                    <td style={{fontWeight:600,textAlign:'center',whiteSpace:'nowrap'}}>{reg.NumberOfBeds || 0}</td>
+                    <td style={{fontWeight:500,whiteSpace:'nowrap'}}>{reg.Kit || '—'}</td>
+                    <td style={{fontWeight:500,whiteSpace:'nowrap'}}>{reg.Consulting || '—'}</td>
+                    <td style={{fontWeight:500,whiteSpace:'nowrap'}}>{reg.Compliance || '—'}</td>
+                    <td style={{fontWeight:500,color:'#374151',whiteSpace:'nowrap'}}>{reg.RegistrationDate ? new Date(reg.RegistrationDate).toLocaleDateString('en-IN') : (reg.CreatedAt ? new Date(reg.CreatedAt).toLocaleDateString('en-IN') : '—')}</td>
+                    <td><span style={{padding:'4px 12px',borderRadius:20,fontWeight:600,fontSize:11,whiteSpace:'nowrap',display:'inline-block', background:reg.Status==='Approved'?'#d1fae5':reg.Status==='Pending'?'#fef3c7':'#fee2e2', color:reg.Status==='Approved'?'#065f46':reg.Status==='Pending'?'#92400e':'#7f1d1d'}}>{reg.Status}</span></td>
+                    <td style={{fontWeight:500,color:'#94a3b8',textAlign:'center',whiteSpace:'nowrap'}}>—</td>
                     <td style={{whiteSpace:'nowrap'}}>
-                      <div style={{display:'flex',gap:4}}>
-                        <button onClick={() => handleViewRegistration(reg)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>👁 View</button>
-                        <button onClick={() => handleEditRegistration(reg)} style={{background:'linear-gradient(135deg,#0369a1,#0ea5e9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>✏ Edit</button>
+                      <div style={{display:'flex',gap:6}}>
+                        <button onClick={() => handleViewRegistration(reg)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 12px',borderRadius:6,whiteSpace:'nowrap'}}>👁 View</button>
+                        <button onClick={() => handleEditRegistration(reg)} style={{background:'linear-gradient(135deg,#0369a1,#0ea5e9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 12px',borderRadius:6,whiteSpace:'nowrap'}}>✏ Edit</button>
                         {reg.Status === 'Pending' && (
-                          <button onClick={() => handleApproveRegistration(reg)} style={{background:'linear-gradient(135deg,#16a34a,#22c55e)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>✓ Approve</button>
+                          <button onClick={() => handleApproveRegistration(reg)} style={{background:'linear-gradient(135deg,#16a34a,#22c55e)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 12px',borderRadius:6,whiteSpace:'nowrap'}}>✓ Approve</button>
                         )}
-                        <button onClick={() => handleEnablePortal(reg)} style={{background:reg.PortalEnabled?'linear-gradient(135deg,#16a34a,#15803d)':'linear-gradient(135deg,#5b21b6,#7c3aed)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>🔐 {reg.PortalEnabled?'✓':'Portal'}</button>
-                        <button onClick={() => handleDeleteRegistration(reg.RegistrationID)} style={{background:'linear-gradient(135deg,#dc2626,#ef4444)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 9px',borderRadius:6}}>🗑</button>
+                        <button onClick={() => handleEnablePortal(reg)} style={{background:reg.PortalEnabled?'linear-gradient(135deg,#16a34a,#15803d)':'linear-gradient(135deg,#5b21b6,#7c3aed)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 12px',borderRadius:6,whiteSpace:'nowrap'}}>🔐 {reg.PortalEnabled?'✓':'Portal'}</button>
+                        <button onClick={() => handleDeleteRegistration(reg.RegistrationID)} style={{background:'linear-gradient(135deg,#dc2626,#ef4444)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 10px',borderRadius:6,whiteSpace:'nowrap'}}>🗑</button>
                       </div>
                     </td>
                   </tr>
                 ))
-              ) : activeSubModule === 'certificate' && certificates.length > 0 ? (
-                certificates.map((cert, idx) => (
+              ) : activeSubModule === 'certificate' && getFilteredData().length > 0 ? (
+                getFilteredData().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((cert, idx) => (
                   <tr key={idx}>
-                    <td style={{fontWeight:'600', color:'#1a4a8a'}}>{cert.CertificateCode}</td>
-                    <td>{cert.CustomerName}</td>
-                    <td>
-                      <span style={{padding:'3px 8px', borderRadius:'12px', fontSize:'11px', fontWeight:'700',
+                    <td style={{fontWeight:600, color:'#1a4a8a',whiteSpace:'nowrap'}}>{cert.CertificateCode}</td>
+                    <td style={{whiteSpace:'nowrap'}}>{cert.CustomerName}</td>
+                    <td style={{whiteSpace:'nowrap'}}>
+                      <span style={{padding:'4px 10px', borderRadius:'12px', fontSize:'11px', fontWeight:'600', display:'inline-block', whiteSpace:'nowrap',
                         background: cert.CertificateType === 'Annual' ? '#dbeafe' : cert.CertificateType === 'Renewal' ? '#d1fae5' : '#fef3c7',
                         color: cert.CertificateType === 'Annual' ? '#1d4ed8' : cert.CertificateType === 'Renewal' ? '#065f46' : '#92400e'
                       }}>{cert.CertificateType}</span>
                     </td>
-                    <td>{cert.IssueDate ? new Date(cert.IssueDate).toLocaleDateString() : 'N/A'}</td>
-                    <td>{cert.ValidTill ? new Date(cert.ValidTill).toLocaleDateString() : 'N/A'}</td>
-                    <td>
-                      <span style={{padding:'4px 8px', borderRadius:'4px', fontSize:'11px', fontWeight:'600',
+                    <td style={{whiteSpace:'nowrap'}}>{cert.IssueDate ? new Date(cert.IssueDate).toLocaleDateString() : 'N/A'}</td>
+                    <td style={{whiteSpace:'nowrap'}}>{cert.ValidTill ? new Date(cert.ValidTill).toLocaleDateString() : 'N/A'}</td>
+                    <td style={{whiteSpace:'nowrap'}}>
+                      <span style={{padding:'4px 10px', borderRadius:'20px', fontSize:'11px', fontWeight:'600', display:'inline-block', whiteSpace:'nowrap',
                         background: cert.Status === 'Active' ? '#d1fae5' : cert.Status === 'Expired' ? '#fee2e2' : '#fef3c7',
                         color: cert.Status === 'Active' ? '#065f46' : cert.Status === 'Expired' ? '#7f1d1d' : '#92400e'
                       }}>{cert.Status}</span>
                     </td>
                     <td style={{textAlign:'center', whiteSpace:'nowrap'}}>
-                        <button onClick={() => handleViewCertificate(cert)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>👁 View</button>
-                        <button onClick={() => handlePrintCertificate(cert)} style={{background:'linear-gradient(135deg,#16a34a,#15803d)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>🖨 Print</button>
-                        <button onClick={() => handleDeleteCertificate(cert.CertificateID)} style={{background:'linear-gradient(135deg,#dc2626,#ef4444)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 9px',borderRadius:6}}>🗑</button>
+                      <div style={{display:'flex',gap:6,justifyContent:'center'}}>
+                        <button onClick={() => handleViewCertificate(cert)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 12px',borderRadius:6,whiteSpace:'nowrap'}}>👁 View</button>
+                        <button onClick={() => handlePrintCertificate(cert)} style={{background:'linear-gradient(135deg,#16a34a,#15803d)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 12px',borderRadius:6,whiteSpace:'nowrap'}}>🖨 Print</button>
+                        <button onClick={() => handleDeleteCertificate(cert.CertificateID)} style={{background:'linear-gradient(135deg,#dc2626,#ef4444)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 10px',borderRadius:6,whiteSpace:'nowrap'}}>🗑</button>
+                      </div>
                     </td>
                   </tr>
                 ))
-              ) : activeSubModule === 'servicereq' && serviceRequests.length > 0 ? (
-                serviceRequests.map((req, idx) => (
+              ) : activeSubModule === 'servicereq' && getFilteredData().length > 0 ? (
+                getFilteredData().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((req, idx) => (
                   <tr key={idx}
                       onClick={() => openFollowupModal(req)}
                       style={{cursor:'pointer', transition:'background 0.15s'}}>
-                    <td style={{color:'#7c3aed', fontWeight:'600'}}>{req.RequestCode}</td>
-                    <td>{req.CustomerName}</td>
-                    <td>{req.RequestType}</td>
-                    <td>{req.AssignedUserName || <span style={{color:'#94a3b8'}}>Unassigned</span>}</td>
-                    <td>{req.CreatedAt ? new Date(req.CreatedAt).toLocaleDateString() : 'N/A'}</td>
-                    <td>{req.UpdatedAt ? new Date(req.UpdatedAt).toLocaleDateString() : 'N/A'}</td>
-                    <td>
+                    <td style={{color:'#7c3aed', fontWeight:600, whiteSpace:'nowrap'}}>{req.RequestCode}</td>
+                    <td style={{whiteSpace:'nowrap'}}>{req.CustomerName}</td>
+                    <td style={{whiteSpace:'nowrap'}}>{req.RequestType}</td>
+                    <td style={{whiteSpace:'nowrap'}}>{req.AssignedUserName || <span style={{color:'#94a3b8'}}>Unassigned</span>}</td>
+                    <td style={{whiteSpace:'nowrap'}}>{req.CreatedAt ? new Date(req.CreatedAt).toLocaleDateString() : 'N/A'}</td>
+                    <td style={{whiteSpace:'nowrap'}}>{req.UpdatedAt ? new Date(req.UpdatedAt).toLocaleDateString() : 'N/A'}</td>
+                    <td style={{whiteSpace:'nowrap'}}>
                       <span style={{
                         background: req.Status==='Completed'?'#dcfce7':req.Status==='In Progress'?'#dbeafe':req.Status==='Cancelled'?'#fee2e2':'#fef9c3',
                         color:      req.Status==='Completed'?'#15803d':req.Status==='In Progress'?'#1d4ed8':req.Status==='Cancelled'?'#dc2626':'#92400e',
-                        padding:'3px 10px', borderRadius:'20px', fontSize:'11px', fontWeight:'700'
+                        padding:'4px 12px', borderRadius:'20px', fontSize:'11px', fontWeight:'600', display:'inline-block', whiteSpace:'nowrap'
                       }}>{req.Status}</span>
                     </td>
-                    <td style={{textAlign:'center'}} onClick={e => e.stopPropagation()}>
-                      <button onClick={() => openFollowupModal(req)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 11px',borderRadius:6}}>Follow-up</button>
+                    <td style={{textAlign:'center',whiteSpace:'nowrap'}} onClick={e => e.stopPropagation()}>
+                      <button onClick={() => openFollowupModal(req)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 12px',borderRadius:6,whiteSpace:'nowrap'}}>Follow-up</button>
                     </td>
                   </tr>
                 ))
-              ) : activeSubModule === 'mou' && mouRecords.length > 0 ? (
-                mouRecords.map((mou, idx) => (
+              ) : activeSubModule === 'mou' && getFilteredData().length > 0 ? (
+                getFilteredData().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((mou, idx) => (
                   <tr key={idx} style={{transition:'background 0.15s'}}>
-                    <td style={{fontWeight:'600', color:'#7c3aed'}}>{mou.MOUCode}</td>
-                    <td>{mou.CustomerName}</td>
-                    <td>--</td>
-                    <td>{mou.StartDate ? new Date(mou.StartDate).toLocaleDateString('en-IN') : 'N/A'}</td>
-                    <td>{mou.EndDate ? new Date(mou.EndDate).toLocaleDateString('en-IN') : 'N/A'}</td>
-                    <td style={{fontWeight:'600'}}>₹{Number(mou.ContractValue || 0).toLocaleString('en-IN')}</td>
-                    <td>
+                    <td style={{fontWeight:600, color:'#7c3aed', whiteSpace:'nowrap'}}>{mou.MOUCode}</td>
+                    <td style={{whiteSpace:'nowrap'}}>{mou.CustomerName}</td>
+                    <td style={{whiteSpace:'nowrap'}}>--</td>
+                    <td style={{whiteSpace:'nowrap'}}>{mou.StartDate ? new Date(mou.StartDate).toLocaleDateString('en-IN') : 'N/A'}</td>
+                    <td style={{whiteSpace:'nowrap'}}>{mou.EndDate ? new Date(mou.EndDate).toLocaleDateString('en-IN') : 'N/A'}</td>
+                    <td style={{fontWeight:600, whiteSpace:'nowrap'}}>₹{Number(mou.ContractValue || 0).toLocaleString('en-IN')}</td>
+                    <td style={{whiteSpace:'nowrap'}}>
                       <span style={{
                         background: mou.Status==='Active'?'#dcfce7':mou.Status==='Expired'?'#fee2e2':mou.Status==='Terminated'?'#fef3c7':'#dbeafe',
                         color:      mou.Status==='Active'?'#15803d':mou.Status==='Expired'?'#dc2626':mou.Status==='Terminated'?'#92400e':'#1d4ed8',
-                        padding:'3px 10px', borderRadius:'20px', fontSize:'11px', fontWeight:'700'
+                        padding:'4px 12px', borderRadius:'20px', fontSize:'11px', fontWeight:'600', display:'inline-block', whiteSpace:'nowrap'
                       }}>{mou.Status}</span>
                     </td>
                     <td style={{textAlign:'center', whiteSpace:'nowrap'}}>
-                        <button onClick={() => handleViewMou(mou)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>👁 View</button>
-                        <button onClick={() => handleEditMou(mou)} style={{background:'linear-gradient(135deg,#0369a1,#0ea5e9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 10px',borderRadius:6}}>✏ Edit</button>
-                        <button onClick={() => handleDeleteMou(mou.MOUID)} style={{background:'linear-gradient(135deg,#dc2626,#ef4444)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:800,padding:'5px 9px',borderRadius:6}}>🗑</button>
+                      <div style={{display:'flex',gap:6,justifyContent:'center'}}>
+                        <button onClick={() => handleViewMou(mou)} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 12px',borderRadius:6,whiteSpace:'nowrap'}}>👁 View</button>
+                        <button onClick={() => handleEditMou(mou)} style={{background:'linear-gradient(135deg,#0369a1,#0ea5e9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 12px',borderRadius:6,whiteSpace:'nowrap'}}>✏ Edit</button>
+                        <button onClick={() => handleDeleteMou(mou.MOUID)} style={{background:'linear-gradient(135deg,#dc2626,#ef4444)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 10px',borderRadius:6,whiteSpace:'nowrap'}}>🗑</button>
+                      </div>
                     </td>
                   </tr>
                 ))
-              ) : activeSubModule === 'failed-reg' && failedRegistrations.length > 0 ? (
-                failedRegistrations.map((reg, idx) => (
+              ) : activeSubModule === 'failed-reg' && getFilteredData().length > 0 ? (
+                getFilteredData().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((reg, idx) => (
                   <tr key={idx}>
-                    <td>{reg.FailureCode}</td>
-                    <td>{reg.FacilityName}</td>
-                    <td>{reg.AttemptedDate ? new Date(reg.AttemptedDate).toLocaleDateString() : 'N/A'}</td>
-                    <td>{reg.FailureReason}</td>
-                    <td>{reg.Mobile}</td>
-                    <td>{reg.Status}</td>
-                    <td style={{textAlign: 'center'}}>
-                      <button style={{background:'none', border:'none', color:'#7c3aed', cursor:'pointer', fontSize:'12px'}}>Edit</button>
+                    <td style={{fontWeight:600, color:'#dc2626', whiteSpace:'nowrap'}}>{reg.FailureCode}</td>
+                    <td style={{fontWeight:600, whiteSpace:'nowrap'}}>{reg.FacilityName}</td>
+                    <td style={{whiteSpace:'nowrap'}}>{reg.AttemptedDate ? new Date(reg.AttemptedDate).toLocaleDateString() : 'N/A'}</td>
+                    <td style={{whiteSpace:'nowrap', maxWidth:'200px', overflow:'hidden', textOverflow:'ellipsis'}}>{reg.FailureReason}</td>
+                    <td style={{fontWeight:600, color:'#1d4ed8', whiteSpace:'nowrap'}}>{reg.Mobile}</td>
+                    <td style={{whiteSpace:'nowrap'}}>
+                      <span style={{padding:'4px 12px', borderRadius:'20px', fontSize:'11px', fontWeight:'600', display:'inline-block', whiteSpace:'nowrap',
+                        background: reg.Status==='Resolved'?'#d1fae5':'#fee2e2',
+                        color: reg.Status==='Resolved'?'#065f46':'#7f1d1d'
+                      }}>{reg.Status}</span>
+                    </td>
+                    <td style={{textAlign:'center', whiteSpace:'nowrap'}}>
+                      <button style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',color:'#fff',cursor:'pointer',fontSize:'11px',fontWeight:600,padding:'6px 12px',borderRadius:6,whiteSpace:'nowrap'}}>Edit</button>
                     </td>
                   </tr>
                 ))
@@ -2077,6 +2235,18 @@ const CustomerModule = () => {
             </tbody>
           </table>
         </div>
+        {(() => {
+          const totalItems = getFilteredData().length;
+          return totalItems > 0 ? (
+            <Pagination
+              currentPage={currentPage}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+            />
+          ) : null;
+        })()}
       </div>
 
       {/* Customer Registration Wizard Modal */}

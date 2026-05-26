@@ -202,60 +202,84 @@
 }
 
 /* ════════════════════════════════════════════
-   EXCEL-STYLE MASTER TABLE
+   PROFESSIONAL CLEAN TABLE DESIGN
    ════════════════════════════════════════════ */
 .table-wrap {
-  background: #fff;
-  border-radius: 10px;
-  border: 2.5px solid #475569;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
   overflow-x: auto;
-  margin-bottom: 12px;
-  box-shadow: 0 6px 28px rgba(0,0,0,0.13);
+  overflow-y: visible;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.05);
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: #7c3aed #f1f5f9;
+}
+
+.table-wrap::-webkit-scrollbar {
+  height: 10px;
+}
+
+.table-wrap::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 5px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  border-radius: 5px;
+  border: 2px solid #f1f5f9;
+}
+
+.table-wrap::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #6d28d9, #5b21b6);
 }
 
 .table-wrap table {
   width: 100%;
+  min-width: max-content;
   border-collapse: collapse;
   font-size: 14px;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 /* ── Header row ── */
 .table-wrap thead {
-  background: #1e293b;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   position: sticky;
   top: 0;
   z-index: 2;
-  box-shadow: 0 3px 0 #6d28d9;
 }
 
 .table-wrap th {
-  padding: 15px 16px;
+  padding: 14px 18px;
   text-align: left;
-  font-weight: 900;
-  color: #ffffff;
+  font-weight: 600;
+  color: #475569;
   white-space: nowrap;
-  font-size: 11.5px;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
-  border-right: 2px solid rgba(255,255,255,0.15);
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
 }
 
 .table-wrap th:last-child {
   border-right: none;
 }
 
-/* ── Data cells — thick visible gridlines ── */
+/* ── Data cells ── */
 .table-wrap td {
-  padding: 13px 16px;
-  border-bottom: 2px solid #cbd5e1;
-  border-right: 2px solid #cbd5e1;
-  color: #0f172a;
+  padding: 14px 18px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   vertical-align: middle;
-  height: 58px;
   background: inherit;
+  transition: all 0.15s ease;
 }
 
 .table-wrap td:last-child {
@@ -268,36 +292,32 @@
 }
 
 .table-wrap tbody tr:nth-child(even) {
-  background: #f1f5ff;
+  background: #fafbfc;
 }
 
-/* ── Hover = Excel row selection ── */
+/* ── Hover effect ── */
 .table-wrap tbody tr {
-  transition: background 0.1s, box-shadow 0.1s;
+  transition: all 0.15s ease;
   cursor: pointer;
 }
 
 .table-wrap tbody tr:hover {
-  background: #bfdbfe !important;
-  box-shadow: inset 4px 0 0 #2563eb, inset -1px 0 0 #93c5fd;
+  background: #f0f4ff !important;
 }
 
 .table-wrap tbody tr:hover td {
-  color: #1e3a8a;
-  font-weight: 700;
-  border-right-color: #93c5fd;
-  border-bottom-color: #bfdbfe;
+  color: #1e40af;
 }
 
 /* ── Footer total row ── */
 .table-wrap tfoot td {
   font-size: 13px;
-  color: #f1f5f9;
-  font-weight: 900;
-  padding: 12px 16px;
-  border-right: 2px solid rgba(255,255,255,0.15);
+  color: #1e293b;
+  font-weight: 700;
+  padding: 14px 18px;
   border-bottom: none;
-  background: linear-gradient(135deg,#1e293b,#334155);
+  background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+  border-top: 2px solid #e2e8f0;
 }
 
 /* Filter Row */
