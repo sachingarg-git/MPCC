@@ -9,7 +9,7 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  min-height: calc(100vh - 60px);
+  min-height: 100vh;
   box-shadow: 2px 0 8px rgba(0,0,0,0.1);
   overflow-y: auto;
   transition: all 0.3s ease;
@@ -87,13 +87,13 @@
   flex: 1;
   background: #f8fafc;
   border-radius: 0;
-  padding: 24px;
-  min-height: calc(100vh - 60px);
+  padding: 16px 20px;
+  min-height: 100vh;
   transition: all 0.3s ease;
 }
 
 .section {
-  margin-bottom: 30px;
+  margin-bottom: 16px;
 }
 
 /* Page Header */
@@ -101,8 +101,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 25px;
-  padding-bottom: 20px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -155,16 +155,16 @@
 /* Statistics Cards */
 .creg-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 15px;
-  margin-bottom: 25px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .creg-stat {
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 16px;
+  padding: 12px;
   text-align: center;
   transition: all 0.2s;
 }
@@ -176,9 +176,9 @@
 
 .creg-stat-val {
   display: block;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .creg-stat-lbl {

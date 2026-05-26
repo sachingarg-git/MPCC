@@ -1046,7 +1046,7 @@ const MasterDataModule = () => {
   const currentData = getCurrentData();
 
   return (
-    <div style={{ display: 'flex', gap: '0', minHeight: 'calc(100vh - 100px)', position: 'relative' }}>
+    <div style={{ display: 'flex', gap: '0', minHeight: '100vh', position: 'relative' }}>
       {/* Submenu Sidebar */}
       <div className={`submenu-sidebar${sidebarCollapsed ? ' collapsed' : ''}`} style={{
         width: sidebarCollapsed ? 60 : 240,
@@ -1126,14 +1126,6 @@ const MasterDataModule = () => {
             {message.text}
           </div>
         )}
-
-        {/* Info Box */}
-        <div className="info-box">
-          <span className="info-icon">{content.icon}</span>
-          <div className="info-text">
-            <strong>{content.title}:</strong> {content.infoText}
-          </div>
-        </div>
 
         {/* Statistics Cards */}
         <div className="creg-stats">

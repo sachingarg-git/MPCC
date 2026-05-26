@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MPCC Application - Complete Workflow Diagram</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #fff; color: #1e293b; line-height: 1.5; }
+    .container { max-width: 1000px; margin: 0 auto; padding: 30px; }
+    
+    /* Cover */
+    .cover { text-align: center; padding: 80px 40px; background: linear-gradient(135deg, #1e1b4b, #4c1d95); color: white; margin: -30px -30px 40px; page-break-after: always; }
+    .cover h1 { font-size: 42px; margin-bottom: 15px; }
+    .cover p { font-size: 18px; opacity: 0.9; }
+    .cover .logo { font-size: 70px; margin-bottom: 20px; }
+    
+    /* Page Title */
+    .page-title { font-size: 28px; color: #1e1b4b; text-align: center; margin: 30px 0; padding-bottom: 15px; border-bottom: 3px solid #7c3aed; page-break-before: always; }
+    .page-title:first-of-type { page-break-before: avoid; }
+    
+    /* Flow Container */
+    .flow-section { margin: 30px 0; }
+    .flow-title { font-size: 20px; color: #4f46e5; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    .flow-title .num { background: #4f46e5; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
+    
+    /* Flow Chart Styles */
+    .flowchart { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .flowchart.horizontal { flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 10px; }
+    
+    /* Boxes */
+    .box { padding: 15px 25px; border-radius: 12px; text-align: center; min-width: 180px; max-width: 280px; position: relative; }
+    .box.start { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border-radius: 30px; }
+    .box.end { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border-radius: 30px; }
+    .box.process { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+    .box.decision { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; transform: rotate(0deg); border-radius: 8px; }
+    .box.action { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; }
+    .box.page { background: linear-gradient(135deg, #06b6d4, #0891b2); color: white; }
+    .box.modal { background: linear-gradient(135deg, #ec4899, #db2777); color: white; border: 3px dashed rgba(255,255,255,0.5); }
+    .box.data { background: linear-gradient(135deg, #64748b, #475569); color: white; border-radius: 0 20px 0 20px; }
+    .box .icon { font-size: 24px; margin-bottom: 5px; }
+    .box .title { font-weight: 700; font-size: 13px; }
+    .box .desc { font-size: 11px; opacity: 0.9; margin-top: 3px; }
+    
+    /* Arrows */
+    .arrow { display: flex; flex-direction: column; align-items: center; padding: 5px 0; }
+    .arrow::before { content: ''; width: 3px; height: 25px; background: #94a3b8; }
+    .arrow::after { content: ''; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 12px solid #94a3b8; }
+    .arrow.right { flex-direction: row; padding: 0 5px; }
+    .arrow.right::before { width: 30px; height: 3px; }
+    .arrow.right::after { border-top: 8px solid transparent; border-bottom: 8px solid transparent; border-left: 12px solid #94a3b8; border-right: none; }
+    .arrow-label { font-size: 10px; color: #64748b; font-weight: 600; background: #f1f5f9; padding: 2px 8px; border-radius: 10px; margin: 5px 0; }
+    
+    /* Grid Layout */
+    .grid-flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0; }
+    .grid-flow .box { width: 100%; max-width: none; }
+    
+    /* Branch Container */
+    .branch { display: flex; justify-content: center; gap: 40px; margin: 20px 0; }
+    .branch-item { display: flex; flex-direction: column; align-items: center; }
+    
+    /* Legend */
+    .legend { display: flex; flex-wrap: wrap; gap: 15px; padding: 20px; background: #f8fafc; border-radius: 12px; margin: 30px 0; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .legend-color { width: 20px; height: 20px; border-radius: 4px; }
+    
+    /* Sidebar Menu Visual */
+    .sidebar-visual { display: flex; gap: 20px; margin: 20px 0; }
+    .sidebar-menu { background: linear-gradient(180deg, #1e1b4b, #312e81); border-radius: 12px; padding: 15px; width: 200px; }
+    .sidebar-menu .menu-item { padding: 10px 15px; margin: 5px 0; border-radius: 8px; color: white; font-size: 12px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .sidebar-menu .menu-item:hover, .sidebar-menu .menu-item.active { background: rgba(255,255,255,0.15); }
+    .sidebar-menu .menu-item .icon { font-size: 16px; }
+    .content-preview { flex: 1; background: #f1f5f9; border-radius: 12px; padding: 20px; }
+    
+    /* Click Flow */
+    .click-flow { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 16px; padding: 25px; margin: 20px 0; }
+    .click-step { display: flex; align-items: flex-start; gap: 15px; margin: 15px 0; padding: 15px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .click-step .step-num { background: #7c3aed; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+    .click-step .step-content { flex: 1; }
+    .click-step .step-action { font-weight: 700; color: #1e293b; font-size: 14px; margin-bottom: 5px; }
+    .click-step .step-result { font-size: 12px; color: #64748b; }
+    .click-step .step-icon { font-size: 24px; }
+    
+    /* Module Card */
+    .module-card { background: white; border: 2px solid #e2e8f0; border-radius: 16px; padding: 20px; margin: 15px 0; }
+    .module-card h4 { color: #1e1b4b; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+    .module-card h4 .icon { font-size: 24px; }
+    
+    /* Sub-flow */
+    .sub-flow { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px; padding: 15px; margin: 10px 0; }
+    .sub-flow-title { font-size: 13px; font-weight: 700; color: #7c3aed; margin-bottom: 10px; }
+    
+    /* Table */
+    table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 12px; }
+    th, td { padding: 10px; text-align: left; border: 1px solid #e2e8f0; }
+    th { background: #1e1b4b; color: white; }
+    tr:nth-child(even) { background: #f8fafc; }
+    
+    /* Print */
+    @media print {
+      .page-title { page-break-before: always; }
+      .click-flow, .module-card { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <!-- Cover Page -->
+    <div class="cover">
+      <div class="logo">🏥</div>
+      <h1>MPCC Application</h1>
+      <p>Complete Workflow Diagram</p>
+      <p style="margin-top: 30px; font-size: 14px; opacity: 0.7;">Step-by-Step Navigation & Click Flow Guide</p>
+      <p style="margin-top: 50px; font-size: 12px; opacity: 0.6;">Version 1.0 | May 2026</p>
+    </div>
+    
+    <!-- Legend -->
+    <div style="margin-bottom: 30px;">
+      <h3 style="margin-bottom: 15px; color: #1e1b4b;">📋 Diagram Legend</h3>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 15px;"></div> Start Point</div>
+        <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #ef4444, #dc2626); border-radius: 15px;"></div> End Point</div>
+        <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #3b82f6, #2563eb);"></div> Process/Action</div>
+        <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #f59e0b, #d97706);"></div> Decision</div>
+        <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);"></div> Click Action</div>
+        <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #06b6d4, #0891b2);"></div> Page/Screen</div>
+        <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #ec4899, #db2777); border: 2px dashed #fff;"></div> Modal/Popup</div>
+        <div class="legend-item"><div class="legend-color" style="background: linear-gradient(135deg, #64748b, #475569); border-radius: 0 10px 0 10px;"></div> Data/Database</div>
+      </div>
+    </div>
+    
+    <!-- ========== PAGE 1: Main Application Flow ========== -->
+    <h2 class="page-title">🌐 1. Main Application Flow</h2>
+    
+    <div class="flowchart">
+      <div class="box start">
+        <div class="icon">🚀</div>
+        <div class="title">Open Application</div>
+        <div class="desc">http://localhost:5065</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="box page">
+        <div class="icon">🏠</div>
+        <div class="title">Landing Page</div>
+        <div class="desc">Welcome screen with options</div>
+      </div>
+      
+      <div class="arrow"></div>
+      <div class="arrow-label">Choose Option</div>
+      
+      <div class="branch">
+        <div class="branch-item">
+          <div class="box action">
+            <div class="icon">👤</div>
+            <div class="title">Admin Login</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box page">
+            <div class="icon">🔐</div>
+            <div class="title">Login Page</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box process">
+            <div class="icon">✅</div>
+            <div class="title">Enter Credentials</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box page">
+            <div class="icon">📊</div>
+            <div class="title">Admin Dashboard</div>
+          </div>
+        </div>
+        
+        <div class="branch-item">
+          <div class="box action">
+            <div class="icon">🏥</div>
+            <div class="title">Customer Portal</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box page">
+            <div class="icon">📱</div>
+            <div class="title">Portal Login</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box process">
+            <div class="icon">📲</div>
+            <div class="title">OTP Verification</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box page">
+            <div class="icon">🏠</div>
+            <div class="title">Customer Dashboard</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ========== PAGE 2: Admin Panel Navigation ========== -->
+    <h2 class="page-title">🎛️ 2. Admin Panel - Main Navigation</h2>
+    
+    <div class="sidebar-visual">
+      <div class="sidebar-menu">
+        <div style="color: white; font-weight: 700; padding: 10px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.2);">📋 Main Menu</div>
+        <div class="menu-item active"><span class="icon">📊</span> Dashboard</div>
+        <div class="menu-item"><span class="icon">🏥</span> CRM / HCF</div>
+        <div class="menu-item"><span class="icon">👥</span> Customer</div>
+        <div class="menu-item"><span class="icon">📋</span> Master Data</div>
+        <div class="menu-item"><span class="icon">⚙️</span> Settings</div>
+        <div class="menu-item"><span class="icon">🚪</span> Logout</div>
+      </div>
+      <div class="content-preview">
+        <div style="font-weight: 700; margin-bottom: 15px;">Click any menu item →</div>
+        <div class="grid-flow" style="grid-template-columns: repeat(2, 1fr);">
+          <div class="box page" style="padding: 10px;">
+            <div class="title">📊 Dashboard</div>
+            <div class="desc">Stats & Overview</div>
+          </div>
+          <div class="box page" style="padding: 10px;">
+            <div class="title">🏥 CRM Module</div>
+            <div class="desc">HCF Management</div>
+          </div>
+          <div class="box page" style="padding: 10px;">
+            <div class="title">👥 Customer</div>
+            <div class="desc">Registrations</div>
+          </div>
+          <div class="box page" style="padding: 10px;">
+            <div class="title">📋 Master Data</div>
+            <div class="desc">Configuration</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ========== PAGE 3: CRM/HCF Module Flow ========== -->
+    <h2 class="page-title">🏥 3. CRM / HCF Module - Complete Flow</h2>
+    
+    <div class="click-flow">
+      <h4 style="margin-bottom: 15px;">📍 Click: CRM / HCF from Sidebar</h4>
+      
+      <div class="click-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-action">🖱️ Click "CRM / HCF" in sidebar</div>
+          <div class="step-result">→ Sub-menu expands showing: HCF Master, De-registration, Renewal Management</div>
+        </div>
+        <div class="step-icon">📂</div>
+      </div>
+      
+      <div class="click-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-action">🖱️ Click "HCF Master"</div>
+          <div class="step-result">→ Opens HCF Master page with stats cards and data table</div>
+        </div>
+        <div class="step-icon">🏥</div>
+      </div>
+    </div>
+    
+    <!-- HCF Master Sub-flows -->
+    <div class="module-card">
+      <h4><span class="icon">🏥</span> HCF Master - Available Actions</h4>
+      
+      <div class="grid-flow">
+        <div class="sub-flow">
+          <div class="sub-flow-title">📊 Stats Cards</div>
+          <div class="click-step" style="margin: 5px 0; padding: 10px;">
+            <div class="step-num">→</div>
+            <div class="step-content">
+              <div class="step-action">Click any card</div>
+              <div class="step-result">Filters table by that status</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="sub-flow">
+          <div class="sub-flow-title">➕ New HCF</div>
+          <div class="click-step" style="margin: 5px 0; padding: 10px;">
+            <div class="step-num">→</div>
+            <div class="step-content">
+              <div class="step-action">Click "+ New HCF"</div>
+              <div class="step-result">Opens registration form modal</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="sub-flow">
+          <div class="sub-flow-title">🔍 Search/Filter</div>
+          <div class="click-step" style="margin: 5px 0; padding: 10px;">
+            <div class="step-num">→</div>
+            <div class="step-content">
+              <div class="step-action">Type in search box</div>
+              <div class="step-result">Filters table in real-time</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ========== PAGE 4: HCF Table Actions ========== -->
+    <h2 class="page-title">📋 4. HCF Table - Row Actions</h2>
+    
+    <table>
+      <tr>
+        <th>Button</th>
+        <th>Icon</th>
+        <th>Click Action</th>
+        <th>Result</th>
+      </tr>
+      <tr>
+        <td><strong>360° View</strong></td>
+        <td>🔄</td>
+        <td>Click "360°" button</td>
+        <td>Opens full detail modal with 8 tabs</td>
+      </tr>
+      <tr>
+        <td><strong>Documents</strong></td>
+        <td>📁</td>
+        <td>Click folder icon</td>
+        <td>Opens quick documents modal</td>
+      </tr>
+      <tr>
+        <td><strong>Edit</strong></td>
+        <td>✏️</td>
+        <td>Click edit button</td>
+        <td>Opens edit form modal</td>
+      </tr>
+      <tr>
+        <td><strong>Delete</strong></td>
+        <td>🗑️</td>
+        <td>Click delete button</td>
+        <td>Shows confirmation dialog</td>
+      </tr>
+      <tr>
+        <td><strong>Re-register</strong></td>
+        <td>🔄</td>
+        <td>Click (for deregistered)</td>
+        <td>Opens re-registration form</td>
+      </tr>
+    </table>
+    
+    <!-- 360 View Flow -->
+    <div class="click-flow">
+      <h4 style="margin-bottom: 15px;">🔄 360° View Modal - Tab Navigation</h4>
+      
+      <div class="flowchart horizontal" style="flex-wrap: wrap; gap: 10px;">
+        <div class="box page" style="min-width: 100px; padding: 10px;">
+          <div class="title">📋 Overview</div>
+        </div>
+        <div class="arrow right"></div>
+        <div class="box page" style="min-width: 100px; padding: 10px;">
+          <div class="title">💳 Payments</div>
+        </div>
+        <div class="arrow right"></div>
+        <div class="box page" style="min-width: 100px; padding: 10px;">
+          <div class="title">🚚 Pickups</div>
+        </div>
+        <div class="arrow right"></div>
+        <div class="box page" style="min-width: 100px; padding: 10px;">
+          <div class="title">📄 Documents</div>
+        </div>
+      </div>
+      <div class="flowchart horizontal" style="flex-wrap: wrap; gap: 10px; margin-top: 10px;">
+        <div class="box page" style="min-width: 100px; padding: 10px;">
+          <div class="title">📜 Certificates</div>
+        </div>
+        <div class="arrow right"></div>
+        <div class="box page" style="min-width: 100px; padding: 10px;">
+          <div class="title">⚠️ Complaints</div>
+        </div>
+        <div class="arrow right"></div>
+        <div class="box page" style="min-width: 100px; padding: 10px;">
+          <div class="title">👤 Contacts</div>
+        </div>
+        <div class="arrow right"></div>
+        <div class="box page" style="min-width: 100px; padding: 10px;">
+          <div class="title">📅 Timeline</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ========== PAGE 5: Documents Flow ========== -->
+    <h2 class="page-title">📄 5. Documents Module - Flow</h2>
+    
+    <div class="flowchart">
+      <div class="box action">
+        <div class="icon">📁</div>
+        <div class="title">Click Docs Button</div>
+        <div class="desc">From table row</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="box modal">
+        <div class="icon">📋</div>
+        <div class="title">Documents Modal Opens</div>
+        <div class="desc">Shows all 11 document types</div>
+      </div>
+      
+      <div class="arrow"></div>
+      <div class="arrow-label">For each document</div>
+      
+      <div class="branch">
+        <div class="branch-item">
+          <div class="box decision">
+            <div class="title">Uploaded?</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="arrow-label">Yes ✓</div>
+          <div class="box process">
+            <div class="icon">✅</div>
+            <div class="title">Shows "Valid"</div>
+            <div class="desc">View button enabled</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box action">
+            <div class="icon">👁️</div>
+            <div class="title">Click "View"</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box page">
+            <div class="icon">📄</div>
+            <div class="title">Opens Document</div>
+            <div class="desc">In new tab</div>
+          </div>
+        </div>
+        
+        <div class="branch-item">
+          <div class="box decision">
+            <div class="title">Uploaded?</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="arrow-label">No ✗</div>
+          <div class="box process" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+            <div class="icon">❌</div>
+            <div class="title">Shows "Not Uploaded"</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box action">
+            <div class="icon">📤</div>
+            <div class="title">Click "Upload"</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box modal">
+            <div class="icon">🔄</div>
+            <div class="title">360° View Opens</div>
+            <div class="desc">Documents tab</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ========== PAGE 6: De-registration Flow ========== -->
+    <h2 class="page-title">🚫 6. De-registration Management Flow</h2>
+    
+    <div class="click-flow">
+      <h4 style="margin-bottom: 15px;">📍 Click: De-registration from CRM sub-menu</h4>
+      
+      <div class="click-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-action">🖱️ Click "De-registration" in sub-menu</div>
+          <div class="step-result">→ Opens De-registration page with status buckets</div>
+        </div>
+      </div>
+      
+      <div class="click-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-action">🖱️ Click any status bucket card</div>
+          <div class="step-result">→ Filters table by: Pending | Under Review | Approved | Rejected | Completed</div>
+        </div>
+      </div>
+      
+      <div class="click-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-action">🖱️ Click "Review" button on row</div>
+          <div class="step-result">→ Opens detail modal with checklist and history tabs</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="flowchart">
+      <div class="box modal">
+        <div class="icon">📋</div>
+        <div class="title">Review Modal</div>
+      </div>
+      
+      <div class="arrow"></div>
+      <div class="arrow-label">Choose Action</div>
+      
+      <div class="branch">
+        <div class="branch-item">
+          <div class="box action" style="background: linear-gradient(135deg, #22c55e, #16a34a);">
+            <div class="icon">✅</div>
+            <div class="title">Approve</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box data">
+            <div class="title">Save to History</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box process">
+            <div class="title">Status → Approved</div>
+          </div>
+        </div>
+        
+        <div class="branch-item">
+          <div class="box action" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+            <div class="icon">❌</div>
+            <div class="title">Reject</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box modal">
+            <div class="title">Enter Reason</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box process">
+            <div class="title">Status → Rejected</div>
+          </div>
+        </div>
+        
+        <div class="branch-item">
+          <div class="box action" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">
+            <div class="icon">🔄</div>
+            <div class="title">Reactivate</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box modal">
+            <div class="title">Renewal Form</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box process">
+            <div class="title">Status → Active</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ========== PAGE 7: Renewal Flow ========== -->
+    <h2 class="page-title">🔄 7. Renewal Management Flow</h2>
+    
+    <div class="flowchart">
+      <div class="box action">
+        <div class="icon">🖱️</div>
+        <div class="title">Click "Renewal Management"</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="box page">
+        <div class="icon">📋</div>
+        <div class="title">Renewal Page</div>
+        <div class="desc">Shows all HCFs with renewal info</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="grid-flow" style="width: 100%;">
+        <div class="box action" style="max-width: none;">
+          <div class="icon">📊</div>
+          <div class="title">All HCFs Card</div>
+          <div class="desc">Click → Show all</div>
+        </div>
+        <div class="box action" style="max-width: none; background: linear-gradient(135deg, #f59e0b, #d97706);">
+          <div class="icon">⏰</div>
+          <div class="title">Due for Renewal</div>
+          <div class="desc">Click → Filter expiring</div>
+        </div>
+        <div class="box action" style="max-width: none; background: linear-gradient(135deg, #22c55e, #16a34a);">
+          <div class="icon">✅</div>
+          <div class="title">Renewed</div>
+          <div class="desc">Click → Show renewed</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="click-flow">
+      <h4 style="margin-bottom: 15px;">🔄 Renewal Process</h4>
+      
+      <div class="click-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-action">🖱️ Click "Renew" button on HCF row</div>
+          <div class="step-result">→ Opens renewal form modal</div>
+        </div>
+      </div>
+      
+      <div class="click-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-action">📝 Fill renewal details</div>
+          <div class="step-result">→ New contract dates, fees, billing cycle</div>
+        </div>
+      </div>
+      
+      <div class="click-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-action">🖱️ Click "Submit Renewal"</div>
+          <div class="step-result">→ Saves renewal, updates HCF status, records history</div>
+        </div>
+      </div>
+      
+      <div class="click-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="step-action">📜 Click History icon</div>
+          <div class="step-result">→ View all past renewals for this HCF</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ========== PAGE 8: Master Data Flow ========== -->
+    <h2 class="page-title">📋 8. Master Data Module Flow</h2>
+    
+    <div class="sidebar-visual">
+      <div class="sidebar-menu" style="width: 180px;">
+        <div style="color: white; font-weight: 700; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.2);">Master Data</div>
+        <div class="menu-item"><span class="icon">🗺️</span> Zones</div>
+        <div class="menu-item"><span class="icon">🛣️</span> Routes</div>
+        <div class="menu-item"><span class="icon">🏷️</span> Categories</div>
+        <div class="menu-item"><span class="icon">📦</span> Service Plans</div>
+        <div class="menu-item"><span class="icon">🧰</span> Kits</div>
+        <div class="menu-item"><span class="icon">🧪</span> Raw Materials</div>
+      </div>
+      <div class="content-preview">
+        <div style="font-weight: 700; margin-bottom: 10px;">Each Master follows same pattern:</div>
+        <div class="flowchart" style="align-items: flex-start;">
+          <div class="box action" style="padding: 10px;">
+            <div class="title">Click Master Name</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="box page" style="padding: 10px;">
+            <div class="title">View List Table</div>
+          </div>
+          <div class="arrow"></div>
+          <div class="branch" style="gap: 20px;">
+            <div class="box action" style="padding: 8px; min-width: 80px;">
+              <div class="title">+ Add</div>
+            </div>
+            <div class="box action" style="padding: 8px; min-width: 80px;">
+              <div class="title">✏️ Edit</div>
+            </div>
+            <div class="box action" style="padding: 8px; min-width: 80px; background: linear-gradient(135deg, #ef4444, #dc2626);">
+              <div class="title">🗑️ Delete</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ========== PAGE 9: Customer Module ========== -->
+    <h2 class="page-title">👥 9. Customer Module Flow</h2>
+    
+    <div class="flowchart">
+      <div class="box action">
+        <div class="icon">🖱️</div>
+        <div class="title">Click "Customer"</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="box page">
+        <div class="icon">👥</div>
+        <div class="title">Customer Module</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="grid-flow" style="width: 100%;">
+        <div class="box page" style="max-width: none;">
+          <div class="icon">📋</div>
+          <div class="title">Registrations</div>
+          <div class="desc">All customer registrations</div>
+        </div>
+        <div class="box page" style="max-width: none;">
+          <div class="icon">⏳</div>
+          <div class="title">Pending Approvals</div>
+          <div class="desc">Awaiting review</div>
+        </div>
+        <div class="box page" style="max-width: none;">
+          <div class="icon">✅</div>
+          <div class="title">Approved</div>
+          <div class="desc">Active customers</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="click-flow">
+      <h4>Registration Actions</h4>
+      <table>
+        <tr>
+          <th>Action</th>
+          <th>Click</th>
+          <th>Result</th>
+        </tr>
+        <tr>
+          <td>View Details</td>
+          <td>👁️ Eye icon</td>
+          <td>Opens full profile modal</td>
+        </tr>
+        <tr>
+          <td>Approve</td>
+          <td>✅ Approve button</td>
+          <td>Status changes to Active</td>
+        </tr>
+        <tr>
+          <td>Reject</td>
+          <td>❌ Reject button</td>
+          <td>Opens rejection reason modal</td>
+        </tr>
+        <tr>
+          <td>Edit</td>
+          <td>✏️ Edit icon</td>
+          <td>Opens edit form</td>
+        </tr>
+      </table>
+    </div>
+    
+    <!-- ========== PAGE 10: Customer Portal ========== -->
+    <h2 class="page-title">🌐 10. Customer Portal Flow</h2>
+    
+    <div class="flowchart">
+      <div class="box start">
+        <div class="icon">🌐</div>
+        <div class="title">Visit /portal</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="box page">
+        <div class="icon">📱</div>
+        <div class="title">Portal Login</div>
+        <div class="desc">Enter mobile number</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="box process">
+        <div class="icon">📲</div>
+        <div class="title">Receive OTP</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="box process">
+        <div class="icon">🔢</div>
+        <div class="title">Enter OTP</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="box decision">
+        <div class="title">Valid?</div>
+      </div>
+      
+      <div class="arrow"></div>
+      
+      <div class="box page">
+        <div class="icon">🏠</div>
+        <div class="title">Customer Dashboard</div>
+      </div>
+    </div>
+    
+    <div class="module-card">
+      <h4><span class="icon">🏠</span> Customer Portal Features</h4>
+      <div class="grid-flow">
+        <div class="sub-flow">
+          <div class="sub-flow-title">👤 My Profile</div>
+          <div class="desc">View/Edit facility info</div>
+        </div>
+        <div class="sub-flow">
+          <div class="sub-flow-title">📄 Documents</div>
+          <div class="desc">Upload required docs</div>
+        </div>
+        <div class="sub-flow">
+          <div class="sub-flow-title">💳 Payments</div>
+          <div class="desc">View invoices & pay</div>
+        </div>
+        <div class="sub-flow">
+          <div class="sub-flow-title">📜 Certificates</div>
+          <div class="desc">Download certificates</div>
+        </div>
+        <div class="sub-flow">
+          <div class="sub-flow-title">🎫 Support</div>
+          <div class="desc">Raise tickets</div>
+        </div>
+        <div class="sub-flow">
+          <div class="sub-flow-title">🔄 Renewal</div>
+          <div class="desc">Request renewal</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ========== PAGE 11: Complete Overview ========== -->
+    <h2 class="page-title">🗺️ 11. Complete Application Map</h2>
+    
+    <div style="background: #f8fafc; padding: 25px; border-radius: 16px; border: 2px solid #e2e8f0;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <div class="box start" style="display: inline-block;">
+          <div class="icon">🏠</div>
+          <div class="title">MPCC Application</div>
+        </div>
+      </div>
+      
+      <div class="grid-flow" style="grid-template-columns: repeat(4, 1fr);">
+        <!-- Admin Side -->
+        <div style="grid-column: span 3;">
+          <div style="background: #ede9fe; padding: 20px; border-radius: 12px; border: 2px solid #c4b5fd;">
+            <h4 style="color: #5b21b6; margin-bottom: 15px;">👤 Admin Panel</h4>
+            <div class="grid-flow" style="grid-template-columns: repeat(3, 1fr); gap: 10px;">
+              <div class="box page" style="padding: 10px;">
+                <div class="title">📊 Dashboard</div>
+              </div>
+              <div class="box page" style="padding: 10px;">
+                <div class="title">🏥 CRM/HCF</div>
+                <div class="desc" style="font-size: 9px;">Master | DeReg | Renewal</div>
+              </div>
+              <div class="box page" style="padding: 10px;">
+                <div class="title">👥 Customer</div>
+              </div>
+              <div class="box page" style="padding: 10px;">
+                <div class="title">📋 Master Data</div>
+                <div class="desc" style="font-size: 9px;">Zones | Routes | Plans</div>
+              </div>
+              <div class="box page" style="padding: 10px;">
+                <div class="title">👤 Users</div>
+              </div>
+              <div class="box page" style="padding: 10px;">
+                <div class="title">🔐 Roles</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Portal Side -->
+        <div>
+          <div style="background: #dbeafe; padding: 20px; border-radius: 12px; border: 2px solid #93c5fd; height: 100%;">
+            <h4 style="color: #1d4ed8; margin-bottom: 15px;">🌐 Portal</h4>
+            <div class="box page" style="padding: 8px; margin: 5px 0;">
+              <div class="title" style="font-size: 11px;">Profile</div>
+            </div>
+            <div class="box page" style="padding: 8px; margin: 5px 0;">
+              <div class="title" style="font-size: 11px;">Documents</div>
+            </div>
+            <div class="box page" style="padding: 8px; margin: 5px 0;">
+              <div class="title" style="font-size: 11px;">Payments</div>
+            </div>
+            <div class="box page" style="padding: 8px; margin: 5px 0;">
+              <div class="title" style="font-size: 11px;">Support</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Database -->
+      <div style="text-align: center; margin-top: 20px;">
+        <div class="arrow"></div>
+        <div class="box data" style="display: inline-block;">
+          <div class="icon">🗄️</div>
+          <div class="title">MSSQL Database</div>
+          <div class="desc">All data stored centrally</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <div style="margin-top: 50px; padding: 20px; text-align: center; border-top: 2px solid #e2e8f0; color: #64748b; font-size: 12px;">
+      <p>© 2026 MPCC Application - Workflow Diagram Guide</p>
+      <p style="margin-top: 5px;">To save as PDF: Press Ctrl+P → Select "Save as PDF" → Save</p>
+    </div>
+    
+  </div>
+</body>
+</html>

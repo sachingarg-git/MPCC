@@ -1749,7 +1749,7 @@ const CustomerModule = () => {
   };
 
   return (
-    <div style={{ display: 'flex', gap: '0', minHeight: 'calc(100vh - 100px)', position: 'relative' }}>
+    <div style={{ display: 'flex', gap: '0', minHeight: '100vh', position: 'relative' }}>
       {/* Submenu Sidebar */}
       <div className={`submenu-sidebar${sidebarCollapsed ? ' collapsed' : ''}`} style={{
         width: sidebarCollapsed ? 60 : 240,
@@ -1757,7 +1757,7 @@ const CustomerModule = () => {
         transition: 'all 0.3s ease',
       }}>
         <div className="submenu-header" style={{ 
-          display: 'flex', 
+          display: 'flex',
           alignItems: 'center', 
           justifyContent: sidebarCollapsed ? 'center' : 'space-between',
           padding: sidebarCollapsed ? '16px 8px' : '16px 18px',
@@ -1841,14 +1841,6 @@ const CustomerModule = () => {
             {activeSubModule !== 'customer-reg' && activeSubModule !== 'certificate' && activeSubModule !== 'servicereq' && activeSubModule !== 'mou' && activeSubModule !== 'failed-reg' && (
               <button className="btn btn-primary">+ New {content.title.split(' ')[0]}</button>
             )}
-          </div>
-        </div>
-
-        {/* Info Box */}
-        <div className="info-box">
-          <span className="info-icon">🔑</span>
-          <div className="info-text">
-            <strong>{content.title}:</strong> {content.infoText}
           </div>
         </div>
 

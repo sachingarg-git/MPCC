@@ -1645,7 +1645,7 @@ export default function AdminPanel({ user, onLogout }) {
       </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, padding: '24px', overflowY: 'auto', minWidth: 0 }}>
+      <div style={{ flex: 1, padding: ['masterdata', 'customer', 'crmhcf'].includes(activeMainNav) ? '0' : '24px', overflowY: 'auto', minWidth: 0 }}>
         {/* User Management Section */}
         {activeMainNav === 'usermgmt' ? (
           <UserManagement />
